@@ -1,57 +1,72 @@
 {
   "manifest": "E:\\my-project\\cat2048\\assets\\art-generation\\manifest.json",
-  "generated_at": "2026-07-27T09:52:27.477635+00:00",
+  "generated_at": "2026-07-27T10:04:50.339193+00:00",
   "assets": [
     {
-      "id": "bg_board_wood",
-      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\bg_board_wood.png",
+      "id": "share_score_bg",
+      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\share_score_bg.png",
       "status": "generated",
       "warnings": [],
-      "response_record": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\responses\\bg_board_wood.json",
+      "response_record": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\responses\\share_score_bg.json",
       "source_dimensions": [
-        1024,
+        1536,
         1024
       ],
       "output_dimensions": [
-        1024,
-        1024
+        1000,
+        800
       ],
       "meaningful_alpha": false,
       "transparent_pixel_ratio": 0.0,
       "checkerboard_removed": false,
       "flat_background_removed": false,
-      "sha256": "3a7579f7e89e3dbd61991d7e2462039d1e1545e21135b5f1b6220adb55bbd958",
-      "bytes": 1558798,
-      "source": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\_source\\bg_board_wood.png"
+      "sha256": "9fdaaf3ee4b5834c49253173e0e94f503ae2a5dec4bd2604aaac2666b90e4121",
+      "bytes": 1117997,
+      "source": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\_source\\share_score_bg.png"
     },
     {
-      "id": "bg_board_pink",
-      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\bg_board_pink.png",
-      "status": "failed",
-      "warnings": [],
-      "error": "[WinError 10053] 你的主机中的软件中止了一个已建立的连接。"
-    },
-    {
-      "id": "bg_board_star",
-      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\bg_board_star.png",
+      "id": "share_collection_bg",
+      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\share_collection_bg.png",
       "status": "generated",
       "warnings": [],
-      "response_record": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\responses\\bg_board_star.json",
+      "response_record": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\responses\\share_collection_bg.json",
       "source_dimensions": [
-        1024,
+        1536,
         1024
       ],
       "output_dimensions": [
-        1024,
-        1024
+        1000,
+        800
       ],
       "meaningful_alpha": false,
       "transparent_pixel_ratio": 0.0,
       "checkerboard_removed": false,
       "flat_background_removed": false,
-      "sha256": "42ce30e59aa4d1d8322e8509f4e902f68bed322fa7bd6db9d1bd51e9e63a55c6",
-      "bytes": 1485081,
-      "source": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\_source\\bg_board_star.png"
+      "sha256": "f58f00b88182da956c0a4cc1b46e4dd69736b909b99794373d2d515e2b54ff59",
+      "bytes": 1199420,
+      "source": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\_source\\share_collection_bg.png"
+    },
+    {
+      "id": "share_challenge_bg",
+      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\share_challenge_bg.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\responses\\share_challenge_bg.json",
+      "source_dimensions": [
+        1248,
+        832
+      ],
+      "output_dimensions": [
+        1000,
+        800
+      ],
+      "meaningful_alpha": false,
+      "transparent_pixel_ratio": 0.0,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "64c4cccd295feed195ac8b30127f54af2c926579abbd977aceadfe7b0ebe4176",
+      "bytes": 1088932,
+      "source": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\_source\\share_challenge_bg.png"
     }
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "created": 1785146582,
+  "data": [
+    {
+      "b64_json": "[redacted_base64]",
+      "revised_prompt": "Use case: stylized-concept\nAsset type: production-ready mobile game art for a portrait Cocos Creator cat-themed 2048 game\nPrimary request: create a coherent original visual system that feels playful, artistic, collectible, and immediately readable on a phone screen\nStyle/medium: premium 2D cartoon game illustration, bold graphic shapes, expressive hand-painted color blocking, subtle paper-grain texture, polished editorial character design, slightly asymmetrical handmade charm\nArt direction: rounded silhouettes, large simple shapes, confident contour lines, restrained highlights, soft upper-left lighting, gentle lower-right grounding shadow when appropriate\nColor palette: warm ivory interface neutrals with coral, teal, mustard, leaf green, raspberry, sky blue, and violet accents; avoid a one-note palette\nMobile readability: every icon and character must remain recognizable at 64-80 px; simplify tiny details and preserve strong silhouettes\nConsistency: use the same line weight, eye design, proportions, lighting direction, and painterly texture across every asset\nConstraints: original artwork only; no text, numbers, letters, logos, trademarks, watermark, QR code, mockup frame, UI screenshot, photorealism, anime rendering, plastic 3D render, excessive gloss, thin sketch lines, clutter, or busy micro-details\n\nPortrait reusable inner-page background for collection, tasks, ranking and shop screens. Warm ivory handmade-paper base with an understated asymmetrical border of coral yarn curves, teal fish shapes, mustard stars and green leaves. The central 80 percent must stay quiet and low contrast for dense UI. Premium illustrated mobile game feel, subtle depth, no text, panels, buttons, cats, logos, or watermark.",
+      "width": 1024,
+      "height": 1536,
+      "size": 2064862,
+      "fmt": "png"
+    }
+  ]
+}
