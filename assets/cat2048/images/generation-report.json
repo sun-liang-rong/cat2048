@@ -1,0 +1,13 @@
+{
+  "manifest": "E:\\my-project\\cat2048\\assets\\cat2048\\cat-sample-manifest.json",
+  "generated_at": "2026-07-27T07:51:49.206876+00:00",
+  "assets": [
+    {
+      "id": "cat_01",
+      "output": "E:\\my-project\\cat2048\\assets\\cat2048\\images\\cat_01.png",
+      "status": "failed",
+      "warnings": [],
+      "error": "No image data was found in the endpoint response."
+    }
+  ]
+}

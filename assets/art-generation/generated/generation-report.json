@@ -1,0 +1,13 @@
+{
+  "manifest": "E:\\my-project\\cat2048\\assets\\art-generation\\MANIFEST.JSON",
+  "generated_at": "2026-07-27T07:36:41.862231+00:00",
+  "assets": [
+    {
+      "id": "cat_01_sample",
+      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\generated\\cat_01_sample.png",
+      "status": "failed",
+      "warnings": [],
+      "error": "No image data was found in the endpoint response."
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "生成厨房游戏美术"
+  short_description: "用项目环境变量批量生成统一风格的厨房小游戏图片资源"
+  default_prompt: "Use $generate-kitchen-game-art to generate the required kitchen game image assets for the current milestone."

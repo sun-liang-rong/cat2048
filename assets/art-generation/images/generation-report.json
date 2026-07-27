@@ -1,0 +1,57 @@
+{
+  "manifest": "E:\\my-project\\cat2048\\assets\\art-generation\\manifest.json",
+  "generated_at": "2026-07-27T09:52:27.477635+00:00",
+  "assets": [
+    {
+      "id": "bg_board_wood",
+      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\bg_board_wood.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\responses\\bg_board_wood.json",
+      "source_dimensions": [
+        1024,
+        1024
+      ],
+      "output_dimensions": [
+        1024,
+        1024
+      ],
+      "meaningful_alpha": false,
+      "transparent_pixel_ratio": 0.0,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "3a7579f7e89e3dbd61991d7e2462039d1e1545e21135b5f1b6220adb55bbd958",
+      "bytes": 1558798,
+      "source": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\_source\\bg_board_wood.png"
+    },
+    {
+      "id": "bg_board_pink",
+      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\bg_board_pink.png",
+      "status": "failed",
+      "warnings": [],
+      "error": "[WinError 10053] 你的主机中的软件中止了一个已建立的连接。"
+    },
+    {
+      "id": "bg_board_star",
+      "output": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\bg_board_star.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\responses\\bg_board_star.json",
+      "source_dimensions": [
+        1024,
+        1024
+      ],
+      "output_dimensions": [
+        1024,
+        1024
+      ],
+      "meaningful_alpha": false,
+      "transparent_pixel_ratio": 0.0,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "42ce30e59aa4d1d8322e8509f4e902f68bed322fa7bd6db9d1bd51e9e63a55c6",
+      "bytes": 1485081,
+      "source": "E:\\my-project\\cat2048\\assets\\art-generation\\images\\_source\\bg_board_star.png"
+    }
+  ]
+}
