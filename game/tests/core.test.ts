@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest';
+import { Board } from '../assets/scripts/core/Board';
+import { Game2048 } from '../assets/scripts/core/Game2048';
+import type { Position, RandomSource, Tile, TileFactory } from '../assets/scripts/core/types';
+
+class FixedRandom implements RandomSource {
+  public calls = 0;
+  public constructor(private readonly values: number[]) {}
+  public next(): number {
+    const value = this.values[this.calls++];
+    if (value === undefined) throw new Error('Fixed random sequence exhausted.');
+    return value;
+  }
+}
+
+class Factory implements TileFactory {
+  private nextId = 1;
+  public create(level: number, at: Position): Tile { return { id: `f-${this.nextId++}`, level, ...at }; }
+}
+
+const levels = (board: Board) => {
+  const output = Array.from({ length: 4 }, () => Array<number>(4).fill(0));
+  board.snapshot().tiles.forEach((tile) => { output[tile.row][tile.col] = tile.level; });
+  return output;
+};
+
+describe('Board movement', () => {
+  it.each([
+    ['left', [[1, 1, 0, 0]], [2, 0, 0, 0]],
+    ['right', [[1, 1, 0, 0]], [0, 0, 0, 2]],
+  ] as const)('compresses and merges %s', (direction, row, expected) => {
+    const factory = new Factory();
+    const board = Board.fromLevels([...row, [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory);
+    const result = board.move(direction, factory);
+    expect(levels(new Board(result.board))[0]).toEqual(expected);
+    expect(result.scoreDelta).toBe(4);
+  });
+
+  it('handles three and four tile chains without double-merging', () => {
+    const factory = new Factory();
+    const three = Board.fromLevels([[1, 1, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory).move('left', factory);
+    expect(levels(new Board(three.board))[0]).toEqual([2, 1, 0, 0]);
+    const four = Board.fromLevels([[1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory).move('left', factory);
+    expect(levels(new Board(four.board))[0]).toEqual([2, 2, 0, 0]);
+  });
+
+  it('moves vertically and supports independent merges', () => {
+    const factory = new Factory();
+    const board = Board.fromLevels([[1, 0, 2, 0], [1, 0, 2, 0], [2, 0, 3, 0], [2, 0, 3, 0]], factory);
+    const result = board.move('down', factory);
+    expect(levels(new Board(result.board))).toEqual([[0, 0, 0, 0], [0, 0, 0, 0], [2, 0, 3, 0], [3, 0, 4, 0]]);
+    expect(result.scoreDelta).toBe(4 + 8 + 8 + 16);
+  });
+
+  it('never merges terminal level 9 tiles', () => {
+    const factory = new Factory();
+    const board = Board.fromLevels([[9, 9, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory);
+    const result = board.move('left', factory);
+    expect(levels(new Board(result.board))[0]).toEqual([9, 9, 0, 0]);
+    expect(result.merges).toHaveLength(0);
+  });
+
+  it('does not mutate its input snapshot', () => {
+    const factory = new Factory();
+    const original = { size: 4, tiles: [{ id: 'a', level: 1, row: 0, col: 3 }] } as const;
+    const before = JSON.stringify(original);
+    new Board(original).move('left', factory);
+    expect(JSON.stringify(original)).toBe(before);
+  });
+});
+
+describe('Game2048', () => {
+  it('spawns two deterministic cats and one after an effective move', () => {
+    const random = new FixedRandom([0.1, 0, 0.95, 0, 0.2, 0]);
+    const game = new Game2048(random);
+    const start = game.start();
+    expect(start.tiles.map((tile) => tile.level)).toEqual([1, 2]);
+    const result = game.move('right');
+    expect(result.changed).toBe(true);
+    expect(result.spawned?.tile.level).toBe(1);
+    expect(random.calls).toBe(6);
+  });
+
+  it('does not consume randomness for an ineffective move', () => {
+    const random = new FixedRandom([]);
+    const game = new Game2048(random);
+    game.loadFixture([[1, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
+    const calls = random.calls;
+    const result = game.move('left');
+    expect(result.changed).toBe(false);
+    expect(random.calls).toBe(calls);
+  });
+
+  it('detects terminal and playable full boards', () => {
+    const game = new Game2048(new FixedRandom([]));
+    game.loadFixture([
+      [1, 2, 1, 2], [2, 1, 2, 1], [1, 2, 1, 2], [2, 1, 2, 1],
+    ]);
+    expect(game.status).toBe('game-over');
+    game.loadFixture([
+      [1, 1, 2, 1], [2, 1, 2, 1], [1, 2, 1, 2], [2, 1, 2, 1],
+    ]);
+    expect(game.status).toBe('running');
+  });
+});
