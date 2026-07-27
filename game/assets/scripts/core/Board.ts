@@ -44,11 +44,11 @@ export class Board {
   }
 
   public snapshot(): BoardSnapshot {
+    const tiles = Array.from(this.byCell.values(), copyTile);
+    tiles.sort((a, b) => a.row - b.row || a.col - b.col);
     return {
       size: BOARD_SIZE,
-      tiles: [...this.byCell.values()]
-        .map(copyTile)
-        .sort((a, b) => a.row - b.row || a.col - b.col),
+      tiles,
     };
   }
 
@@ -77,7 +77,9 @@ export class Board {
     Board.validateRandom(roll);
     const position = empty[Math.min(empty.length - 1, Math.floor(roll * empty.length))];
     const tile = factory.create(level, position);
-    return { board: new Board({ size: BOARD_SIZE, tiles: [...this.byCell.values(), tile] }), tile: copyTile(tile) };
+    const tiles = Array.from(this.byCell.values());
+    tiles.push(tile);
+    return { board: new Board({ size: BOARD_SIZE, tiles }), tile: copyTile(tile) };
   }
 
   public move(direction: Direction, factory: TileFactory): BoardMoveResult {

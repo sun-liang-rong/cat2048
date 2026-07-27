@@ -25,6 +25,14 @@ const levels = (board: Board) => {
 };
 
 describe('Board movement', () => {
+  it('keeps existing tiles when spawning from a Map-backed board', () => {
+    const factory = new Factory();
+    const board = Board.fromLevels([[1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory);
+    const spawned = board.spawn(1, new FixedRandom([0]), factory);
+
+    expect(spawned?.board.snapshot().tiles.map((tile) => tile.id)).toEqual(['f-1', 'f-2']);
+  });
+
   it.each([
     ['left', [[1, 1, 0, 0]], [2, 0, 0, 0]],
     ['right', [[1, 1, 0, 0]], [0, 0, 0, 2]],
