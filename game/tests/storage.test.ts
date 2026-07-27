@@ -7,6 +7,23 @@ class MemoryStorage {
   public setItem(key: string, value: string): void { this.values.set(key, value); }
 }
 
+class ThrowingStorage {
+  public constructor(private readonly failOn: 'get' | 'set') {}
+  public getItem(): string | null {
+    if (this.failOn === 'get') throw new Error('read failed');
+    return null;
+  }
+  public setItem(): void {
+    if (this.failOn === 'set') throw new Error('write failed');
+  }
+}
+
+function withoutWarnings<T>(callback: () => T): T {
+  const originalWarn = console.warn;
+  console.warn = () => undefined;
+  try { return callback(); } finally { console.warn = originalWarn; }
+}
+
 describe('LocalGameStorage', () => {
   it('loads valid V1 data', () => {
     const memory = new MemoryStorage();
@@ -18,13 +35,17 @@ describe('LocalGameStorage', () => {
     ('repairs missing or malformed data: %s', (raw) => {
       const memory = new MemoryStorage();
       if (raw !== null) memory.setItem(SAVE_KEY, raw);
-      const originalWarn = console.warn;
-      console.warn = () => undefined;
-      try {
-        expect(new LocalGameStorage(memory).load()).toEqual(DEFAULT_SAVE);
-      } finally {
-        console.warn = originalWarn;
-      }
+      withoutWarnings(() => expect(new LocalGameStorage(memory).load()).toEqual(DEFAULT_SAVE));
       expect(JSON.parse(memory.getItem(SAVE_KEY)!)).toEqual(DEFAULT_SAVE);
     });
+
+  it('keeps gameplay usable when the storage backend throws', () => {
+    expect(withoutWarnings(() => new LocalGameStorage(new ThrowingStorage('get')).load())).toEqual(DEFAULT_SAVE);
+    expect(() => withoutWarnings(() => new LocalGameStorage(new ThrowingStorage('set')).save(DEFAULT_SAVE))).not.toThrow();
+  });
+
+  it('refuses malformed values passed at runtime', () => {
+    const storage = new LocalGameStorage(new MemoryStorage());
+    expect(() => storage.save({ ...DEFAULT_SAVE, highScore: Number.NaN })).toThrow('malformed save data');
+  });
 });

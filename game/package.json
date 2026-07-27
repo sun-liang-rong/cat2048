@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "猫咪2048 Cocos Creator 3.8.8 垂直切片",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "prepare:assets": "python3 ../tools/prepare_runtime_assets.py",
     "test": "vitest run",

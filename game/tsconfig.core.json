@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2015",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
@@ -10,6 +10,7 @@
   },
   "include": [
     "assets/scripts/core/**/*.ts",
+    "assets/scripts/presentation/layout.ts",
     "assets/scripts/infrastructure/storage.ts",
     "tests/**/*.ts"
   ]

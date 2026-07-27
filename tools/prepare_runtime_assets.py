@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import math
-import shutil
 import struct
 import wave
 from pathlib import Path
@@ -14,8 +13,23 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "art-generation" / "images"
+RAW_SOURCE = SOURCE / "_source"
 OUTPUT = ROOT / "game" / "assets" / "resources" / "game"
 ALPHA_THRESHOLD = 8
+EXPECTED_IMAGE_SIZES = {
+    **{f"cat_{level:02}.png": (256, 256) for level in range(1, 10)},
+    "bg_home.png": (750, 1334),
+    "bg_page.png": (750, 1334),
+    "bg_board_wood.png": (1024, 1024),
+    **{name: (256, 256) for name in [
+        "tile_empty.png", "tile_selected.png", "sparkle_small.png",
+        "merge_sparkle.png", "merge_burst.png", "max_halo.png",
+    ]},
+    **{name: (160, 160) for name in [
+        "close.png", "back.png", "home.png", "check.png", "share.png",
+        "sound_on.png", "sound_off.png", "settings.png", "info.png",
+    ]},
+}
 
 
 def trim_and_square(image: Image.Image, size: int, margin: float = 0.05) -> Image.Image:
@@ -34,23 +48,36 @@ def trim_and_square(image: Image.Image, size: int, margin: float = 0.05) -> Imag
 def slice_grid(source_name: str, cols: int, rows: int, names: list[str], target: str, size: int) -> None:
     if len(names) != cols * rows:
         raise ValueError(f"{source_name}: expected {cols * rows} output names")
-    image = Image.open(SOURCE / source_name).convert("RGBA")
-    cell_w = image.width / cols
-    cell_h = image.height / rows
-    out_dir = OUTPUT / target
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for index, name in enumerate(names):
-        row, col = divmod(index, cols)
-        left, top = round(col * cell_w), round(row * cell_h)
-        right, bottom = round((col + 1) * cell_w), round((row + 1) * cell_h)
-        result = trim_and_square(image.crop((left, top, right, bottom)), size)
-        result.save(out_dir / f"{name}.png", optimize=True)
+    with Image.open(SOURCE / source_name) as opened:
+        image = opened.convert("RGBA")
+        cell_w = image.width / cols
+        cell_h = image.height / rows
+        out_dir = OUTPUT / target
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for index, name in enumerate(names):
+            row, col = divmod(index, cols)
+            left, top = round(col * cell_w), round(row * cell_h)
+            right, bottom = round((col + 1) * cell_w), round((row + 1) * cell_h)
+            result = trim_and_square(image.crop((left, top, right, bottom)), size)
+            result.save(out_dir / f"{name}.png", optimize=True)
 
 
-def copy_background(name: str) -> None:
+def prepare_background(name: str, size: tuple[int, int]) -> None:
+    """Build a runtime background directly from the generated source image."""
+    with Image.open(RAW_SOURCE / f"{name}.png") as opened:
+        image = opened.convert("RGBA")
+        width, height = size
+        scale = max(width / image.width, height / image.height)
+        resized = image.resize(
+            (max(1, round(image.width * scale)), max(1, round(image.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
+        left = max(0, (resized.width - width) // 2)
+        top = max(0, (resized.height - height) // 2)
+        result = resized.crop((left, top, left + width, top + height))
     destination = OUTPUT / "backgrounds" / name
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SOURCE / f"{name}.png", destination.with_suffix(".png"))
+    result.save(destination.with_suffix(".png"), format="PNG", optimize=True)
 
 
 def generate_tone(name: str, frequencies: list[float], duration: float, volume: float = 0.22) -> None:
@@ -103,8 +130,9 @@ def validate() -> dict[str, str]:
             raise FileNotFoundError(path)
         if path.suffix == ".png":
             with Image.open(path) as image:
-                if image.width <= 0 or image.height <= 0:
-                    raise ValueError(f"Invalid image dimensions: {path}")
+                expected_size = EXPECTED_IMAGE_SIZES[path.name]
+                if image.size != expected_size:
+                    raise ValueError(f"Invalid image dimensions for {path}: {image.size}, expected {expected_size}")
                 if path.parent.name in {"cats", "gameplay", "ui"} and image.mode != "RGBA":
                     raise ValueError(f"Transparent runtime sprite is not RGBA: {path}")
         logical = path.stem
@@ -123,8 +151,12 @@ def main() -> int:
                ["close", "back", "home", "locked", "check", "share", "reward_video", "sound_on",
                 "sound_off", "settings", "info", "level_locked", "level_current", "level_complete",
                 "daily", "weekly"], "ui", 160)
-    for background in ["bg_home", "bg_page", "bg_board_wood"]:
-        copy_background(background)
+    for background, size in {
+        "bg_home": (750, 1334),
+        "bg_page": (750, 1334),
+        "bg_board_wood": (1024, 1024),
+    }.items():
+        prepare_background(background, size)
     generate_tone("move", [330, 440], 0.08)
     generate_tone("merge", [523.25, 659.25, 783.99], 0.18)
     generate_tone("game_over", [293.66, 246.94, 196.00], 0.42, 0.18)

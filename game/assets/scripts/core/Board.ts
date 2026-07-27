@@ -98,7 +98,7 @@ export class Board {
       const groups: Group[] = [];
 
       for (const tile of gathered) {
-        const previous = groups.at(-1);
+        const previous = groups[groups.length - 1];
         if (previous && previous.sources.length === 1 && previous.level === tile.level && tile.level < MAX_LEVEL) {
           previous.sources.push(tile);
           previous.level += 1;
@@ -173,7 +173,7 @@ export class Board {
   }
 
   private static validateDirection(direction: string): asserts direction is Direction {
-    if (!['up', 'down', 'left', 'right'].includes(direction)) throw new Error(`Invalid direction: ${direction}`);
+    if (['up', 'down', 'left', 'right'].indexOf(direction) === -1) throw new Error(`Invalid direction: ${direction}`);
   }
 
   private static validateRandom(value: number): void {

@@ -31,6 +31,12 @@ import type { SaveDataV1 } from '../infrastructure/storage';
 import { ArtRepository } from './ArtRepository';
 import { AudioController } from './AudioController';
 import {
+  capsuleBottomInset,
+  gameLayout,
+  homeContentShift,
+  safeInsetsFromRect,
+} from './layout';
+import {
   COLORS,
   createButton,
   createIconButton,
@@ -63,6 +69,8 @@ export class Cat2048Boot extends Component {
   private touchStart: Vec2 | null = null;
   private uiWidth: number = GAME_CONFIG.designWidth;
   private uiHeight: number = GAME_CONFIG.designHeight;
+  private safeTop = 24;
+  private safeBottom = 20;
   private sceneToken = 0;
 
   protected override onLoad(): void {
@@ -97,6 +105,9 @@ export class Cat2048Boot extends Component {
     const visible = view.getVisibleSize();
     this.uiWidth = visible.width;
     this.uiHeight = visible.height;
+    const safe = safeInsetsFromRect(this.uiHeight, sys.getSafeAreaRect(false));
+    this.safeTop = Math.max(safe.top, this.wechatCapsuleInset());
+    this.safeBottom = safe.bottom;
     (this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform)).setContentSize(visible);
   }
 
@@ -108,7 +119,7 @@ export class Cat2048Boot extends Component {
   private readonly applyResize = (): void => {
     const wasGame = this.boardRoot !== null;
     this.setupCanvas();
-    if (wasGame) this.startGame(); else this.showHome();
+    if (wasGame) this.showGame(false); else this.showHome();
   };
 
   private showLoading(): void {
@@ -326,12 +337,17 @@ export class Cat2048Boot extends Component {
   }
 
   private startGame(): void {
+    this.showGame(true);
+  }
+
+  private showGame(startNewGame: boolean): void {
     this.clearScreen();
-    this.game.start();
+    if (startNewGame) this.game.start();
     const root = this.makeScreen('Game');
     this.addBackground(root, GAME_CONFIG.art.pageBackground, new Color(249, 235, 206, 255));
 
-    const hudY = Math.min(this.uiHeight / 2 - this.topSafeInset() - 78, 620);
+    const layout = gameLayout(this.uiWidth, this.uiHeight, this.topSafeInset(), this.bottomSafeInset(), BOARD_PIXELS);
+    const hudY = this.uiHeight / 2 - layout.hudCenterFromTop;
     const back = createIconButton('Back', this.art.frame(GAME_CONFIG.art.back), '‹', 76,
       () => this.confirmLeave());
     back.setPosition(-this.uiWidth / 2 + 62, hudY);
@@ -341,7 +357,7 @@ export class Cat2048Boot extends Component {
     restart.setPosition(this.uiWidth / 2 - 62, hudY);
     root.addChild(restart);
 
-    const scoreCard = this.createHudCard('本局', '0');
+    const scoreCard = this.createHudCard('本局', String(this.game.score));
     scoreCard.node.setPosition(-115, hudY);
     root.addChild(scoreCard.node);
     this.scoreLabel = scoreCard.value;
@@ -351,7 +367,8 @@ export class Cat2048Boot extends Component {
     this.highScoreLabel = bestCard.value;
 
     const board = createUiNode('Board', BOARD_PIXELS, BOARD_PIXELS);
-    board.setPosition(0, Math.min(100, hudY - 470));
+    board.setPosition(0, this.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2);
+    board.setScale(layout.boardScale, layout.boardScale, 1);
     this.boardRoot = board;
     root.addChild(board);
     const boardFrame = this.art.frame(GAME_CONFIG.art.boardBackground);
@@ -368,7 +385,7 @@ export class Cat2048Boot extends Component {
     this.renderInitialBoard(this.game.board);
 
     const instruction = createLabel('合并相同猫咪，向银河极光猫进发！', 24, COLORS.ink, 650, 56);
-    instruction.node.setPosition(0, board.position.y - BOARD_PIXELS / 2 - 55);
+    instruction.node.setPosition(0, this.uiHeight / 2 - layout.instructionCenterFromTop);
     root.addChild(instruction.node);
   }
 
@@ -653,7 +670,10 @@ export class Cat2048Boot extends Component {
   private addBackground(root: Node, path: string, fallback: Color): void {
     const frame = this.art.frame(path);
     if (frame) {
-      const background = createSpriteNode('Background', frame, this.uiWidth, this.uiHeight);
+      const textureWidth = Math.max(1, frame.texture.width);
+      const textureHeight = Math.max(1, frame.texture.height);
+      const coverScale = Math.max(this.uiWidth / textureWidth, this.uiHeight / textureHeight);
+      const background = createSpriteNode('Background', frame, textureWidth * coverScale, textureHeight * coverScale);
       root.addChild(background);
       background.setSiblingIndex(0);
     } else {
@@ -685,6 +705,7 @@ export class Cat2048Boot extends Component {
   }
 
   private clearScreen(): void {
+    Tween.stopAll();
     this.sceneToken += 1;
     this.inputLocked = false;
     this.touchStart = null;
@@ -705,21 +726,31 @@ export class Cat2048Boot extends Component {
   }
 
   private homeTopY(offsetFromTop: number): number {
-    return this.uiHeight / 2 - this.topSafeInset() - offsetFromTop;
+    const shift = homeContentShift(this.uiHeight, this.topSafeInset(), this.bottomSafeInset());
+    return this.uiHeight / 2 - this.topSafeInset() - offsetFromTop - shift;
   }
 
   private topSafeInset(): number {
-    const windowSize = screen.windowSize;
-    const safeArea = sys.getSafeAreaRect(false);
-    const safeTop = safeArea?.y + safeArea?.height;
-    const pixels = Number.isFinite(safeTop) ? Math.max(0, windowSize.height - safeTop) : 0;
-    return Math.max(24, pixels * GAME_CONFIG.designWidth / Math.max(1, windowSize.width));
+    return this.safeTop;
   }
 
   private bottomSafeInset(): number {
-    const windowSize = screen.windowSize;
-    const safeArea = sys.getSafeAreaRect(false);
-    const pixels = Number.isFinite(safeArea?.y) ? Math.max(0, safeArea.y) : 0;
-    return Math.max(20, pixels * GAME_CONFIG.designWidth / Math.max(1, windowSize.width));
+    return this.safeBottom;
+  }
+
+  private wechatCapsuleInset(): number {
+    const runtime = globalThis as unknown as {
+      wx?: {
+        getSystemInfoSync?: () => { windowWidth?: number };
+        getMenuButtonBoundingClientRect?: () => { bottom?: number };
+      };
+    };
+    try {
+      return capsuleBottomInset(this.uiWidth, runtime.wx?.getSystemInfoSync?.(),
+        runtime.wx?.getMenuButtonBoundingClientRect?.());
+    } catch (error) {
+      console.warn('[Cat2048] Unable to read the WeChat menu capsule bounds.', error);
+      return 0;
+    }
   }
 }

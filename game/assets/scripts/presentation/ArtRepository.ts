@@ -8,7 +8,7 @@ export class ArtRepository {
   public async preload(): Promise<void> {
     const framePaths = [
       ...GAME_CONFIG.cats.map((cat) => cat.asset),
-      ...Object.values(GAME_CONFIG.art),
+      ...Object.keys(GAME_CONFIG.art).map((key) => GAME_CONFIG.art[key as keyof typeof GAME_CONFIG.art]),
     ];
     await Promise.all(framePaths.map(async (path) => {
       try { this.frames.set(path, await this.loadFrame(path)); }

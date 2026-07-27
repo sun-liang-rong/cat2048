@@ -44,6 +44,18 @@ describe('Board movement', () => {
     expect(result.scoreDelta).toBe(4);
   });
 
+  it.each([
+    ['up', [[1, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+      [[2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]],
+    ['down', [[1, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+      [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [2, 0, 0, 0]]],
+  ] as const)('compresses and merges %s', (direction, fixture, expected) => {
+    const factory = new Factory();
+    const result = Board.fromLevels(fixture, factory).move(direction, factory);
+    expect(levels(new Board(result.board))).toEqual(expected);
+    expect(result.scoreDelta).toBe(4);
+  });
+
   it('handles three and four tile chains without double-merging', () => {
     const factory = new Factory();
     const three = Board.fromLevels([[1, 1, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory).move('left', factory);
@@ -66,6 +78,23 @@ describe('Board movement', () => {
     const result = board.move('left', factory);
     expect(levels(new Board(result.board))[0]).toEqual([9, 9, 0, 0]);
     expect(result.merges).toHaveLength(0);
+  });
+
+  it('validates snapshots, spawn levels, directions, and random values', () => {
+    const factory = new Factory();
+    expect(() => new Board({ size: 3, tiles: [] })).toThrow('Malformed board snapshot');
+    expect(() => new Board({ size: 4, tiles: [
+      { id: 'same', level: 1, row: 0, col: 0 },
+      { id: 'same', level: 1, row: 0, col: 1 },
+    ] })).toThrow('Tile IDs must be unique');
+    expect(() => new Board({ size: 4, tiles: [
+      { id: 'a', level: 1, row: 0, col: 0 },
+      { id: 'b', level: 1, row: 0, col: 0 },
+    ] })).toThrow('Multiple tiles occupy');
+    const board = new Board();
+    expect(() => board.spawn(0, new FixedRandom([0]), factory)).toThrow('Invalid spawn level');
+    expect(() => board.spawn(1, new FixedRandom([1]), factory)).toThrow('expected [0, 1)');
+    expect(() => board.move('diagonal' as never, factory)).toThrow('Invalid direction');
   });
 
   it('does not mutate its input snapshot', () => {
@@ -109,5 +138,18 @@ describe('Game2048', () => {
       [1, 1, 2, 1], [2, 1, 2, 1], [1, 2, 1, 2], [2, 1, 2, 1],
     ]);
     expect(game.status).toBe('running');
+  });
+
+  it('resets score and identifiers when starting a new game', () => {
+    const game = new Game2048(new FixedRandom([0, 0, 0, 0, 0, 0, 0, 0]));
+    game.loadFixture([[1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 99);
+    game.start();
+    expect(game.score).toBe(0);
+    expect(game.board.tiles.map((tile) => tile.id)).toEqual(['tile-1', 'tile-2']);
+  });
+
+  it.each([[-0.1], [1], [Number.NaN]])('rejects an invalid level random value: %s', (value) => {
+    const game = new Game2048(new FixedRandom([value]));
+    expect(() => game.start()).toThrow('expected [0, 1)');
   });
 });
