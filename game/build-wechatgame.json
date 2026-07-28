@@ -1,0 +1,24 @@
+{
+  "platform": "wechatgame",
+  "buildPath": "project://build",
+  "outputName": "wechatgame",
+  "mainBundleCompressionType": "subpackage",
+  "mainBundleIsRemote": false,
+  "startSceneAssetBundle": true,
+  "startScene": "104fa7bd-69cf-44b8-8ed1-bfc9af55e101",
+  "scenes": [
+    {
+      "url": "db://assets/main.scene",
+      "uuid": "104fa7bd-69cf-44b8-8ed1-bfc9af55e101"
+    }
+  ],
+  "bundleConfigs": [
+    {
+      "name": "resources",
+      "root": "db://assets/resources",
+      "compressionType": "subpackage",
+      "isRemote": false,
+      "output": true
+    }
+  ]
+}
