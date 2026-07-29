@@ -27,6 +27,7 @@ import {
 import { Game2048 } from '../core/Game2048';
 import type { BoardSnapshot, Direction, MergeRecord, MoveResult, Position, Tile } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
+import { HapticController } from '../infrastructure/HapticController';
 import { RuntimeRandomSource, runtimeStorage } from '../infrastructure/runtime';
 import type { SaveDataV1 } from '../infrastructure/storage';
 import { ArtRepository } from './ArtRepository';
@@ -61,6 +62,7 @@ const TOP_EDGE_ICON_CROP = { x: 4, y: 16, width: 144, height: 144 } as const;
 export class Cat2048Boot extends Component {
   private readonly art = new ArtRepository();
   private readonly game = new Game2048(new RuntimeRandomSource());
+  private readonly haptics = new HapticController();
   private audio!: AudioController;
   private save: SaveDataV1 = { schemaVersion: 1, highScore: 0, soundEnabled: true };
   private screenRoot: Node | null = null;
@@ -672,6 +674,7 @@ export class Cat2048Boot extends Component {
     const token = this.sceneToken;
     this.inputLocked = true;
     this.refreshItemButtons();
+    this.haptics.light();
     this.audio.play('merge', 0.55);
     for (const tileId of result.removedTileIds) {
       const node = this.tileNodes.get(tileId);
@@ -696,7 +699,12 @@ export class Cat2048Boot extends Component {
     await Promise.all(animations);
     if (token !== this.sceneToken) return;
 
-    if (result.merges.length > 0) this.audio.play('merge', 0.8); else this.audio.play('move', 0.55);
+    if (result.merges.length > 0) {
+      this.haptics.light();
+      this.audio.play('merge', 0.8);
+    } else {
+      this.audio.play('move', 0.55);
+    }
     for (const merge of result.merges) this.finishMerge(merge);
     if (result.merges.length > 0) await this.delay(GAME_CONFIG.mergeSeconds);
     if (token !== this.sceneToken) return;

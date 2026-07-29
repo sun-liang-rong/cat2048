@@ -11,6 +11,7 @@
   "include": [
     "assets/scripts/core/**/*.ts",
     "assets/scripts/presentation/layout.ts",
+    "assets/scripts/infrastructure/HapticController.ts",
     "assets/scripts/infrastructure/storage.ts",
     "tests/**/*.ts"
   ]
