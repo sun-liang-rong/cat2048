@@ -2,6 +2,27 @@
   "platform": "wechatgame",
   "buildPath": "project://build",
   "outputName": "wechatgame",
+  "debug": false,
+  "sourceMaps": false,
+  "experimentalEraseModules": true,
+  "inlineEnum": true,
+  "mangleProperties": true,
+  "nativeCodeBundleMode": "wasm",
+  "wasmCompressionMode": true,
+  "includeModules": [
+    "base",
+    "gfx-webgl",
+    "2d",
+    "ui",
+    "graphics",
+    "audio",
+    "tween",
+    "profiler",
+    "custom-pipeline",
+    "custom-pipeline-builtin-scripts"
+  ],
+  "useSplashScreen": false,
+  "bundleCommonChunk": false,
   "mainBundleCompressionType": "subpackage",
   "mainBundleIsRemote": false,
   "startSceneAssetBundle": true,
@@ -12,6 +33,19 @@
       "uuid": "104fa7bd-69cf-44b8-8ed1-bfc9af55e101"
     }
   ],
+  "overwriteProjectSettings": {
+    "includeModules": {
+      "physics": "off",
+      "physics-2d": "off",
+      "gfx-webgl2": "off"
+    }
+  },
+  "packages": {
+    "wechatgame": {
+      "separateEngine": true,
+      "wasmSubpackage": true
+    }
+  },
   "bundleConfigs": [
     {
       "name": "resources",

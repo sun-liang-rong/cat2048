@@ -1,15 +1,20 @@
 import {
   Color,
+  Font,
   Graphics,
   Label,
   Layers,
+  Mask,
   Node,
   Sprite,
   SpriteFrame,
   tween,
   UITransform,
+  Vec2,
   Vec3,
 } from 'cc';
+import { spriteCropTransform } from './layout';
+import type { SpriteCropRect } from './layout';
 
 export const COLORS = {
   ink: new Color(60, 48, 44, 255),
@@ -22,6 +27,21 @@ export const COLORS = {
   cell: new Color(255, 244, 213, 190),
   white: new Color(255, 255, 255, 255),
 } as const;
+
+export type LabelStyle = 'body' | 'display';
+
+const BODY_FONT_FAMILY = 'Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif';
+const DISPLAY_FONT_FAMILY = 'ZCOOL KuaiLe, Microsoft YaHei, PingFang SC, sans-serif';
+const DISPLAY_DARK_OUTLINE = new Color(74, 45, 39, 255);
+const DISPLAY_LIGHT_OUTLINE = new Color(255, 240, 202, 255);
+const DISPLAY_DARK_SHADOW = new Color(72, 36, 32, 125);
+const DISPLAY_LIGHT_SHADOW = new Color(150, 92, 54, 95);
+
+let displayFont: Font | null = null;
+
+export function setDisplayFont(font: Font | null): void {
+  displayFont = font;
+}
 
 export function createUiNode(name: string, width = 0, height = 0): Node {
   const node = new Node(name);
@@ -46,14 +66,51 @@ export function drawRounded(node: Node, width: number, height: number, color: Co
   return graphics;
 }
 
+function isLightColor(color: Color): boolean {
+  return color.r * 0.299 + color.g * 0.587 + color.b * 0.114 > 170;
+}
+
+function applyLabelStyle(label: Label, fontSize: number, color: Color, style: LabelStyle): void {
+  label.enableOutline = false;
+  label.enableShadow = false;
+  label.isBold = false;
+
+  if (style === 'display') {
+    label.lineHeight = Math.round(fontSize * 1.14);
+    if (displayFont) {
+      label.useSystemFont = false;
+      label.font = displayFont;
+    } else {
+      label.useSystemFont = true;
+      label.fontFamily = DISPLAY_FONT_FAMILY;
+    }
+    label.isBold = true;
+
+    const lightText = isLightColor(color);
+    label.enableOutline = true;
+    label.outlineColor = lightText ? DISPLAY_DARK_OUTLINE : DISPLAY_LIGHT_OUTLINE;
+    label.outlineWidth = Math.max(1, Math.min(5, Math.round(fontSize * 0.06)));
+    label.enableShadow = true;
+    label.shadowColor = lightText ? DISPLAY_DARK_SHADOW : DISPLAY_LIGHT_SHADOW;
+    label.shadowOffset = new Vec2(0, -Math.max(1, Math.round(fontSize * 0.05)));
+    label.shadowBlur = 0;
+    return;
+  }
+
+  label.useSystemFont = true;
+  label.font = null;
+  label.fontFamily = BODY_FONT_FAMILY;
+  label.lineHeight = Math.round(fontSize * 1.25);
+}
+
 export function createLabel(text: string, fontSize: number, color = COLORS.ink,
-  width = 500, height = fontSize * 1.5): Label {
+  width = 500, height = fontSize * 1.5, style: LabelStyle = 'body'): Label {
   const node = createUiNode(`Label:${text}`, width, height);
   const label = node.addComponent(Label);
   label.string = text;
   label.fontSize = fontSize;
-  label.lineHeight = Math.round(fontSize * 1.25);
   label.color = color;
+  applyLabelStyle(label, fontSize, color, style);
   label.horizontalAlign = Label.HorizontalAlign.CENTER;
   label.verticalAlign = Label.VerticalAlign.CENTER;
   label.overflow = Label.Overflow.SHRINK;
@@ -80,7 +137,7 @@ export function createButton(text: string, width: number, height: number, color:
     iconNode.setPosition(-width / 2 + height * 0.58, 0);
     node.addChild(iconNode);
   }
-  const label = createLabel(text, fontSize, COLORS.white, icon ? width - height - 24 : width - 30, height - 12);
+  const label = createLabel(text, fontSize, COLORS.white, icon ? width - height - 24 : width - 30, height - 12, 'display');
   if (icon) label.node.setPosition(height * 0.18, 0);
   node.addChild(label.node);
   node.on(Node.EventType.TOUCH_START, () => tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start());
@@ -92,10 +149,24 @@ export function createButton(text: string, width: number, height: number, color:
 }
 
 export function createIconButton(name: string, frame: SpriteFrame | undefined, fallback: string,
-  size: number, onTap: () => void): Node {
+  size: number, onTap: () => void, crop?: SpriteCropRect): Node {
   const node = createUiNode(name, size, size);
   if (frame) {
-    const icon = createSpriteNode(`${name}:Icon`, frame, size, size);
+    let iconWidth = size;
+    let iconHeight = size;
+    let iconX = 0;
+    let iconY = 0;
+    if (crop) {
+      node.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+      const sourceSize = frame.originalSize;
+      const transform = spriteCropTransform(size, sourceSize.width, sourceSize.height, crop);
+      iconWidth = transform.width;
+      iconHeight = transform.height;
+      iconX = transform.x;
+      iconY = transform.y;
+    }
+    const icon = createSpriteNode(`${name}:Icon`, frame, iconWidth, iconHeight);
+    icon.setPosition(iconX, iconY);
     node.addChild(icon);
   } else {
     drawRounded(node, size, size, new Color(255, 248, 226, 235), size / 2, { color: COLORS.ink, width: 4 });

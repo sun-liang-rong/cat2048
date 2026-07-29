@@ -17,13 +17,39 @@ export interface GameLayout {
   hudCenterFromTop: number;
   boardTop: number;
   boardScale: number;
-  instructionCenterFromTop: number;
+  itemBarCenterFromTop: number;
+}
+
+export interface SpriteCropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SpriteCropTransform {
+  width: number;
+  height: number;
+  x: number;
+  y: number;
 }
 
 const HOME_CONTENT_TOP = 64;
 const HOME_CONTENT_BOTTOM = 815;
 const HOME_DOCK_TOP_FROM_BOTTOM = 138;
 const HOME_DOCK_GAP = 24;
+
+/** Scales and offsets a source image so the requested crop fills a square masked viewport. */
+export function spriteCropTransform(viewSize: number, sourceWidth: number, sourceHeight: number,
+  crop: SpriteCropRect): SpriteCropTransform {
+  const scale = viewSize / Math.max(crop.width, crop.height);
+  return {
+    width: sourceWidth * scale,
+    height: sourceHeight * scale,
+    x: (sourceWidth / 2 - crop.x - crop.width / 2) * scale,
+    y: (crop.y + crop.height / 2 - sourceHeight / 2) * scale,
+  };
+}
 
 /** Cocos already returns the safe-area rectangle in design-resolution units. */
 export function safeInsetsFromRect(uiHeight: number, rect?: RectLike | null): { top: number; bottom: number } {
@@ -57,23 +83,27 @@ export function homeContentShift(uiHeight: number, topInset: number, bottomInset
   return Math.max(0, Math.min(maxShift, centeredShift));
 }
 
-/** Keeps the HUD clear of the capsule and the complete board above the bottom safe area. */
+/** Keeps the HUD, one-hand board, and item bar clear of both safe areas. */
 export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, bottomInset: number,
   boardPixels: number): GameLayout {
   const hudCenterFromTop = topInset + 70;
   const minimumBoardTop = hudCenterFromTop + 46 + 58;
-  const instructionAllowance = 86;
-  const availableBoardHeight = Math.max(0, uiHeight - bottomInset - instructionAllowance - minimumBoardTop);
+  const itemBarHeight = 96;
+  const itemBarGap = 18;
+  const bottomComfortInset = 24;
+  const availableBoardHeight = Math.max(0,
+    uiHeight - bottomInset - bottomComfortInset - itemBarHeight - itemBarGap - minimumBoardTop);
   const widthScale = Math.max(0, (uiWidth - 32) / boardPixels);
-  const boardScale = Math.max(0.72, Math.min(1, widthScale, availableBoardHeight / boardPixels));
+  const boardScale = Math.max(0, Math.min(1, widthScale, availableBoardHeight / boardPixels));
   const displaySize = boardPixels * boardScale;
-  const preferredBoardTop = uiHeight / 2 - 100 - displaySize / 2;
-  const maximumBoardTop = uiHeight - bottomInset - instructionAllowance - displaySize;
+  const maximumBoardTop = uiHeight - bottomInset - bottomComfortInset
+    - itemBarHeight - itemBarGap - displaySize;
+  const preferredBoardTop = minimumBoardTop + Math.max(0, maximumBoardTop - minimumBoardTop) * 0.82;
   const boardTop = Math.max(minimumBoardTop, Math.min(maximumBoardTop, preferredBoardTop));
   return {
     hudCenterFromTop,
     boardTop,
     boardScale,
-    instructionCenterFromTop: boardTop + displaySize + 52,
+    itemBarCenterFromTop: boardTop + displaySize + itemBarGap + itemBarHeight / 2,
   };
 }

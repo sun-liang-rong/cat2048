@@ -52,6 +52,24 @@ export interface MoveResult extends BoardMoveResult {
   readonly status: GameStatus;
 }
 
+export interface ItemState {
+  readonly undoRemaining: number;
+  readonly removeLowestRemaining: number;
+  readonly canUndo: boolean;
+  readonly canRemoveLowest: boolean;
+}
+
+export interface UndoResult {
+  readonly changed: boolean;
+  readonly board: BoardSnapshot;
+  readonly score: number;
+  readonly status: GameStatus;
+}
+
+export interface RemoveTilesResult extends UndoResult {
+  readonly removedTileIds: readonly string[];
+}
+
 export interface RandomSource {
   next(): number;
 }

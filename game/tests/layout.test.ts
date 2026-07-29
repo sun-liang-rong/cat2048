@@ -4,6 +4,7 @@ import {
   gameLayout,
   homeContentShift,
   safeInsetsFromRect,
+  spriteCropTransform,
 } from '../assets/scripts/presentation/layout';
 
 describe('portrait layout', () => {
@@ -21,14 +22,32 @@ describe('portrait layout', () => {
     expect(homeContentShift(1100, 128, 28)).toBe(0);
   });
 
-  it('keeps the board between the capsule and bottom safe area', () => {
+  it('places a one-hand board and item bar between the HUD and bottom safe area', () => {
     const tall = gameLayout(750, 1600, 128, 28, 690);
     expect(tall.boardScale).toBe(1);
     expect(tall.boardTop).toBeGreaterThan(tall.hudCenterFromTop + 46);
-    expect(tall.instructionCenterFromTop + 28).toBeLessThan(1600 - 28);
+    expect(tall.boardTop).toBeGreaterThan(430);
+    expect(tall.itemBarCenterFromTop - 48).toBeGreaterThan(tall.boardTop + 690);
+    expect(tall.itemBarCenterFromTop + 48).toBeLessThan(1600 - 28);
 
     const short = gameLayout(750, 1100, 128, 28, 690);
     expect(short.boardScale).toBeLessThan(1);
-    expect(short.instructionCenterFromTop + 28).toBeLessThan(1100 - 28);
+    const shortBoardBottom = short.boardTop + 690 * short.boardScale;
+    expect(short.itemBarCenterFromTop - 48).toBeGreaterThan(shortBoardBottom);
+    expect(short.itemBarCenterFromTop + 48).toBeLessThan(1100 - 28);
+
+    const compact = gameLayout(750, 900, 128, 28, 690);
+    expect(compact.boardScale).toBeLessThan(0.72);
+    expect(compact.boardTop).toBeGreaterThanOrEqual(compact.hudCenterFromTop + 46 + 58);
+    expect(compact.itemBarCenterFromTop - 48)
+      .toBeGreaterThan(compact.boardTop + 690 * compact.boardScale);
+    expect(compact.itemBarCenterFromTop + 48).toBeLessThanOrEqual(900 - 28 - 24);
+  });
+
+  it('moves sprite-sheet edge artifacts outside the clipped icon viewport', () => {
+    expect(spriteCropTransform(64, 160, 160, { x: 4, y: 0, width: 144, height: 144 }))
+      .toEqual({ width: 640 / 9, height: 640 / 9, x: 16 / 9, y: -32 / 9 });
+    expect(spriteCropTransform(64, 160, 160, { x: 4, y: 16, width: 144, height: 144 }))
+      .toEqual({ width: 640 / 9, height: 640 / 9, x: 16 / 9, y: 32 / 9 });
   });
 });

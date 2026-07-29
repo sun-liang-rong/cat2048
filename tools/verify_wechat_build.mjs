@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const buildRoot = join(root, 'game', 'build', 'wechatgame');
 const gameJsonPath = join(buildRoot, 'game.json');
+const firstScreenPath = join(buildRoot, 'first-screen.js');
 const mainPackageLimit = 4 * 1024 * 1024;
 
 const fail = (message) => {
@@ -21,6 +22,12 @@ const isBelow = (path, directory) => path === directory || path.startsWith(`${di
 
 if (!existsSync(gameJsonPath)) {
   fail(`missing ${relative(root, gameJsonPath)}`);
+}
+if (!existsSync(firstScreenPath)) {
+  fail('missing generated WeChat first-screen file');
+}
+if (!readFileSync(firstScreenPath, 'utf8').includes('CAT2048_CUSTOM_LOADING_SCREEN')) {
+  fail('custom WeChat loading screen has not been applied');
 }
 
 const gameJson = JSON.parse(readFileSync(gameJsonPath, 'utf8'));

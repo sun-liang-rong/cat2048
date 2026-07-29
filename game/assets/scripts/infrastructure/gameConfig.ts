@@ -37,4 +37,7 @@ export const GAME_CONFIG = {
     settings: 'game/ui/settings/texture',
     info: 'game/ui/info/texture',
   },
+  fonts: {
+    display: 'game/fonts/display',
+  },
 } as const;

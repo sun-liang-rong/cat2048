@@ -148,6 +148,109 @@ describe('Game2048', () => {
     expect(game.board.tiles.map((tile) => tile.id)).toEqual(['tile-1', 'tile-2']);
   });
 
+  it('undoes the latest effective move once and restores its score', () => {
+    const game = new Game2048(new FixedRandom([0.95, 0]));
+    const before = game.loadFixture([
+      [1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ], 12);
+
+    const moved = game.move('left');
+    expect(moved.changed).toBe(true);
+    expect(game.items).toEqual({ undoRemaining: 1, removeLowestRemaining: 1, canUndo: true, canRemoveLowest: true });
+
+    const undone = game.undo();
+    expect(undone.changed).toBe(true);
+    expect(undone.board).toEqual(before);
+    expect(undone.score).toBe(12);
+    expect(game.items).toEqual({ undoRemaining: 0, removeLowestRemaining: 1, canUndo: false, canRemoveLowest: true });
+    expect(game.undo().changed).toBe(false);
+  });
+
+  it('keeps undo history after an ineffective move', () => {
+    const game = new Game2048(new FixedRandom([0.95, 0]));
+    const before = game.loadFixture([
+      [0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ]);
+
+    expect(game.move('left').changed).toBe(true);
+    expect(game.move('left').changed).toBe(false);
+    expect(game.undo().board).toEqual(before);
+  });
+
+  it('undoes only the most recent of two effective moves', () => {
+    const game = new Game2048(new FixedRandom([0.95, 0, 0.95, 0]));
+    game.loadFixture([
+      [0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ]);
+    game.move('left');
+    const beforeSecondMove = game.board;
+    game.move('right');
+
+    expect(game.undo().board).toEqual(beforeSecondMove);
+  });
+
+  it('removes up to three lowest cats in stable row and column order', () => {
+    const game = new Game2048(new FixedRandom([]));
+    game.loadFixture([
+      [2, 1, 0, 1], [1, 0, 2, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ], 24);
+    const expectedIds = game.board.tiles
+      .filter((tile) => tile.level === 1)
+      .map((tile) => tile.id);
+
+    const result = game.removeLowestTiles(3);
+    expect(result.changed).toBe(true);
+    expect(result.removedTileIds).toEqual(expectedIds);
+    expect(result.board.tiles.map((tile) => tile.level)).toEqual([2, 2]);
+    expect(result.score).toBe(24);
+    expect(game.items).toEqual({ undoRemaining: 1, removeLowestRemaining: 0, canUndo: false, canRemoveLowest: false });
+  });
+
+  it('does not consume removal on an empty board and removes all when fewer than three exist', () => {
+    const game = new Game2048(new FixedRandom([]));
+    game.loadFixture([
+      [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ]);
+    expect(game.removeLowestTiles(3).changed).toBe(false);
+    expect(game.items.removeLowestRemaining).toBe(1);
+
+    game.loadFixture([
+      [1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ]);
+    const result = game.removeLowestTiles(3);
+    expect(result.removedTileIds).toHaveLength(2);
+    expect(result.board.tiles).toEqual([]);
+    expect(result.status).toBe('running');
+  });
+
+  it('returns a full game-over board to running after removing cats', () => {
+    const game = new Game2048(new FixedRandom([]));
+    game.loadFixture([
+      [1, 2, 1, 2], [2, 1, 2, 1], [1, 2, 1, 2], [2, 1, 2, 1],
+    ]);
+    expect(game.status).toBe('game-over');
+
+    const result = game.removeLowestTiles(3);
+    expect(result.changed).toBe(true);
+    expect(result.board.tiles).toHaveLength(13);
+    expect(result.status).toBe('running');
+  });
+
+  it('clears undo history after removal and resets both items on a new game', () => {
+    const game = new Game2048(new FixedRandom([0, 0, 0, 0, 0, 0]));
+    game.loadFixture([
+      [0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ]);
+    game.move('left');
+    expect(game.items.canUndo).toBe(true);
+    game.removeLowestTiles(3);
+    expect(game.items.canUndo).toBe(false);
+    expect(game.undo().changed).toBe(false);
+
+    game.start();
+    expect(game.items).toEqual({ undoRemaining: 1, removeLowestRemaining: 1, canUndo: false, canRemoveLowest: true });
+  });
+
   it.each([[-0.1], [1], [Number.NaN]])('rejects an invalid level random value: %s', (value) => {
     const game = new Game2048(new FixedRandom([value]));
     expect(() => game.start()).toThrow('expected [0, 1)');

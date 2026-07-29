@@ -18,6 +18,7 @@ import {
   sys,
   tween,
   Tween,
+  UIOpacity,
   UITransform,
   Vec2,
   Vec3,
@@ -44,6 +45,7 @@ import {
   createSpriteNode,
   createUiNode,
   drawRounded,
+  setDisplayFont,
 } from './uiFactory';
 
 const { ccclass } = _decorator;
@@ -52,6 +54,8 @@ const BOARD_PIXELS = 690;
 const BOARD_PADDING = 18;
 const CELL_GAP = 10;
 const CELL_SIZE = (BOARD_PIXELS - BOARD_PADDING * 2 - CELL_GAP * 3) / 4;
+const BOTTOM_EDGE_ICON_CROP = { x: 4, y: 0, width: 144, height: 144 } as const;
+const TOP_EDGE_ICON_CROP = { x: 4, y: 16, width: 144, height: 144 } as const;
 
 @ccclass('Cat2048Boot')
 export class Cat2048Boot extends Component {
@@ -64,6 +68,10 @@ export class Cat2048Boot extends Component {
   private tileLayer: Node | null = null;
   private scoreLabel: Label | null = null;
   private highScoreLabel: Label | null = null;
+  private undoButton: Node | null = null;
+  private removeLowestButton: Node | null = null;
+  private undoCountLabel: Label | null = null;
+  private removeLowestCountLabel: Label | null = null;
   private tileNodes = new Map<string, Node>();
   private inputLocked = false;
   private touchStart: Vec2 | null = null;
@@ -97,6 +105,7 @@ export class Cat2048Boot extends Component {
     this.showLoading();
     await this.art.preload();
     if (!this.isValid) return;
+    setDisplayFont(this.art.font(GAME_CONFIG.fonts.display) ?? null);
     this.showHome();
   }
 
@@ -159,13 +168,13 @@ export class Cat2048Boot extends Component {
     const kicker = createUiNode('HomeKicker', 300, 48);
     drawRounded(kicker, 300, 48, new Color(39, 166, 151, 235), 24);
     kicker.setPosition(0, this.homeTopY(88));
-    const kickerText = createLabel('治愈系 · 合成小游戏', 21, COLORS.white, 270, 42);
+    const kickerText = createLabel('治愈系 · 合成小游戏', 21, COLORS.white, 270, 42, 'display');
     kicker.addChild(kickerText.node);
     root.addChild(kicker);
 
     const titleGroup = createUiNode('HomeTitle', 600, 104);
     titleGroup.setPosition(0, this.homeTopY(166));
-    const catTitle = createLabel('猫咪', 78, COLORS.ink, 300, 100);
+    const catTitle = createLabel('猫咪', 78, COLORS.ink, 300, 100, 'display');
     catTitle.node.setPosition(-105, 0);
     titleGroup.addChild(catTitle.node);
 
@@ -176,7 +185,7 @@ export class Cat2048Boot extends Component {
     const numberBadge = createUiNode('TitleNumberBadge', 230, 88);
     drawRounded(numberBadge, 230, 88, COLORS.coral, 28, { color: COLORS.ink, width: 4 });
     numberBadge.setPosition(145, 0);
-    const number = createLabel('2048', 58, COLORS.white, 205, 76);
+    const number = createLabel('2048', 58, COLORS.white, 205, 76, 'display');
     numberBadge.addChild(number.node);
     titleGroup.addChild(numberBadge);
     root.addChild(titleGroup);
@@ -202,7 +211,7 @@ export class Cat2048Boot extends Component {
     const goal = createUiNode('GoalBadge', 116, 42);
     drawRounded(goal, 116, 42, new Color(245, 180, 54, 245), 21);
     goal.setPosition(228, 146);
-    const goalText = createLabel('进化目标', 18, COLORS.ink, 105, 36);
+    const goalText = createLabel('进化目标', 18, COLORS.ink, 105, 36, 'display');
     goal.addChild(goalText.node);
     card.addChild(goal);
 
@@ -240,7 +249,7 @@ export class Cat2048Boot extends Component {
     arrow.node.setPosition(3, 3);
     evolution.addChild(arrow.node);
     card.addChild(evolution);
-    const evolveText = createLabel('不断进化', 18, COLORS.teal, 130, 34);
+    const evolveText = createLabel('不断进化', 18, COLORS.teal, 130, 34, 'display');
     evolveText.node.setPosition(0, -4);
     card.addChild(evolveText.node);
 
@@ -254,10 +263,10 @@ export class Cat2048Boot extends Component {
     const scoreStrip = createUiNode('HighScoreStrip', 554, 66);
     drawRounded(scoreStrip, 554, 66, new Color(248, 225, 181, 215), 24);
     scoreStrip.setPosition(0, -137);
-    const scoreTitle = createLabel('★  我的最高分', 22, COLORS.teal, 240, 48);
+    const scoreTitle = createLabel('★  我的最高分', 22, COLORS.teal, 240, 48, 'display');
     scoreTitle.node.setPosition(-138, 0);
     scoreStrip.addChild(scoreTitle.node);
-    const score = createLabel(String(this.save.highScore), 38, COLORS.ink, 225, 52);
+    const score = createLabel(String(this.save.highScore), 38, COLORS.ink, 225, 52, 'display');
     score.node.setPosition(140, 0);
     scoreStrip.addChild(score.node);
     card.addChild(scoreStrip);
@@ -278,7 +287,7 @@ export class Cat2048Boot extends Component {
   private createHomePill(text: string, width: number, color: Color): Node {
     const pill = createUiNode(`HomePill:${text}`, width, 44);
     drawRounded(pill, width, 44, color, 22);
-    const label = createLabel(text, 19, COLORS.white, width - 18, 38);
+    const label = createLabel(text, 19, COLORS.white, width - 18, 38, 'display');
     pill.addChild(label.node);
     return pill;
   }
@@ -296,27 +305,27 @@ export class Cat2048Boot extends Component {
     root.addChild(dock);
 
     const info = createIconButton('Info', this.art.frame(GAME_CONFIG.art.info), 'i', 64,
-      () => this.showInfoDialog());
+      () => this.showInfoDialog(), BOTTOM_EDGE_ICON_CROP);
     info.setPosition(-198, 13);
     dock.addChild(info);
-    const infoText = createLabel('玩法', 18, COLORS.ink, 100, 28);
+    const infoText = createLabel('玩法', 18, COLORS.ink, 100, 28, 'display');
     infoText.node.setPosition(-198, -38);
     dock.addChild(infoText.node);
 
     const sound = createIconButton('SoundToggle', this.art.frame(this.save.soundEnabled
       ? GAME_CONFIG.art.soundOn : GAME_CONFIG.art.soundOff), this.save.soundEnabled ? '♪' : '×', 64,
-      () => this.toggleSound());
+      () => this.toggleSound(), this.save.soundEnabled ? TOP_EDGE_ICON_CROP : BOTTOM_EDGE_ICON_CROP);
     sound.setPosition(0, 13);
     dock.addChild(sound);
-    const soundText = createLabel(this.save.soundEnabled ? '音效开' : '音效关', 18, COLORS.ink, 110, 28);
+    const soundText = createLabel(this.save.soundEnabled ? '音效开' : '音效关', 18, COLORS.ink, 110, 28, 'display');
     soundText.node.setPosition(0, -38);
     dock.addChild(soundText.node);
 
     const settings = createIconButton('Settings', this.art.frame(GAME_CONFIG.art.settings), '⚙', 64,
-      () => this.showSettingsDialog());
+      () => this.showSettingsDialog(), BOTTOM_EDGE_ICON_CROP);
     settings.setPosition(198, 13);
     dock.addChild(settings);
-    const settingsText = createLabel('设置', 18, COLORS.ink, 100, 28);
+    const settingsText = createLabel('设置', 18, COLORS.ink, 100, 28, 'display');
     settingsText.node.setPosition(198, -38);
     dock.addChild(settingsText.node);
 
@@ -349,11 +358,11 @@ export class Cat2048Boot extends Component {
     const layout = gameLayout(this.uiWidth, this.uiHeight, this.topSafeInset(), this.bottomSafeInset(), BOARD_PIXELS);
     const hudY = this.uiHeight / 2 - layout.hudCenterFromTop;
     const back = createIconButton('Back', this.art.frame(GAME_CONFIG.art.back), '‹', 76,
-      () => this.confirmLeave());
+      () => { if (!this.inputLocked) this.confirmLeave(); });
     back.setPosition(-this.uiWidth / 2 + 62, hudY);
     root.addChild(back);
     const restart = createIconButton('Restart', this.art.frame(GAME_CONFIG.art.settings), '↻', 76,
-      () => this.confirmRestart());
+      () => { if (!this.inputLocked) this.confirmRestart(); }, BOTTOM_EDGE_ICON_CROP);
     restart.setPosition(this.uiWidth / 2 - 62, hudY);
     root.addChild(restart);
 
@@ -384,9 +393,78 @@ export class Cat2048Boot extends Component {
     this.bindBoardInput(board);
     this.renderInitialBoard(this.game.board);
 
-    const instruction = createLabel('合并相同猫咪，向银河极光猫进发！', 24, COLORS.ink, 650, 56);
-    instruction.node.setPosition(0, this.uiHeight / 2 - layout.instructionCenterFromTop);
-    root.addChild(instruction.node);
+    this.createItemBar(root, this.uiHeight / 2 - layout.itemBarCenterFromTop);
+  }
+
+  private createItemBar(root: Node, y: number): void {
+    const bar = createUiNode('ItemBar', 650, 96);
+    bar.setPosition(0, y);
+    root.addChild(bar);
+
+    const undo = this.createItemButton('UndoItem', '撤回一步', '↶', () => this.game.items.canUndo,
+      () => { void this.useUndoItem(); });
+    undo.node.setPosition(-167, 0);
+    bar.addChild(undo.node);
+    this.undoButton = undo.node;
+    this.undoCountLabel = undo.count;
+
+    const remove = this.createItemButton('RemoveLowestItem', '消除最低 ×3', '×3',
+      () => this.game.items.canRemoveLowest, () => { void this.useRemoveLowestItem(); });
+    remove.node.setPosition(167, 0);
+    bar.addChild(remove.node);
+    this.removeLowestButton = remove.node;
+    this.removeLowestCountLabel = remove.count;
+    this.refreshItemButtons();
+  }
+
+  private createItemButton(name: string, titleText: string, iconText: string, isEnabled: () => boolean,
+    onTap: () => void): { node: Node; count: Label } {
+    const node = createUiNode(name, 316, 96);
+    drawRounded(node, 316, 96, new Color(255, 248, 226, 245), 26,
+      { color: COLORS.ink, width: 4 });
+
+    const icon = createUiNode(`${name}:Icon`, 68, 68);
+    drawRounded(icon, 68, 68, COLORS.teal, 22);
+    icon.setPosition(-111, 0);
+    const iconLabel = createLabel(iconText, 29, COLORS.white, 60, 58, 'display');
+    icon.addChild(iconLabel.node);
+    node.addChild(icon);
+
+    const title = createLabel(titleText, 25, COLORS.ink, 176, 46, 'display');
+    title.node.setPosition(11, 7);
+    node.addChild(title.node);
+
+    const badge = createUiNode(`${name}:CountBadge`, 54, 32);
+    drawRounded(badge, 54, 32, COLORS.mustard, 16);
+    badge.setPosition(119, -26);
+    const count = createLabel('1', 20, COLORS.white, 48, 28, 'display');
+    badge.addChild(count.node);
+    node.addChild(badge);
+
+    node.on(Node.EventType.TOUCH_START, () => {
+      if (!isEnabled() || this.inputLocked) return;
+      tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start();
+    });
+    node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
+    node.on(Node.EventType.TOUCH_END, () => {
+      if (!isEnabled() || this.inputLocked) return;
+      tween(node).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
+    });
+    return { node, count };
+  }
+
+  private refreshItemButtons(): void {
+    const state = this.game.items;
+    this.setItemButtonState(this.undoButton, this.undoCountLabel, state.canUndo, state.undoRemaining);
+    this.setItemButtonState(this.removeLowestButton, this.removeLowestCountLabel,
+      state.canRemoveLowest, state.removeLowestRemaining);
+  }
+
+  private setItemButtonState(node: Node | null, count: Label | null, enabled: boolean, remaining: number): void {
+    if (!node || !count) return;
+    count.string = String(remaining);
+    const opacity = node.getComponent(UIOpacity) ?? node.addComponent(UIOpacity);
+    opacity.opacity = enabled ? 255 : 105;
   }
 
   private createGrid(board: Node): void {
@@ -469,8 +547,53 @@ export class Cat2048Boot extends Component {
     await this.animateMove(result, token);
     if (token !== this.sceneToken || !this.boardRoot) return;
     this.updateScore(result.score);
+    this.refreshItemButtons();
     this.inputLocked = false;
     if (result.status === 'game-over') this.showGameOver();
+  }
+
+  private async useUndoItem(): Promise<void> {
+    if (this.inputLocked || !this.game.items.canUndo || !this.tileLayer) return;
+    const result = this.game.undo();
+    if (!result.changed) {
+      this.refreshItemButtons();
+      return;
+    }
+    const token = this.sceneToken;
+    const layer = this.tileLayer;
+    this.inputLocked = true;
+    this.refreshItemButtons();
+    await this.tweenOpacity(layer, 50, 0.1);
+    if (token !== this.sceneToken || !this.tileLayer) return;
+    this.rebuildBoard(result.board, false);
+    this.updateScore(result.score);
+    await this.tweenOpacity(layer, 255, 0.14);
+    if (token !== this.sceneToken) return;
+    this.inputLocked = false;
+  }
+
+  private async useRemoveLowestItem(): Promise<void> {
+    if (this.inputLocked || !this.game.items.canRemoveLowest || !this.tileLayer) return;
+    const result = this.game.removeLowestTiles(3);
+    if (!result.changed) {
+      this.refreshItemButtons();
+      return;
+    }
+    const token = this.sceneToken;
+    this.inputLocked = true;
+    this.refreshItemButtons();
+    this.audio.play('merge', 0.55);
+    for (const tileId of result.removedTileIds) {
+      const node = this.tileNodes.get(tileId);
+      if (!node) continue;
+      await this.tweenScale(node, new Vec3(0.08, 0.08, 1), 0.1);
+      node.destroy();
+      this.tileNodes.delete(tileId);
+      if (token !== this.sceneToken) return;
+    }
+    if (!this.tileLayer) return;
+    this.rebuildBoard(result.board, false);
+    this.inputLocked = false;
   }
 
   private async animateMove(result: MoveResult, token: number): Promise<void> {
@@ -532,6 +655,19 @@ export class Cat2048Boot extends Component {
     });
   }
 
+  private rebuildBoard(snapshot: BoardSnapshot, animate = true): void {
+    if (!this.tileLayer) return;
+    for (const child of [...this.tileLayer.children]) child.destroy();
+    this.tileNodes.clear();
+    snapshot.tiles.forEach((tile) => {
+      const node = this.createTileNode(tile);
+      if (animate) {
+        node.setScale(0.2, 0.2, 1);
+        tween(node).to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
+      }
+    });
+  }
+
   private createTileNode(tile: Tile): Node {
     if (!this.tileLayer) throw new Error('Tile layer is not initialized.');
     const node = createUiNode(`Tile:${tile.id}`, CELL_SIZE, CELL_SIZE);
@@ -560,7 +696,7 @@ export class Cat2048Boot extends Component {
     const badge = createUiNode('LevelBadge', 64, 30);
     drawRounded(badge, 64, 30, tile.level >= 8 ? COLORS.mustard : COLORS.teal, 14);
     badge.setPosition(0, -CELL_SIZE / 2 + 21);
-    const label = createLabel(`Lv${tile.level}`, 18, COLORS.white, 60, 27);
+    const label = createLabel(`Lv${tile.level}`, 18, COLORS.white, 60, 27, 'display');
     badge.addChild(label.node);
     node.addChild(badge);
     this.tileNodes.set(tile.id, node);
@@ -631,7 +767,7 @@ export class Cat2048Boot extends Component {
       close.setPosition(258, 188);
       panel.addChild(close);
     }
-    const title = createLabel(titleText, 46, COLORS.coral, 500, 70);
+    const title = createLabel(titleText, 46, COLORS.coral, 500, 70, 'display');
     title.node.setPosition(0, 125);
     panel.addChild(title.node);
     const body = createLabel(bodyText, 28, COLORS.ink, 490, 130);
@@ -658,10 +794,10 @@ export class Cat2048Boot extends Component {
   private createHudCard(titleText: string, valueText: string): { node: Node; value: Label } {
     const node = createUiNode(`Hud:${titleText}`, 190, 92);
     drawRounded(node, 190, 92, new Color(255, 248, 226, 240), 22, { color: COLORS.ink, width: 4 });
-    const title = createLabel(titleText, 20, COLORS.teal, 160, 30);
+    const title = createLabel(titleText, 20, COLORS.teal, 160, 30, 'display');
     title.node.setPosition(0, 24);
     node.addChild(title.node);
-    const value = createLabel(valueText, 34, COLORS.ink, 160, 48);
+    const value = createLabel(valueText, 34, COLORS.ink, 160, 48, 'display');
     value.node.setPosition(0, -15);
     node.addChild(value.node);
     return { node, value };
@@ -700,6 +836,11 @@ export class Cat2048Boot extends Component {
     return new Promise((resolve) => tween(node).to(seconds, { scale }, { easing: 'backOut' }).call(() => resolve()).start());
   }
 
+  private tweenOpacity(node: Node, opacity: number, seconds: number): Promise<void> {
+    const target = node.getComponent(UIOpacity) ?? node.addComponent(UIOpacity);
+    return new Promise((resolve) => tween(target).to(seconds, { opacity }).call(() => resolve()).start());
+  }
+
   private delay(seconds: number): Promise<void> {
     return new Promise((resolve) => this.scheduleOnce(resolve, seconds));
   }
@@ -714,6 +855,10 @@ export class Cat2048Boot extends Component {
     this.tileNodes.clear();
     this.scoreLabel = null;
     this.highScoreLabel = null;
+    this.undoButton = null;
+    this.removeLowestButton = null;
+    this.undoCountLabel = null;
+    this.removeLowestCountLabel = null;
     this.screenRoot?.destroy();
     this.screenRoot = null;
   }
