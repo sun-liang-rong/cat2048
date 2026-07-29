@@ -27,6 +27,9 @@ describe('portrait layout', () => {
     expect(tall.boardScale).toBe(1);
     expect(tall.boardTop).toBeGreaterThan(tall.hudCenterFromTop + 46);
     expect(tall.boardTop).toBeGreaterThan(430);
+    expect(tall.evolutionPanelHeight).toBe(236);
+    expect(tall.evolutionPanelCenterFromTop + tall.evolutionPanelHeight / 2)
+      .toBeLessThan(tall.boardTop);
     expect(tall.itemBarCenterFromTop - 48).toBeGreaterThan(tall.boardTop + 690);
     expect(tall.itemBarCenterFromTop + 48).toBeLessThan(1600 - 28);
 
@@ -38,6 +41,7 @@ describe('portrait layout', () => {
 
     const compact = gameLayout(750, 900, 128, 28, 690);
     expect(compact.boardScale).toBeLessThan(0.72);
+    expect(compact.evolutionPanelHeight).toBe(0);
     expect(compact.boardTop).toBeGreaterThanOrEqual(compact.hudCenterFromTop + 46 + 58);
     expect(compact.itemBarCenterFromTop - 48)
       .toBeGreaterThan(compact.boardTop + 690 * compact.boardScale);

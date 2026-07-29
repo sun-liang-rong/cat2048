@@ -68,6 +68,7 @@ export class Cat2048Boot extends Component {
   private tileLayer: Node | null = null;
   private scoreLabel: Label | null = null;
   private highScoreLabel: Label | null = null;
+  private evolutionPanel: Node | null = null;
   private undoButton: Node | null = null;
   private removeLowestButton: Node | null = null;
   private undoCountLabel: Label | null = null;
@@ -375,6 +376,11 @@ export class Cat2048Boot extends Component {
     root.addChild(bestCard.node);
     this.highScoreLabel = bestCard.value;
 
+    if (layout.evolutionPanelHeight > 0) {
+      this.createEvolutionPanel(root, this.uiHeight / 2 - layout.evolutionPanelCenterFromTop,
+        layout.evolutionPanelHeight);
+    }
+
     const board = createUiNode('Board', BOARD_PIXELS, BOARD_PIXELS);
     board.setPosition(0, this.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2);
     board.setScale(layout.boardScale, layout.boardScale, 1);
@@ -394,6 +400,88 @@ export class Cat2048Boot extends Component {
     this.renderInitialBoard(this.game.board);
 
     this.createItemBar(root, this.uiHeight / 2 - layout.itemBarCenterFromTop);
+  }
+
+  private createEvolutionPanel(root: Node, y: number, height: number): void {
+    const panel = createUiNode('EvolutionPanel', 650, height);
+    drawRounded(panel, 650, height, new Color(255, 248, 226, 232), 28,
+      { color: new Color(76, 61, 54, 220), width: 4 });
+    panel.setPosition(0, y);
+    root.addChild(panel);
+    this.evolutionPanel = panel;
+    this.refreshEvolutionPanel();
+  }
+
+  private refreshEvolutionPanel(): void {
+    const panel = this.evolutionPanel;
+    if (!panel) return;
+    for (const child of [...panel.children]) child.destroy();
+
+    const panelHeight = panel.getComponent(UITransform)?.height ?? 0;
+    const compact = panelHeight < 190;
+    const highestLevel = this.game.board.tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1);
+    const current = GAME_CONFIG.cats[highestLevel - 1];
+    const next = GAME_CONFIG.cats[Math.min(highestLevel, GAME_CONFIG.cats.length - 1)];
+    const maxed = highestLevel === GAME_CONFIG.cats.length;
+
+    const title = createLabel('猫咪进化路线', compact ? 21 : 24, COLORS.ink, 250, 38, 'display');
+    title.node.setPosition(-173, panelHeight / 2 - (compact ? 26 : 31));
+    panel.addChild(title.node);
+    const collection = createLabel(`图鉴 ${highestLevel}/${GAME_CONFIG.cats.length}`, compact ? 18 : 20,
+      COLORS.teal, 160, 36, 'display');
+    collection.node.setPosition(220, panelHeight / 2 - (compact ? 26 : 31));
+    panel.addChild(collection.node);
+
+    const catY = compact ? -2 : 8;
+    const catSize = compact ? 68 : 94;
+    const currentFrame = this.art.frame(current.asset);
+    if (currentFrame) {
+      const cat = createSpriteNode('EvolutionCurrentCat', currentFrame, catSize, catSize);
+      cat.setPosition(-185, catY);
+      panel.addChild(cat);
+    }
+    const currentText = createLabel(`Lv.${highestLevel}  ${current.name}`, compact ? 18 : 21,
+      COLORS.ink, 250, compact ? 32 : 38, 'display');
+    currentText.node.setPosition(-185, compact ? -45 : -55);
+    panel.addChild(currentText.node);
+
+    const arrowBadge = createUiNode('EvolutionArrow', compact ? 42 : 52, compact ? 42 : 52);
+    drawRounded(arrowBadge, compact ? 42 : 52, compact ? 42 : 52, COLORS.teal, compact ? 21 : 26);
+    arrowBadge.setPosition(0, catY);
+    const arrow = createLabel('›', compact ? 34 : 42, COLORS.white, compact ? 36 : 44, compact ? 36 : 44, 'display');
+    arrow.node.setPosition(2, 2);
+    arrowBadge.addChild(arrow.node);
+    panel.addChild(arrowBadge);
+
+    if (maxed) {
+      const complete = createLabel('全图鉴达成', compact ? 19 : 22, COLORS.mustard, 200, 42, 'display');
+      complete.node.setPosition(185, catY);
+      panel.addChild(complete.node);
+    } else {
+      const nextFrame = this.art.frame(next.asset);
+      if (nextFrame) {
+        const nextCat = createSpriteNode('EvolutionNextCat', nextFrame, catSize, catSize);
+        nextCat.setPosition(185, catY);
+        panel.addChild(nextCat);
+      }
+      const nextText = createLabel(`Lv.${highestLevel + 1}  ${next.name}`, compact ? 17 : 20,
+        COLORS.ink, 250, compact ? 32 : 38, 'display');
+      nextText.node.setPosition(185, compact ? -45 : -55);
+      panel.addChild(nextText.node);
+    }
+
+    if (!compact) {
+      const trackWidth = 570;
+      const track = createUiNode('EvolutionProgressTrack', trackWidth, 18);
+      drawRounded(track, trackWidth, 18, new Color(226, 207, 171, 255), 9);
+      track.setPosition(0, -panelHeight / 2 + 31);
+      panel.addChild(track);
+      const fillWidth = Math.max(18, trackWidth * highestLevel / GAME_CONFIG.cats.length);
+      const fill = createUiNode('EvolutionProgressFill', fillWidth, 18);
+      drawRounded(fill, fillWidth, 18, maxed ? COLORS.mustard : COLORS.teal, 9);
+      fill.setPosition(-trackWidth / 2 + fillWidth / 2, 0);
+      track.addChild(fill);
+    }
   }
 
   private createItemBar(root: Node, y: number): void {
@@ -547,6 +635,7 @@ export class Cat2048Boot extends Component {
     await this.animateMove(result, token);
     if (token !== this.sceneToken || !this.boardRoot) return;
     this.updateScore(result.score);
+    this.refreshEvolutionPanel();
     this.refreshItemButtons();
     this.inputLocked = false;
     if (result.status === 'game-over') this.showGameOver();
@@ -567,6 +656,7 @@ export class Cat2048Boot extends Component {
     if (token !== this.sceneToken || !this.tileLayer) return;
     this.rebuildBoard(result.board, false);
     this.updateScore(result.score);
+    this.refreshEvolutionPanel();
     await this.tweenOpacity(layer, 255, 0.14);
     if (token !== this.sceneToken) return;
     this.inputLocked = false;
@@ -593,6 +683,7 @@ export class Cat2048Boot extends Component {
     }
     if (!this.tileLayer) return;
     this.rebuildBoard(result.board, false);
+    this.refreshEvolutionPanel();
     this.inputLocked = false;
   }
 
@@ -855,6 +946,7 @@ export class Cat2048Boot extends Component {
     this.tileNodes.clear();
     this.scoreLabel = null;
     this.highScoreLabel = null;
+    this.evolutionPanel = null;
     this.undoButton = null;
     this.removeLowestButton = null;
     this.undoCountLabel = null;
