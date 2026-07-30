@@ -14,7 +14,6 @@ import {
   profiler,
   ResolutionPolicy,
   screen,
-  Sprite,
   sys,
   tween,
   Tween,
@@ -25,31 +24,21 @@ import {
   view,
 } from 'cc';
 import { Game2048 } from '../core/Game2048';
-import type { BoardSnapshot, Direction, MergeRecord, MoveResult, Position, Tile } from '../core/types';
+import type { Direction } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import { HapticController } from '../infrastructure/HapticController';
 import { RuntimeRandomSource, runtimeStorage } from '../infrastructure/runtime';
 import type { SaveDataV1 } from '../infrastructure/storage';
 import { ArtRepository } from './ArtRepository';
 import { AudioController } from './AudioController';
-import {
-  BOARD_PADDING,
-  BOARD_PIXELS,
-  CELL_GAP,
-  CELL_SIZE,
-  cellCenter,
-} from './boardGeometry';
+import { BoardView } from './BoardView';
+import { BOARD_PIXELS } from './boardGeometry';
 import {
   capsuleBottomInset,
   gameLayout,
   homeContentShift,
   safeInsetsFromRect,
 } from './layout';
-import {
-  tweenOpacity,
-  tweenPosition,
-  tweenScale,
-} from './tweenAsync';
 import {
   COLORS,
   createButton,
@@ -70,6 +59,7 @@ const TOP_EDGE_ICON_CROP = { x: 4, y: 16, width: 144, height: 144 } as const;
 @ccclass('Cat2048Boot')
 export class Cat2048Boot extends Component {
   private readonly art = new ArtRepository();
+  private readonly boardView = new BoardView(this.art);
   private readonly game = new Game2048(new RuntimeRandomSource());
   private readonly haptics = new HapticController();
   private audio!: AudioController;
@@ -80,8 +70,6 @@ export class Cat2048Boot extends Component {
     hapticsEnabled: true,
   };
   private screenRoot: Node | null = null;
-  private boardRoot: Node | null = null;
-  private tileLayer: Node | null = null;
   private scoreLabel: Label | null = null;
   private highScoreLabel: Label | null = null;
   private evolutionPanel: Node | null = null;
@@ -89,7 +77,6 @@ export class Cat2048Boot extends Component {
   private removeLowestButton: Node | null = null;
   private undoCountLabel: Label | null = null;
   private removeLowestCountLabel: Label | null = null;
-  private tileNodes = new Map<string, Node>();
   private inputLocked = false;
   private touchStart: Vec2 | null = null;
   private uiWidth: number = GAME_CONFIG.designWidth;
@@ -144,7 +131,7 @@ export class Cat2048Boot extends Component {
   };
 
   private readonly applyResize = (): void => {
-    const wasGame = this.boardRoot !== null;
+    const wasGame = this.boardView.root !== null;
     this.setupCanvas();
     if (wasGame) this.showGame(false); else this.showHome();
   };
@@ -398,23 +385,11 @@ export class Cat2048Boot extends Component {
         layout.evolutionPanelHeight);
     }
 
-    const board = createUiNode('Board', BOARD_PIXELS, BOARD_PIXELS);
+    const board = this.boardView.mount(root, BOARD_PIXELS);
     board.setPosition(0, this.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2);
     board.setScale(layout.boardScale, layout.boardScale, 1);
-    this.boardRoot = board;
-    root.addChild(board);
-    const boardFrame = this.art.frame(GAME_CONFIG.art.boardBackground);
-    if (boardFrame) board.addChild(createSpriteNode('BoardBackground', boardFrame, BOARD_PIXELS, BOARD_PIXELS));
-    else drawRounded(board, BOARD_PIXELS, BOARD_PIXELS, new Color(189, 139, 82, 255), 38);
-    const shade = createUiNode('BoardShade', BOARD_PIXELS - 18, BOARD_PIXELS - 18);
-    drawRounded(shade, BOARD_PIXELS - 18, BOARD_PIXELS - 18, new Color(79, 48, 29, 48), 32);
-    board.addChild(shade);
-
-    this.createGrid(board);
-    this.tileLayer = createUiNode('Tiles', BOARD_PIXELS, BOARD_PIXELS);
-    board.addChild(this.tileLayer);
     this.bindBoardInput(board);
-    this.renderInitialBoard(this.game.board);
+    this.boardView.renderInitial(this.game.board);
 
     this.createItemBar(root, this.uiHeight / 2 - layout.itemBarCenterFromTop);
   }
@@ -572,33 +547,21 @@ export class Cat2048Boot extends Component {
     opacity.opacity = enabled ? 255 : 105;
   }
 
-  private createGrid(board: Node): void {
-    const frame = this.art.frame(GAME_CONFIG.art.tileBase);
-    for (let row = 0; row < 4; row += 1) {
-      for (let col = 0; col < 4; col += 1) {
-        const cell = frame
-          ? createSpriteNode(`Cell:${row}:${col}`, frame, CELL_SIZE, CELL_SIZE)
-          : createUiNode(`Cell:${row}:${col}`, CELL_SIZE, CELL_SIZE);
-        if (!frame) drawRounded(cell, CELL_SIZE, CELL_SIZE, COLORS.cell, 24);
-        cell.setPosition(this.positionFor({ row, col }));
-        board.addChild(cell);
-      }
-    }
-  }
-
   private bindBoardInput(board: Node): void {
     board.on(Node.EventType.TOUCH_START, (event: EventTouch) => {
       if (!this.inputLocked) {
         this.touchStart = event.getUILocation();
-        this.showTouchHighlight(board, event);
+        const local = board.getComponent(UITransform)?.convertToNodeSpaceAR(
+          new Vec3(event.getUILocation().x, event.getUILocation().y, 0));
+        if (local) this.boardView.showTouchHighlight(local.x, local.y);
       }
     });
     board.on(Node.EventType.TOUCH_CANCEL, () => {
       this.touchStart = null;
-      board.getChildByName('TouchHighlight')?.destroy();
+      this.boardView.clearTouchHighlight();
     });
     board.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
-      board.getChildByName('TouchHighlight')?.destroy();
+      this.boardView.clearTouchHighlight();
       if (!this.touchStart || this.inputLocked) return;
       const end = event.getUILocation();
       const dx = end.x - this.touchStart.x;
@@ -611,26 +574,8 @@ export class Cat2048Boot extends Component {
     });
   }
 
-  private showTouchHighlight(board: Node, event: EventTouch): void {
-    const frame = this.art.frame(GAME_CONFIG.art.tileSelected);
-    if (!frame) return;
-    board.getChildByName('TouchHighlight')?.destroy();
-    const local = board.getComponent(UITransform)?.convertToNodeSpaceAR(
-      new Vec3(event.getUILocation().x, event.getUILocation().y, 0));
-    if (!local) return;
-    const start = -BOARD_PIXELS / 2 + BOARD_PADDING;
-    const step = CELL_SIZE + CELL_GAP;
-    const col = Math.max(0, Math.min(3, Math.floor((local.x - start) / step)));
-    const row = Math.max(0, Math.min(3, Math.floor((-local.y - start) / step)));
-    const highlight = createSpriteNode('TouchHighlight', frame, CELL_SIZE * 1.12, CELL_SIZE * 1.12);
-    highlight.setPosition(this.positionFor({ row, col }));
-    board.addChild(highlight);
-    highlight.setSiblingIndex(board.children.length - 1);
-    tween(highlight).to(0.12, { scale: new Vec3(1.06, 1.06, 1) }).start();
-  }
-
   private readonly onKeyDown = (event: EventKeyboard): void => {
-    if (!this.boardRoot || this.inputLocked) return;
+    if (!this.boardView.root || this.inputLocked) return;
     const directions: Partial<Record<KeyCode, Direction>> = {
       [KeyCode.ARROW_UP]: 'up', [KeyCode.ARROW_DOWN]: 'down',
       [KeyCode.ARROW_LEFT]: 'left', [KeyCode.ARROW_RIGHT]: 'right',
@@ -649,8 +594,20 @@ export class Cat2048Boot extends Component {
     }
     const token = this.sceneToken;
     this.inputLocked = true;
-    await this.animateMove(result, token);
-    if (token !== this.sceneToken || !this.boardRoot) return;
+    await this.boardView.animateMove(
+      result,
+      () => token === this.sceneToken && this.boardView.root !== null,
+      {
+        onMerge: () => {
+          this.haptics.light();
+          this.audio.play('merge', 0.8);
+        },
+        onMove: () => {
+          this.audio.play('move', 0.55);
+        },
+      },
+    );
+    if (token !== this.sceneToken || !this.boardView.root) return;
     this.updateScore(result.score);
     this.refreshEvolutionPanel();
     this.refreshItemButtons();
@@ -659,28 +616,27 @@ export class Cat2048Boot extends Component {
   }
 
   private async useUndoItem(): Promise<void> {
-    if (this.inputLocked || !this.game.items.canUndo || !this.tileLayer) return;
+    if (this.inputLocked || !this.game.items.canUndo || !this.boardView.root) return;
     const result = this.game.undo();
     if (!result.changed) {
       this.refreshItemButtons();
       return;
     }
     const token = this.sceneToken;
-    const layer = this.tileLayer;
     this.inputLocked = true;
     this.refreshItemButtons();
-    await tweenOpacity(layer, 50, 0.1);
-    if (token !== this.sceneToken || !this.tileLayer) return;
-    this.rebuildBoard(result.board, false);
+    await this.boardView.fadeRebuild(
+      result.board,
+      () => token === this.sceneToken && this.boardView.root !== null,
+    );
+    if (token !== this.sceneToken || !this.boardView.root) return;
     this.updateScore(result.score);
     this.refreshEvolutionPanel();
-    await tweenOpacity(layer, 255, 0.14);
-    if (token !== this.sceneToken) return;
     this.inputLocked = false;
   }
 
   private async useRemoveLowestItem(): Promise<void> {
-    if (this.inputLocked || !this.game.items.canRemoveLowest || !this.tileLayer) return;
+    if (this.inputLocked || !this.game.items.canRemoveLowest || !this.boardView.root) return;
     const result = this.game.removeLowestTiles(3);
     if (!result.changed) {
       this.refreshItemButtons();
@@ -691,130 +647,14 @@ export class Cat2048Boot extends Component {
     this.refreshItemButtons();
     this.haptics.light();
     this.audio.play('merge', 0.55);
-    for (const tileId of result.removedTileIds) {
-      const node = this.tileNodes.get(tileId);
-      if (!node) continue;
-      await tweenScale(node, new Vec3(0.08, 0.08, 1), 0.1);
-      node.destroy();
-      this.tileNodes.delete(tileId);
-      if (token !== this.sceneToken) return;
-    }
-    if (!this.tileLayer) return;
-    this.rebuildBoard(result.board, false);
+    await this.boardView.animateRemove(
+      result.removedTileIds,
+      () => token === this.sceneToken && this.boardView.root !== null,
+    );
+    if (token !== this.sceneToken || !this.boardView.root) return;
+    this.boardView.rebuild(result.board, false);
     this.refreshEvolutionPanel();
     this.inputLocked = false;
-  }
-
-  private async animateMove(result: MoveResult, token: number): Promise<void> {
-    const animations = result.motions.map((motion) => {
-      const node = this.tileNodes.get(motion.tileId);
-      if (!node) return Promise.resolve();
-      return tweenPosition(node, this.positionFor(motion.to), GAME_CONFIG.moveSeconds);
-    });
-    await Promise.all(animations);
-    if (token !== this.sceneToken) return;
-
-    if (result.merges.length > 0) {
-      this.haptics.light();
-      this.audio.play('merge', 0.8);
-    } else {
-      this.audio.play('move', 0.55);
-    }
-    for (const merge of result.merges) this.finishMerge(merge);
-    if (result.merges.length > 0) await this.delay(GAME_CONFIG.mergeSeconds);
-    if (token !== this.sceneToken) return;
-    if (result.spawned) {
-      const node = this.createTileNode(result.spawned.tile);
-      node.setScale(0.2, 0.2, 1);
-      await tweenScale(node, Vec3.ONE, 0.12);
-    }
-  }
-
-  private finishMerge(merge: MergeRecord): void {
-    for (const id of merge.sourceIds) {
-      this.tileNodes.get(id)?.destroy();
-      this.tileNodes.delete(id);
-    }
-    const resultTile = this.game.board.tiles.find((tile) => tile.id === merge.resultId);
-    if (!resultTile) return;
-    const node = this.createTileNode(resultTile);
-    node.setScale(0.84, 0.84, 1);
-    tween(node).to(0.1, { scale: new Vec3(1.12, 1.12, 1) }).to(0.1, { scale: Vec3.ONE }).start();
-    const sparkleFrame = this.art.frame(GAME_CONFIG.art.mergeSparkle);
-    if (sparkleFrame && this.tileLayer) {
-      const sparkle = createSpriteNode('MergeSparkle', sparkleFrame, CELL_SIZE * 1.35, CELL_SIZE * 1.35);
-      sparkle.setPosition(this.positionFor(merge.at));
-      sparkle.setScale(0.4, 0.4, 1);
-      this.tileLayer.addChild(sparkle);
-      tween(sparkle).to(0.1, { scale: Vec3.ONE }).to(0.1, { scale: new Vec3(1.25, 1.25, 1) }).call(() => sparkle.destroy()).start();
-    }
-    const burstFrame = this.art.frame(GAME_CONFIG.art.mergeBurst);
-    if (burstFrame && this.tileLayer) {
-      const burst = createSpriteNode('MergeBurst', burstFrame, CELL_SIZE * 1.75, CELL_SIZE * 1.75);
-      burst.setPosition(this.positionFor(merge.at));
-      burst.setScale(0.2, 0.2, 1);
-      this.tileLayer.addChild(burst);
-      burst.setSiblingIndex(Math.max(0, burst.getSiblingIndex() - 1));
-      tween(burst).to(0.14, { scale: Vec3.ONE }).to(0.16, { scale: new Vec3(1.25, 1.25, 1) })
-        .call(() => burst.destroy()).start();
-    }
-  }
-
-  private renderInitialBoard(snapshot: BoardSnapshot): void {
-    this.tileNodes.clear();
-    snapshot.tiles.forEach((tile) => {
-      const node = this.createTileNode(tile);
-      node.setScale(0.2, 0.2, 1);
-      tween(node).delay(tile.col * 0.03).to(0.15, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
-    });
-  }
-
-  private rebuildBoard(snapshot: BoardSnapshot, animate = true): void {
-    if (!this.tileLayer) return;
-    for (const child of [...this.tileLayer.children]) child.destroy();
-    this.tileNodes.clear();
-    snapshot.tiles.forEach((tile) => {
-      const node = this.createTileNode(tile);
-      if (animate) {
-        node.setScale(0.2, 0.2, 1);
-        tween(node).to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
-      }
-    });
-  }
-
-  private createTileNode(tile: Tile): Node {
-    if (!this.tileLayer) throw new Error('Tile layer is not initialized.');
-    const node = createUiNode(`Tile:${tile.id}`, CELL_SIZE, CELL_SIZE);
-    const colors = [COLORS.cream, new Color(194, 219, 226, 255), new Color(252, 209, 155, 255),
-      new Color(220, 224, 232, 255), new Color(241, 214, 174, 255), new Color(214, 172, 115, 255),
-      new Color(231, 230, 218, 255), new Color(78, 72, 79, 255), new Color(106, 84, 181, 255)];
-    drawRounded(node, CELL_SIZE, CELL_SIZE, colors[tile.level - 1], 24, { color: COLORS.ink, width: 3 });
-    node.setPosition(this.positionFor(tile));
-    this.tileLayer.addChild(node);
-
-    const cat = GAME_CONFIG.cats[tile.level - 1];
-    if (tile.level === GAME_CONFIG.cats.length) {
-      const haloFrame = this.art.frame(GAME_CONFIG.art.maxHalo);
-      if (haloFrame) {
-        const halo = createSpriteNode('MaxLevelHalo', haloFrame, CELL_SIZE * 1.08, CELL_SIZE * 1.08);
-        node.addChild(halo);
-        tween(halo).by(7, { angle: 360 }).repeatForever().start();
-      }
-    }
-    const frame = this.art.frame(cat.asset);
-    if (frame) {
-      const sprite = createSpriteNode(`Cat:${tile.level}`, frame, CELL_SIZE * 0.78, CELL_SIZE * 0.78);
-      sprite.setPosition(0, 10);
-      node.addChild(sprite);
-    }
-    const badge = createUiNode('LevelBadge', 64, 30);
-    drawRounded(badge, 64, 30, tile.level >= 8 ? COLORS.mustard : COLORS.teal, 14);
-    badge.setPosition(0, -CELL_SIZE / 2 + 21);
-    const label = createLabel(`Lv${tile.level}`, 18, COLORS.white, 60, 27, 'display');
-    badge.addChild(label.node);
-    node.addChild(badge);
-    this.tileNodes.set(tile.id, node);
-    return node;
   }
 
   private updateScore(score: number): void {
@@ -999,23 +839,12 @@ export class Cat2048Boot extends Component {
     }
   }
 
-  private positionFor(position: Position): Vec3 {
-    const { x, y } = cellCenter(position);
-    return new Vec3(x, y, 0);
-  }
-
-  private delay(seconds: number): Promise<void> {
-    return new Promise((resolve) => this.scheduleOnce(resolve, seconds));
-  }
-
   private clearScreen(): void {
     Tween.stopAll();
     this.sceneToken += 1;
     this.inputLocked = false;
     this.touchStart = null;
-    this.boardRoot = null;
-    this.tileLayer = null;
-    this.tileNodes.clear();
+    this.boardView.unmount();
     this.scoreLabel = null;
     this.highScoreLabel = null;
     this.evolutionPanel = null;
