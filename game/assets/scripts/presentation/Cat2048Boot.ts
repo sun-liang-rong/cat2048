@@ -4,7 +4,6 @@ import {
   Color,
   Component,
   EventKeyboard,
-  EventTouch,
   Graphics,
   input,
   Input,
@@ -19,7 +18,6 @@ import {
   Tween,
   UIOpacity,
   UITransform,
-  Vec2,
   Vec3,
   view,
 } from 'cc';
@@ -39,6 +37,7 @@ import {
   homeContentShift,
   safeInsetsFromRect,
 } from './layout';
+import { SwipeInput } from './SwipeInput';
 import {
   COLORS,
   createButton,
@@ -78,7 +77,7 @@ export class Cat2048Boot extends Component {
   private undoCountLabel: Label | null = null;
   private removeLowestCountLabel: Label | null = null;
   private inputLocked = false;
-  private touchStart: Vec2 | null = null;
+  private swipe: SwipeInput | null = null;
   private uiWidth: number = GAME_CONFIG.designWidth;
   private uiHeight: number = GAME_CONFIG.designHeight;
   private safeTop = 24;
@@ -388,7 +387,16 @@ export class Cat2048Boot extends Component {
     const board = this.boardView.mount(root, BOARD_PIXELS);
     board.setPosition(0, this.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2);
     board.setScale(layout.boardScale, layout.boardScale, 1);
-    this.bindBoardInput(board);
+    this.swipe = new SwipeInput(
+      () => this.inputLocked,
+      (direction) => { void this.performMove(direction); },
+      (x, y) => this.boardView.showTouchHighlight(x, y),
+      () => this.boardView.clearTouchHighlight(),
+    );
+    this.swipe.bind(board, (uiX, uiY) => {
+      const local = board.getComponent(UITransform)?.convertToNodeSpaceAR(new Vec3(uiX, uiY, 0));
+      return local ? { x: local.x, y: local.y } : null;
+    });
     this.boardView.renderInitial(this.game.board);
 
     this.createItemBar(root, this.uiHeight / 2 - layout.itemBarCenterFromTop);
@@ -545,33 +553,6 @@ export class Cat2048Boot extends Component {
     count.string = String(remaining);
     const opacity = node.getComponent(UIOpacity) ?? node.addComponent(UIOpacity);
     opacity.opacity = enabled ? 255 : 105;
-  }
-
-  private bindBoardInput(board: Node): void {
-    board.on(Node.EventType.TOUCH_START, (event: EventTouch) => {
-      if (!this.inputLocked) {
-        this.touchStart = event.getUILocation();
-        const local = board.getComponent(UITransform)?.convertToNodeSpaceAR(
-          new Vec3(event.getUILocation().x, event.getUILocation().y, 0));
-        if (local) this.boardView.showTouchHighlight(local.x, local.y);
-      }
-    });
-    board.on(Node.EventType.TOUCH_CANCEL, () => {
-      this.touchStart = null;
-      this.boardView.clearTouchHighlight();
-    });
-    board.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
-      this.boardView.clearTouchHighlight();
-      if (!this.touchStart || this.inputLocked) return;
-      const end = event.getUILocation();
-      const dx = end.x - this.touchStart.x;
-      const dy = end.y - this.touchStart.y;
-      this.touchStart = null;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < GAME_CONFIG.swipeThreshold) return;
-      const direction: Direction = Math.abs(dx) > Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'up' : 'down');
-      void this.performMove(direction);
-    });
   }
 
   private readonly onKeyDown = (event: EventKeyboard): void => {
@@ -843,7 +824,8 @@ export class Cat2048Boot extends Component {
     Tween.stopAll();
     this.sceneToken += 1;
     this.inputLocked = false;
-    this.touchStart = null;
+    this.swipe?.reset();
+    this.swipe = null;
     this.boardView.unmount();
     this.scoreLabel = null;
     this.highScoreLabel = null;
