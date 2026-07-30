@@ -46,6 +46,11 @@ import {
   safeInsetsFromRect,
 } from './layout';
 import {
+  tweenOpacity,
+  tweenPosition,
+  tweenScale,
+} from './tweenAsync';
+import {
   COLORS,
   createButton,
   createIconButton,
@@ -664,12 +669,12 @@ export class Cat2048Boot extends Component {
     const layer = this.tileLayer;
     this.inputLocked = true;
     this.refreshItemButtons();
-    await this.tweenOpacity(layer, 50, 0.1);
+    await tweenOpacity(layer, 50, 0.1);
     if (token !== this.sceneToken || !this.tileLayer) return;
     this.rebuildBoard(result.board, false);
     this.updateScore(result.score);
     this.refreshEvolutionPanel();
-    await this.tweenOpacity(layer, 255, 0.14);
+    await tweenOpacity(layer, 255, 0.14);
     if (token !== this.sceneToken) return;
     this.inputLocked = false;
   }
@@ -689,7 +694,7 @@ export class Cat2048Boot extends Component {
     for (const tileId of result.removedTileIds) {
       const node = this.tileNodes.get(tileId);
       if (!node) continue;
-      await this.tweenScale(node, new Vec3(0.08, 0.08, 1), 0.1);
+      await tweenScale(node, new Vec3(0.08, 0.08, 1), 0.1);
       node.destroy();
       this.tileNodes.delete(tileId);
       if (token !== this.sceneToken) return;
@@ -704,7 +709,7 @@ export class Cat2048Boot extends Component {
     const animations = result.motions.map((motion) => {
       const node = this.tileNodes.get(motion.tileId);
       if (!node) return Promise.resolve();
-      return this.tweenPosition(node, this.positionFor(motion.to), GAME_CONFIG.moveSeconds);
+      return tweenPosition(node, this.positionFor(motion.to), GAME_CONFIG.moveSeconds);
     });
     await Promise.all(animations);
     if (token !== this.sceneToken) return;
@@ -721,7 +726,7 @@ export class Cat2048Boot extends Component {
     if (result.spawned) {
       const node = this.createTileNode(result.spawned.tile);
       node.setScale(0.2, 0.2, 1);
-      await this.tweenScale(node, Vec3.ONE, 0.12);
+      await tweenScale(node, Vec3.ONE, 0.12);
     }
   }
 
@@ -997,19 +1002,6 @@ export class Cat2048Boot extends Component {
   private positionFor(position: Position): Vec3 {
     const { x, y } = cellCenter(position);
     return new Vec3(x, y, 0);
-  }
-
-  private tweenPosition(node: Node, position: Vec3, seconds: number): Promise<void> {
-    return new Promise((resolve) => tween(node).to(seconds, { position }, { easing: 'quadOut' }).call(() => resolve()).start());
-  }
-
-  private tweenScale(node: Node, scale: Vec3, seconds: number): Promise<void> {
-    return new Promise((resolve) => tween(node).to(seconds, { scale }, { easing: 'backOut' }).call(() => resolve()).start());
-  }
-
-  private tweenOpacity(node: Node, opacity: number, seconds: number): Promise<void> {
-    const target = node.getComponent(UIOpacity) ?? node.addComponent(UIOpacity);
-    return new Promise((resolve) => tween(target).to(seconds, { opacity }).call(() => resolve()).start());
   }
 
   private delay(seconds: number): Promise<void> {
