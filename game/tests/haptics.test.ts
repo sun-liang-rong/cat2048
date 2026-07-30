@@ -31,6 +31,19 @@ describe('HapticController', () => {
     expect(() => new HapticController({}).light()).not.toThrow();
   });
 
+  it('suppresses vibration while disabled and resumes after re-enabling', () => {
+    const vibrateShort = vi.fn();
+    const haptics = new HapticController({ wx: { vibrateShort } });
+
+    haptics.enabled = false;
+    haptics.light();
+    expect(vibrateShort).not.toHaveBeenCalled();
+
+    haptics.enabled = true;
+    haptics.light();
+    expect(vibrateShort).toHaveBeenCalledOnce();
+  });
+
   it('does not break gameplay when the platform API throws', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const haptics = new HapticController({

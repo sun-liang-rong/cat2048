@@ -11,6 +11,7 @@
   "bg_home": "game/backgrounds/bg_home/texture",
   "bg_page": "game/backgrounds/bg_page/texture",
   "bg_board_wood": "game/backgrounds/bg_board_wood/texture",
+  "share_score_bg": "game/backgrounds/share_score_bg/texture",
   "tile_empty": "game/gameplay/tile_empty/texture",
   "tile_selected": "game/gameplay/tile_selected/texture",
   "sparkle_small": "game/gameplay/sparkle_small/texture",

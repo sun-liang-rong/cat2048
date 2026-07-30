@@ -21,6 +21,7 @@ export const GAME_CONFIG = {
     homeBackground: 'game/backgrounds/bg_home/texture',
     pageBackground: 'game/backgrounds/bg_page/texture',
     boardBackground: 'game/backgrounds/bg_board_wood/texture',
+    shareScoreBackground: 'game/backgrounds/share_score_bg/texture',
     tileBase: 'game/gameplay/tile_empty/texture',
     tileSelected: 'game/gameplay/tile_selected/texture',
     sparkleSmall: 'game/gameplay/sparkle_small/texture',

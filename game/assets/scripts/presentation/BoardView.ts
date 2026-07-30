@@ -1,4 +1,4 @@
-import { Color, Node, tween, Vec3 } from 'cc';
+import { Color, Node, tween, Tween, Vec3 } from 'cc';
 import type { BoardSnapshot, MergeRecord, MoveResult, Position, Tile } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
@@ -35,6 +35,7 @@ export class BoardView {
   private boardRoot: Node | null = null;
   private tileLayer: Node | null = null;
   private tileNodes = new Map<string, Node>();
+  private touchHighlight: Node | null = null;
 
   public constructor(private readonly art: ArtRepository) {}
 
@@ -44,6 +45,7 @@ export class BoardView {
   }
 
   public mount(parent: Node, boardPixels: number): Node {
+    this.clearTouchHighlight();
     const board = createUiNode('Board', boardPixels, boardPixels);
     parent.addChild(board);
     this.boardRoot = board;
@@ -63,6 +65,7 @@ export class BoardView {
   }
 
   public unmount(): void {
+    this.clearTouchHighlight();
     this.tileNodes.clear();
     this.tileLayer = null;
     this.boardRoot = null;
@@ -145,22 +148,43 @@ export class BoardView {
   public showTouchHighlight(eventLocalX: number, eventLocalY: number): void {
     const board = this.boardRoot;
     if (!board) return;
-    const frame = this.art.frame(GAME_CONFIG.art.tileSelected);
-    if (!frame) return;
-    board.getChildByName('TouchHighlight')?.destroy();
     const start = -BOARD_PIXELS / 2 + BOARD_PADDING;
     const step = CELL_SIZE + CELL_GAP;
     const col = Math.max(0, Math.min(3, Math.floor((eventLocalX - start) / step)));
     const row = Math.max(0, Math.min(3, Math.floor((-eventLocalY - start) / step)));
-    const highlight = createSpriteNode('TouchHighlight', frame, CELL_SIZE * 1.12, CELL_SIZE * 1.12);
-    highlight.setPosition(this.positionFor({ row, col }));
-    board.addChild(highlight);
+    const position = this.positionFor({ row, col });
+
+    // Reuse one highlight node so cancel/start thrashing does not create/destroy sprites.
+    let highlight = this.touchHighlight;
+    if (!highlight || !highlight.isValid) {
+      const frame = this.art.frame(GAME_CONFIG.art.tileSelected);
+      if (!frame) return;
+      highlight = createSpriteNode('TouchHighlight', frame, CELL_SIZE * 1.12, CELL_SIZE * 1.12);
+      board.addChild(highlight);
+      this.touchHighlight = highlight;
+    } else if (highlight.parent !== board) {
+      board.addChild(highlight);
+    }
+
+    Tween.stopAllByTarget(highlight);
+    highlight.active = true;
+    highlight.setPosition(position);
+    highlight.setScale(1, 1, 1);
     highlight.setSiblingIndex(board.children.length - 1);
     tween(highlight).to(0.12, { scale: new Vec3(1.06, 1.06, 1) }).start();
   }
 
   public clearTouchHighlight(): void {
-    this.boardRoot?.getChildByName('TouchHighlight')?.destroy();
+    const highlight = this.touchHighlight;
+    if (!highlight) {
+      this.boardRoot?.getChildByName('TouchHighlight')?.destroy();
+      return;
+    }
+    if (highlight.isValid) {
+      Tween.stopAllByTarget(highlight);
+      highlight.destroy();
+    }
+    this.touchHighlight = null;
   }
 
   private createGrid(board: Node): void {

@@ -21,6 +21,7 @@ EXPECTED_IMAGE_SIZES = {
     "bg_home.png": (750, 1334),
     "bg_page.png": (750, 1334),
     "bg_board_wood.png": (1024, 1024),
+    "share_score_bg.png": (1000, 800),
     **{name: (256, 256) for name in [
         "tile_empty.png", "tile_selected.png", "sparkle_small.png",
         "merge_sparkle.png", "merge_burst.png", "max_halo.png",
@@ -30,8 +31,6 @@ EXPECTED_IMAGE_SIZES = {
         "sound_on.png", "sound_off.png", "settings.png", "info.png",
     ]},
 }
-
-
 def trim_and_square(image: Image.Image, size: int, margin: float = 0.05) -> Image.Image:
     rgba = image.convert("RGBA")
     bbox = rgba.getchannel("A").point(lambda value: 255 if value > ALPHA_THRESHOLD else 0).getbbox()
@@ -105,6 +104,7 @@ def validate() -> dict[str, str]:
         OUTPUT / "backgrounds" / "bg_home.png",
         OUTPUT / "backgrounds" / "bg_page.png",
         OUTPUT / "backgrounds" / "bg_board_wood.png",
+        OUTPUT / "backgrounds" / "share_score_bg.png",
         OUTPUT / "gameplay" / "tile_empty.png",
         OUTPUT / "gameplay" / "tile_selected.png",
         OUTPUT / "gameplay" / "sparkle_small.png",
@@ -155,6 +155,7 @@ def main() -> int:
         "bg_home": (750, 1334),
         "bg_page": (750, 1334),
         "bg_board_wood": (1024, 1024),
+        "share_score_bg": (1000, 800),
     }.items():
         prepare_background(background, size)
     generate_tone("move", [330, 440], 0.08)

@@ -14,9 +14,12 @@ export interface HapticRuntime {
 }
 
 export class HapticController {
+  public enabled = true;
+
   public constructor(private readonly runtime: HapticRuntime = globalThis as HapticRuntime) {}
 
   public light(): void {
+    if (!this.enabled) return;
     try {
       if (typeof this.runtime.wx?.vibrateShort === 'function') {
         this.runtime.wx.vibrateShort({ type: 'light' });

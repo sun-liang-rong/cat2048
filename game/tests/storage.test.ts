@@ -25,10 +25,38 @@ function withoutWarnings<T>(callback: () => T): T {
 }
 
 describe('LocalGameStorage', () => {
-  it('loads valid V1 data', () => {
+  it('loads complete V1 data', () => {
     const memory = new MemoryStorage();
-    memory.setItem(SAVE_KEY, JSON.stringify({ schemaVersion: 1, highScore: 512, soundEnabled: false }));
-    expect(new LocalGameStorage(memory).load()).toEqual({ schemaVersion: 1, highScore: 512, soundEnabled: false });
+    memory.setItem(SAVE_KEY, JSON.stringify({
+      schemaVersion: 1,
+      highScore: 512,
+      soundEnabled: false,
+      hapticsEnabled: false,
+    }));
+    expect(new LocalGameStorage(memory).load()).toEqual({
+      schemaVersion: 1,
+      highScore: 512,
+      soundEnabled: false,
+      hapticsEnabled: false,
+    });
+  });
+
+  it('enables haptics while preserving legacy V1 save values', () => {
+    const memory = new MemoryStorage();
+    memory.setItem(SAVE_KEY, JSON.stringify({ schemaVersion: 1, highScore: 256, soundEnabled: false }));
+
+    expect(new LocalGameStorage(memory).load()).toEqual({
+      schemaVersion: 1,
+      highScore: 256,
+      soundEnabled: false,
+      hapticsEnabled: true,
+    });
+    expect(JSON.parse(memory.getItem(SAVE_KEY)!)).toEqual({
+      schemaVersion: 1,
+      highScore: 256,
+      soundEnabled: false,
+      hapticsEnabled: true,
+    });
   });
 
   it.each([null, '{bad', '{}', '{"schemaVersion":2}', '{"schemaVersion":1,"highScore":"9","soundEnabled":true}'])

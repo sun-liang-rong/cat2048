@@ -14,6 +14,34 @@ export function directionFromDelta(dx: number, dy: number, threshold: number): D
 
 export class SwipeInput {
   private touchStart: Vec2 | null = null;
+  private board: Node | null = null;
+  private readonly onTouchStartHandler = (event: EventTouch): void => {
+    if (this.isLocked()) {
+      this.cancelActiveTouch();
+      return;
+    }
+    this.touchStart = event.getUILocation();
+    const ui = event.getUILocation();
+    const local = this.toLocal?.(ui.x, ui.y);
+    if (local) this.onTouchStartLocal?.(local.x, local.y);
+  };
+  private readonly onTouchCancelHandler = (): void => {
+    this.cancelActiveTouch();
+  };
+  private readonly onTouchEndHandler = (event: EventTouch): void => {
+    const start = this.touchStart;
+    // Always clear gesture state first so cancel/end never leave a dangling start.
+    this.cancelActiveTouch();
+    if (!start || this.isLocked()) return;
+    const end = event.getUILocation();
+    const direction = directionFromDelta(
+      end.x - start.x,
+      end.y - start.y,
+      GAME_CONFIG.swipeThreshold,
+    );
+    if (direction) this.onSwipe(direction);
+  };
+  private toLocal: ((uiX: number, uiY: number) => { x: number; y: number } | null) | null = null;
 
   public constructor(
     private readonly isLocked: () => boolean,
@@ -23,30 +51,34 @@ export class SwipeInput {
   ) {}
 
   public bind(board: Node, toLocal: (uiX: number, uiY: number) => { x: number; y: number } | null): void {
-    board.on(Node.EventType.TOUCH_START, (event: EventTouch) => {
-      if (this.isLocked()) return;
-      this.touchStart = event.getUILocation();
-      const ui = event.getUILocation();
-      const local = toLocal(ui.x, ui.y);
-      if (local) this.onTouchStartLocal?.(local.x, local.y);
-    });
-    board.on(Node.EventType.TOUCH_CANCEL, () => {
-      this.touchStart = null;
-      this.onTouchEndOrCancel?.();
-    });
-    board.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
-      this.onTouchEndOrCancel?.();
-      if (!this.touchStart || this.isLocked()) return;
-      const end = event.getUILocation();
-      const dx = end.x - this.touchStart.x;
-      const dy = end.y - this.touchStart.y;
-      this.touchStart = null;
-      const direction = directionFromDelta(dx, dy, GAME_CONFIG.swipeThreshold);
-      if (direction) this.onSwipe(direction);
-    });
+    this.unbind();
+    this.board = board;
+    this.toLocal = toLocal;
+    board.on(Node.EventType.TOUCH_START, this.onTouchStartHandler);
+    board.on(Node.EventType.TOUCH_CANCEL, this.onTouchCancelHandler);
+    board.on(Node.EventType.TOUCH_END, this.onTouchEndHandler);
+  }
+
+  /** Remove listeners and clear any in-flight gesture. Safe to call repeatedly. */
+  public unbind(): void {
+    if (this.board) {
+      this.board.off(Node.EventType.TOUCH_START, this.onTouchStartHandler);
+      this.board.off(Node.EventType.TOUCH_CANCEL, this.onTouchCancelHandler);
+      this.board.off(Node.EventType.TOUCH_END, this.onTouchEndHandler);
+      this.board = null;
+    }
+    this.toLocal = null;
+    this.cancelActiveTouch();
   }
 
   public reset(): void {
+    this.cancelActiveTouch();
+  }
+
+  private cancelActiveTouch(): void {
+    const hadGesture = this.touchStart !== null;
     this.touchStart = null;
+    // Always clear highlight on cancel/reset so UI never sticks after leave/dialog/lock.
+    if (hadGesture || this.board) this.onTouchEndOrCancel?.();
   }
 }

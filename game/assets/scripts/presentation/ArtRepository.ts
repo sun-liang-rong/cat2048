@@ -27,6 +27,9 @@ export class ArtRepository {
   }
 
   public frame(path: string): SpriteFrame | undefined { return this.frames.get(path); }
+  public imagePath(path: string): string | undefined {
+    return this.frames.get(path)?.texture.image?.nativeUrl || undefined;
+  }
   public clip(name: string): AudioClip | undefined { return this.clips.get(name); }
   public font(path: string): TTFFont | undefined { return this.fonts.get(path); }
 
