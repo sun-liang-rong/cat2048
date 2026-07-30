@@ -1,4 +1,10 @@
-import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -31,12 +37,19 @@ export const customizeFirstScreen = (firstScreenPath) => {
 
 const runTitleGenerator = (outputPath) => {
   const temporaryOutput = `${outputPath}.tmp`;
-  const result = spawnSync('python', [titleGenerator, temporaryOutput], {
-    cwd: root,
-    encoding: 'utf8',
-  });
-  if (result.status !== 0) {
-    throw new Error(`Unable to generate loading title: ${result.stderr || result.stdout}`.trim());
+  let result;
+
+  for (const executable of ['python3', 'python']) {
+    result = spawnSync(executable, [titleGenerator, temporaryOutput], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    if (!result.error || result.error.code !== 'ENOENT') break;
+  }
+
+  if (result?.error || result?.status !== 0) {
+    const detail = result?.error?.message || result?.stderr || result?.stdout || 'Python 3 with Pillow is required';
+    throw new Error(`Unable to generate loading title: ${detail}`.trim());
   }
   renameSync(temporaryOutput, outputPath);
 };
@@ -58,7 +71,8 @@ export const customizeWeChatLoadingScreen = (buildDirectory = generatedBuild) =>
 const isCli = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isCli) {
   try {
-    customizeWeChatLoadingScreen();
+    const buildDirectory = process.argv[2] ? resolve(process.argv[2]) : generatedBuild;
+    customizeWeChatLoadingScreen(buildDirectory);
     console.log('Applied Cat 2048 custom WeChat loading screen.');
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

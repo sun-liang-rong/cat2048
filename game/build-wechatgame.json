@@ -4,9 +4,16 @@
   "outputName": "wechatgame",
   "debug": false,
   "sourceMaps": false,
+  "buildMode": "normal",
+  "engineModulesConfigKey": "defaultConfig",
+  "skipCompressTexture": false,
+  "md5Cache": false,
   "experimentalEraseModules": true,
   "inlineEnum": true,
   "mangleProperties": true,
+  "polyfills": {
+    "asyncFunctions": false
+  },
   "nativeCodeBundleMode": "wasm",
   "wasmCompressionMode": true,
   "includeModules": [
@@ -18,15 +25,34 @@
     "graphics",
     "audio",
     "tween",
-    "profiler",
     "custom-pipeline",
     "custom-pipeline-builtin-scripts"
   ],
   "useSplashScreen": false,
+  "splashScreen": {
+    "displayRatio": 1,
+    "totalTime": 0,
+    "watermarkLocation": "default",
+    "autoFit": true,
+    "logo": {
+      "type": "custom",
+      "image": "b17cddfc-7b37-4989-b8cf-22bf64e96fbc",
+      "base64": ""
+    },
+    "background": {
+      "type": "color",
+      "color": {
+        "x": 1,
+        "y": 0.94,
+        "z": 0.83,
+        "w": 1
+      }
+    }
+  },
   "bundleCommonChunk": false,
   "mainBundleCompressionType": "merge_all_json",
   "mainBundleIsRemote": false,
-  "startSceneAssetBundle": true,
+  "startSceneAssetBundle": false,
   "startScene": "104fa7bd-69cf-44b8-8ed1-bfc9af55e101",
   "scenes": [
     {
@@ -35,6 +61,9 @@
     }
   ],
   "overwriteProjectSettings": {
+    "macroConfig": {
+      "cleanupImageCache": "on"
+    },
     "includeModules": {
       "physics": "off",
       "physics-2d": "off",

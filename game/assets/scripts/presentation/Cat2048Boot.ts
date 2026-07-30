@@ -8,7 +8,6 @@ import {
   KeyCode,
   Label,
   Node,
-  profiler,
   ResolutionPolicy,
   screen,
   sys,
@@ -88,9 +87,9 @@ export class Cat2048Boot extends Component {
   private safeBottom = 20;
   private sceneToken = 0;
   private shareInProgress = false;
+  private assetsReady = false;
 
   protected override onLoad(): void {
-    profiler.hideStats();
     this.setupCanvas();
     this.save = runtimeStorage.load();
     this.audio = new AudioController(this.node, this.art);
@@ -111,9 +110,12 @@ export class Cat2048Boot extends Component {
   }
 
   private async initialize(): Promise<void> {
-    this.showLoading();
+    // Build the actual home screen immediately so the engine splash never transitions
+    // through a second, project-level loading page.
+    this.showHome();
     await this.art.preload();
     if (!this.isValid) return;
+    this.assetsReady = true;
     setDisplayFont(this.art.font(GAME_CONFIG.fonts.display) ?? null);
     this.showHome();
   }
@@ -140,13 +142,6 @@ export class Cat2048Boot extends Component {
     if (wasGame) this.showGame(false); else this.showHome();
   };
 
-  private showLoading(): void {
-    this.clearScreen();
-    const root = this.makeScreen('Loading');
-    const label = createLabel('猫咪们正在集合…', 38, COLORS.ink, 560, 80);
-    root.addChild(label.node);
-  }
-
   private showHome(): void {
     this.clearScreen();
     const root = this.makeScreen('Home');
@@ -158,10 +153,10 @@ export class Cat2048Boot extends Component {
       topInset: this.topSafeInset(),
       bottomInset: this.bottomSafeInset(),
     }, {
-      onPlay: () => this.startGame(),
-      onInfo: () => this.showInfoDialog(),
-      onToggleSound: () => this.toggleSound(),
-      onSettings: () => this.showSettingsDialog(),
+      onPlay: () => { if (this.assetsReady) this.startGame(); },
+      onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
+      onToggleSound: () => { if (this.assetsReady) this.toggleSound(); },
+      onSettings: () => { if (this.assetsReady) this.showSettingsDialog(); },
     });
   }
 
