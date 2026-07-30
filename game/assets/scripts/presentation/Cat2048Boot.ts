@@ -33,6 +33,13 @@ import type { SaveDataV1 } from '../infrastructure/storage';
 import { ArtRepository } from './ArtRepository';
 import { AudioController } from './AudioController';
 import {
+  BOARD_PADDING,
+  BOARD_PIXELS,
+  CELL_GAP,
+  CELL_SIZE,
+  cellCenter,
+} from './boardGeometry';
+import {
   capsuleBottomInset,
   gameLayout,
   homeContentShift,
@@ -44,6 +51,7 @@ import {
   createIconButton,
   createLabel,
   createSpriteNode,
+  createToggle,
   createUiNode,
   drawRounded,
   setDisplayFont,
@@ -51,10 +59,6 @@ import {
 
 const { ccclass } = _decorator;
 
-const BOARD_PIXELS = 690;
-const BOARD_PADDING = 18;
-const CELL_GAP = 10;
-const CELL_SIZE = (BOARD_PIXELS - BOARD_PADDING * 2 - CELL_GAP * 3) / 4;
 const BOTTOM_EDGE_ICON_CROP = { x: 4, y: 0, width: 144, height: 144 } as const;
 const TOP_EDGE_ICON_CROP = { x: 4, y: 16, width: 144, height: 144 } as const;
 
@@ -64,7 +68,12 @@ export class Cat2048Boot extends Component {
   private readonly game = new Game2048(new RuntimeRandomSource());
   private readonly haptics = new HapticController();
   private audio!: AudioController;
-  private save: SaveDataV1 = { schemaVersion: 1, highScore: 0, soundEnabled: true };
+  private save: SaveDataV1 = {
+    schemaVersion: 1,
+    highScore: 0,
+    soundEnabled: true,
+    hapticsEnabled: true,
+  };
   private screenRoot: Node | null = null;
   private boardRoot: Node | null = null;
   private tileLayer: Node | null = null;
@@ -90,6 +99,7 @@ export class Cat2048Boot extends Component {
     this.save = runtimeStorage.load();
     this.audio = new AudioController(this.node, this.art);
     this.audio.enabled = this.save.soundEnabled;
+    this.haptics.enabled = this.save.hapticsEnabled;
     input.on(Input.EventType.KEY_DOWN, this.onKeyDown, this);
     screen.on('window-resize', this.onResize, this);
     screen.on('orientation-change', this.onResize, this);
@@ -825,13 +835,75 @@ export class Cat2048Boot extends Component {
   }
 
   private showSettingsDialog(): void {
-    const state = this.save.soundEnabled ? '当前音效已开启' : '当前音效已关闭';
-    this.showDialog('音效设置', state, '关闭', this.save.soundEnabled ? '关闭音效' : '开启音效', () => {
-      this.save = { ...this.save, soundEnabled: !this.save.soundEnabled };
-      runtimeStorage.save(this.save);
-      this.audio.enabled = this.save.soundEnabled;
+    const root = this.screenRoot;
+    if (!root) return;
+    const overlay = createUiNode('SettingsOverlay', this.uiWidth, this.uiHeight);
+    overlay.addComponent(BlockInputEvents);
+    const dim = overlay.addComponent(Graphics);
+    dim.fillColor = COLORS.overlay;
+    dim.rect(-this.uiWidth / 2, -this.uiHeight / 2, this.uiWidth, this.uiHeight);
+    dim.fill();
+    root.addChild(overlay);
+
+    const panel = createUiNode('SettingsPanel', 590, 500);
+    drawRounded(panel, 590, 500, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
+    overlay.addChild(panel);
+
+    const closeSettings = (): void => {
+      overlay.destroy();
+      this.inputLocked = false;
       this.showHome();
+    };
+    const closeFrame = this.art.frame(GAME_CONFIG.art.close);
+    if (closeFrame) {
+      const close = createIconButton('SettingsClose', closeFrame, '×', 66, closeSettings);
+      close.setPosition(258, 223);
+      panel.addChild(close);
+    }
+
+    const title = createLabel('设置', 46, COLORS.coral, 500, 70, 'display');
+    title.node.setPosition(0, 172);
+    panel.addChild(title.node);
+
+    const addSettingRow = (name: string, labelText: string, enabled: boolean, y: number,
+      onChange: (enabled: boolean) => void): void => {
+      const label = createLabel(labelText, 30, COLORS.ink, 160, 54, 'display');
+      label.node.setPosition(-170, y);
+      panel.addChild(label.node);
+      const state = createLabel(enabled ? '开启' : '关闭', 24, enabled ? COLORS.teal : COLORS.ink, 100, 48);
+      state.node.setPosition(38, y);
+      panel.addChild(state.node);
+      const toggle = createToggle(name, enabled, (value) => {
+        state.string = value ? '开启' : '关闭';
+        state.color = value ? COLORS.teal : COLORS.ink;
+        onChange(value);
+      });
+      toggle.setPosition(188, y);
+      panel.addChild(toggle);
+    };
+
+    addSettingRow('SoundSetting', '音效', this.save.soundEnabled, 70, (enabled) => {
+      this.save = { ...this.save, soundEnabled: enabled };
+      this.audio.enabled = enabled;
+      runtimeStorage.save(this.save);
     });
+    addSettingRow('HapticsSetting', '震动', this.save.hapticsEnabled, -35, (enabled) => {
+      this.save = { ...this.save, hapticsEnabled: enabled };
+      this.haptics.enabled = enabled;
+      runtimeStorage.save(this.save);
+    });
+
+    const divider = createUiNode('SettingsDivider', 470, 2);
+    drawRounded(divider, 470, 2, new Color(77, 61, 54, 55), 1);
+    divider.setPosition(0, 18);
+    panel.addChild(divider);
+
+    const close = createButton('关闭', 270, 78, COLORS.coral, closeSettings, 28);
+    close.setPosition(0, -170);
+    panel.addChild(close);
+    panel.setScale(0.8, 0.8, 1);
+    tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
+    this.inputLocked = true;
   }
 
   private showGameOver(): void {
@@ -922,9 +994,9 @@ export class Cat2048Boot extends Component {
     }
   }
 
-  private positionFor({ row, col }: Position): Vec3 {
-    const start = -BOARD_PIXELS / 2 + BOARD_PADDING + CELL_SIZE / 2;
-    return new Vec3(start + col * (CELL_SIZE + CELL_GAP), -start - row * (CELL_SIZE + CELL_GAP), 0);
+  private positionFor(position: Position): Vec3 {
+    const { x, y } = cellCenter(position);
+    return new Vec3(x, y, 0);
   }
 
   private tweenPosition(node: Node, position: Vec3, seconds: number): Promise<void> {
