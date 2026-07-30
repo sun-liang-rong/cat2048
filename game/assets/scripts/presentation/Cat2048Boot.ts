@@ -1,6 +1,5 @@
 import {
   _decorator,
-  BlockInputEvents,
   Color,
   Component,
   EventKeyboard,
@@ -37,6 +36,8 @@ import {
   homeContentShift,
   safeInsetsFromRect,
 } from './layout';
+import { DialogView } from './DialogView';
+import { SettingsPanel } from './SettingsPanel';
 import { SwipeInput } from './SwipeInput';
 import {
   COLORS,
@@ -44,7 +45,6 @@ import {
   createIconButton,
   createLabel,
   createSpriteNode,
-  createToggle,
   createUiNode,
   drawRounded,
   setDisplayFont,
@@ -78,6 +78,8 @@ export class Cat2048Boot extends Component {
   private removeLowestCountLabel: Label | null = null;
   private inputLocked = false;
   private swipe: SwipeInput | null = null;
+  private readonly dialogs = new DialogView(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
+  private readonly settings = new SettingsPanel(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
   private uiWidth: number = GAME_CONFIG.designWidth;
   private uiHeight: number = GAME_CONFIG.designHeight;
   private safeTop = 24;
@@ -661,131 +663,49 @@ export class Cat2048Boot extends Component {
   }
 
   private showSettingsDialog(): void {
-    const root = this.screenRoot;
-    if (!root) return;
-    const overlay = createUiNode('SettingsOverlay', this.uiWidth, this.uiHeight);
-    overlay.addComponent(BlockInputEvents);
-    const dim = overlay.addComponent(Graphics);
-    dim.fillColor = COLORS.overlay;
-    dim.rect(-this.uiWidth / 2, -this.uiHeight / 2, this.uiWidth, this.uiHeight);
-    dim.fill();
-    root.addChild(overlay);
-
-    const panel = createUiNode('SettingsPanel', 590, 500);
-    drawRounded(panel, 590, 500, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
-    overlay.addChild(panel);
-
-    const closeSettings = (): void => {
-      overlay.destroy();
-      this.inputLocked = false;
-      this.showHome();
-    };
-    const closeFrame = this.art.frame(GAME_CONFIG.art.close);
-    if (closeFrame) {
-      const close = createIconButton('SettingsClose', closeFrame, '×', 66, closeSettings);
-      close.setPosition(258, 223);
-      panel.addChild(close);
-    }
-
-    const title = createLabel('设置', 46, COLORS.coral, 500, 70, 'display');
-    title.node.setPosition(0, 172);
-    panel.addChild(title.node);
-
-    const addSettingRow = (name: string, labelText: string, enabled: boolean, y: number,
-      onChange: (enabled: boolean) => void): void => {
-      const label = createLabel(labelText, 30, COLORS.ink, 160, 54, 'display');
-      label.node.setPosition(-170, y);
-      panel.addChild(label.node);
-      const state = createLabel(enabled ? '开启' : '关闭', 24, enabled ? COLORS.teal : COLORS.ink, 100, 48);
-      state.node.setPosition(38, y);
-      panel.addChild(state.node);
-      const toggle = createToggle(name, enabled, (value) => {
-        state.string = value ? '开启' : '关闭';
-        state.color = value ? COLORS.teal : COLORS.ink;
-        onChange(value);
-      });
-      toggle.setPosition(188, y);
-      panel.addChild(toggle);
-    };
-
-    addSettingRow('SoundSetting', '音效', this.save.soundEnabled, 70, (enabled) => {
-      this.save = { ...this.save, soundEnabled: enabled };
-      this.audio.enabled = enabled;
-      runtimeStorage.save(this.save);
-    });
-    addSettingRow('HapticsSetting', '震动', this.save.hapticsEnabled, -35, (enabled) => {
-      this.save = { ...this.save, hapticsEnabled: enabled };
-      this.haptics.enabled = enabled;
-      runtimeStorage.save(this.save);
-    });
-
-    const divider = createUiNode('SettingsDivider', 470, 2);
-    drawRounded(divider, 470, 2, new Color(77, 61, 54, 55), 1);
-    divider.setPosition(0, 18);
-    panel.addChild(divider);
-
-    const close = createButton('关闭', 270, 78, COLORS.coral, closeSettings, 28);
-    close.setPosition(0, -170);
-    panel.addChild(close);
-    panel.setScale(0.8, 0.8, 1);
-    tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
+    if (!this.screenRoot) return;
     this.inputLocked = true;
+    this.settings.show(this.screenRoot, {
+      soundEnabled: this.save.soundEnabled,
+      hapticsEnabled: this.save.hapticsEnabled,
+    }, {
+      onSoundChange: (enabled) => {
+        this.save = { ...this.save, soundEnabled: enabled };
+        this.audio.enabled = enabled;
+        runtimeStorage.save(this.save);
+      },
+      onHapticsChange: (enabled) => {
+        this.save = { ...this.save, hapticsEnabled: enabled };
+        this.haptics.enabled = enabled;
+        runtimeStorage.save(this.save);
+      },
+      onClose: () => {
+        this.inputLocked = false;
+        this.showHome();
+      },
+    });
   }
 
   private showGameOver(): void {
     this.inputLocked = true;
     this.updateScore(this.game.score);
     this.audio.play('game_over', 0.8);
-    this.showDialog('猫咪挤满啦', `本局得分  ${this.game.score}\n最高分  ${this.save.highScore}`, '返回主页', '再玩一局',
+    this.showDialog('猫咪挤满啦', `本局得分  ${this.game.score}
+最高分  ${this.save.highScore}`, '返回主页', '再玩一局',
       () => this.startGame(), () => this.showHome());
   }
 
   private showDialog(titleText: string, bodyText: string, cancelText: string, confirmText: string,
     onConfirm: () => void, onCancel?: () => void): void {
-    const root = this.screenRoot;
-    if (!root) return;
-    const overlay = createUiNode('DialogOverlay', this.uiWidth, this.uiHeight);
-    overlay.addComponent(BlockInputEvents);
-    const dim = overlay.addComponent(Graphics);
-    dim.fillColor = COLORS.overlay;
-    dim.rect(-this.uiWidth / 2, -this.uiHeight / 2, this.uiWidth, this.uiHeight);
-    dim.fill();
-    root.addChild(overlay);
-    const panel = createUiNode('DialogPanel', 590, 430);
-    drawRounded(panel, 590, 430, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
-    overlay.addChild(panel);
-    const closeFrame = this.art.frame(GAME_CONFIG.art.close);
-    if (closeFrame) {
-      const close = createIconButton('DialogClose', closeFrame, '×', 66, () => {
-        overlay.destroy();
+    if (!this.screenRoot) return;
+    this.inputLocked = true;
+    this.dialogs.show(this.screenRoot, titleText, bodyText, cancelText, confirmText, {
+      onConfirm,
+      onCancel: () => {
         this.inputLocked = false;
         onCancel?.();
-      });
-      close.setPosition(258, 188);
-      panel.addChild(close);
-    }
-    const title = createLabel(titleText, 46, COLORS.coral, 500, 70, 'display');
-    title.node.setPosition(0, 125);
-    panel.addChild(title.node);
-    const body = createLabel(bodyText, 28, COLORS.ink, 490, 130);
-    body.node.setPosition(0, 30);
-    panel.addChild(body.node);
-    const cancel = createButton(cancelText, 230, 78, COLORS.teal, () => {
-      overlay.destroy();
-      this.inputLocked = false;
-      onCancel?.();
-    }, 28);
-    cancel.setPosition(-135, -125);
-    panel.addChild(cancel);
-    const confirm = createButton(confirmText, 230, 78, COLORS.coral, () => {
-      overlay.destroy();
-      onConfirm();
-    }, 28);
-    confirm.setPosition(135, -125);
-    panel.addChild(confirm);
-    panel.setScale(0.8, 0.8, 1);
-    tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
-    this.inputLocked = true;
+      },
+    });
   }
 
   private createHudCard(titleText: string, valueText: string): { node: Node; value: Label } {

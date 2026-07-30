@@ -9,6 +9,7 @@ import {
   Sprite,
   SpriteFrame,
   tween,
+  Tween,
   UITransform,
   Vec2,
   Vec3,
@@ -144,6 +145,34 @@ export function createButton(text: string, width: number, height: number, color:
   node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
   node.on(Node.EventType.TOUCH_END, () => {
     tween(node).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
+  });
+  return node;
+}
+
+export function createToggle(name: string, enabled: boolean, onChange: (enabled: boolean) => void): Node {
+  const node = createUiNode(`${name}:${enabled ? 'On' : 'Off'}`, 110, 58);
+  const knob = createUiNode(`${name}:Knob`, 46, 46);
+  let current = enabled;
+  node.addChild(knob);
+
+  const render = (animate: boolean): void => {
+    node.name = `${name}:${current ? 'On' : 'Off'}`;
+    drawRounded(node, 110, 58, current ? COLORS.teal : COLORS.cream, 29,
+      { color: COLORS.ink, width: 4 });
+    drawRounded(knob, 46, 46, COLORS.ivory, 23, { color: COLORS.ink, width: 3 });
+    const position = new Vec3(current ? 25 : -25, 0, 0);
+    Tween.stopAllByTarget(knob);
+    if (animate) tween(knob).to(0.12, { position }, { easing: 'quadOut' }).start();
+    else knob.setPosition(position);
+  };
+
+  render(false);
+  node.on(Node.EventType.TOUCH_START, () => tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start());
+  node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
+  node.on(Node.EventType.TOUCH_END, () => {
+    current = !current;
+    render(true);
+    tween(node).to(0.08, { scale: Vec3.ONE }).call(() => onChange(current)).start();
   });
   return node;
 }
