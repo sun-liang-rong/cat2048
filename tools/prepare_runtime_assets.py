@@ -9,12 +9,23 @@ import struct
 import wave
 from pathlib import Path
 
+from fontTools import subset
+from fontTools.ttLib import TTFont
 from PIL import Image
+from PIL import ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "art-generation" / "images"
 RAW_SOURCE = SOURCE / "_source"
 OUTPUT = ROOT / "game" / "assets" / "resources" / "game"
+FONT_SOURCE = ROOT / "assets" / "art-generation" / "fonts" / "ZCOOLKuaiLe-Regular.ttf"
+FONT_OUTPUT = OUTPUT / "fonts"
+DISPLAY_FONT = FONT_OUTPUT / "display.ttf"
+NUMBER_FONT_CHARACTERS = "0123456789Lv.+×"
+DISPLAY_FONT_ALLOWLIST = (
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz "
+    ".,+-:;!?/×★·↶›，。！？、：；（）《》【】“”‘’…—"
+)
 ALPHA_THRESHOLD = 8
 EXPECTED_IMAGE_SIZES = {
     **{f"cat_{level:02}.png": (256, 256) for level in range(1, 10)},
@@ -28,9 +39,103 @@ EXPECTED_IMAGE_SIZES = {
     ]},
     **{name: (160, 160) for name in [
         "close.png", "back.png", "home.png", "check.png", "share.png",
-        "sound_on.png", "sound_off.png", "settings.png", "info.png",
+        "sound_on.png", "sound_off.png", "settings.png", "info.png", "locked.png",
     ]},
 }
+
+
+def project_font_characters() -> str:
+    """Collect characters which can be rendered with the custom display font."""
+    source_paths = [
+        *sorted((ROOT / "game" / "assets" / "scripts").rglob("*.ts")),
+        ROOT / "game" / "assets" / "main.scene",
+    ]
+    characters = set(DISPLAY_FONT_ALLOWLIST)
+    for path in source_paths:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        characters.update(character for character in text if ord(character) > 127)
+    return "".join(sorted(characters))
+
+
+def generate_display_font() -> None:
+    if not FONT_SOURCE.exists():
+        raise FileNotFoundError(f"Missing source display font: {FONT_SOURCE}")
+    FONT_OUTPUT.mkdir(parents=True, exist_ok=True)
+    options = subset.Options()
+    options.layout_features = ["*"]
+    options.notdef_glyph = True
+    options.notdef_outline = True
+    options.recommended_glyphs = True
+    font = TTFont(FONT_SOURCE)
+    subsetter = subset.Subsetter(options=options)
+    subsetter.populate(text=project_font_characters())
+    subsetter.subset(font)
+    font.save(DISPLAY_FONT)
+
+
+def generate_number_font() -> None:
+    """Generate a compact BMFont atlas for score and level labels."""
+    font_size = 72
+    padding = 5
+    columns = 8
+    font = ImageFont.truetype(str(FONT_SOURCE), font_size)
+    metrics: list[tuple[str, tuple[int, int, int, int], int]] = []
+    cell_width = 0
+    cell_height = 0
+    for character in NUMBER_FONT_CHARACTERS:
+        bbox = font.getbbox(character, stroke_width=1)
+        advance = max(1, round(font.getlength(character)))
+        metrics.append((character, bbox, advance))
+        cell_width = max(cell_width, bbox[2] - bbox[0] + padding * 2)
+        cell_height = max(cell_height, bbox[3] - bbox[1] + padding * 2)
+    rows = math.ceil(len(metrics) / columns)
+    atlas = Image.new("RGBA", (cell_width * columns, cell_height * rows), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(atlas)
+    glyph_lines: list[str] = []
+    for index, (character, bbox, advance) in enumerate(metrics):
+        column = index % columns
+        row = index // columns
+        cell_x = column * cell_width
+        cell_y = row * cell_height
+        glyph_width = bbox[2] - bbox[0]
+        glyph_height = bbox[3] - bbox[1]
+        x = cell_x + padding
+        y = cell_y + padding
+        draw.text(
+            (x - bbox[0], y - bbox[1]),
+            character,
+            font=font,
+            fill=(255, 255, 255, 255),
+            stroke_width=1,
+            stroke_fill=(255, 255, 255, 255),
+        )
+        glyph_lines.append(
+            f"char id={ord(character)} x={x} y={y} width={glyph_width} height={glyph_height} "
+            f"xoffset={bbox[0]} yoffset={bbox[1]} xadvance={advance} page=0 chnl=15"
+        )
+    atlas_path = FONT_OUTPUT / "score.png"
+    atlas.save(atlas_path, format="PNG", optimize=True)
+    descriptor = "\n".join([
+        f'info face="ZCOOL KuaiLe Score" size={font_size} bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1',
+        f"common lineHeight={font_size + 10} base={font_size} scaleW={atlas.width} scaleH={atlas.height} pages=1 packed=0",
+        'page id=0 file="score.png"',
+        f"chars count={len(glyph_lines)}",
+        *glyph_lines,
+        "kernings count=0",
+        "",
+    ])
+    (FONT_OUTPUT / "score.fnt").write_text(descriptor, encoding="utf-8")
+
+
+def prepare_fonts() -> None:
+    generate_display_font()
+    generate_number_font()
+    if DISPLAY_FONT.stat().st_size >= 96 * 1024:
+        raise ValueError(f"Display font subset is unexpectedly large: {DISPLAY_FONT.stat().st_size} bytes")
+    if (FONT_OUTPUT / "score.png").stat().st_size >= 64 * 1024:
+        raise ValueError("Number font atlas is unexpectedly large")
+
+
 def trim_and_square(image: Image.Image, size: int, margin: float = 0.05) -> Image.Image:
     rgba = image.convert("RGBA")
     bbox = rgba.getchannel("A").point(lambda value: 255 if value > ALPHA_THRESHOLD else 0).getbbox()
@@ -120,6 +225,7 @@ def validate() -> dict[str, str]:
         OUTPUT / "ui" / "sound_off.png",
         OUTPUT / "ui" / "settings.png",
         OUTPUT / "ui" / "info.png",
+        OUTPUT / "ui" / "locked.png",
         OUTPUT / "audio" / "move.wav",
         OUTPUT / "audio" / "merge.wav",
         OUTPUT / "audio" / "game_over.wav",
@@ -143,6 +249,7 @@ def validate() -> dict[str, str]:
 
 def main() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    prepare_fonts()
     slice_grid("sheet_cats.png", 3, 3, [f"cat_{i:02}" for i in range(1, 10)], "cats", 256)
     slice_grid("sheet_gameplay.png", 3, 2,
                ["tile_empty", "tile_selected", "sparkle_small", "merge_sparkle", "merge_burst", "max_halo"],
@@ -163,7 +270,7 @@ def main() -> int:
     generate_tone("game_over", [293.66, 246.94, 196.00], 0.42, 0.18)
     mapping = validate()
     (OUTPUT / "asset-map.json").write_text(json.dumps(mapping, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Prepared and validated {len(mapping)} required runtime assets in {OUTPUT}")
+    print(f"Prepared fonts and validated {len(mapping)} required runtime assets in {OUTPUT}")
     return 0
 
 

@@ -1,6 +1,8 @@
 export type ShareResult = 'shared' | 'unsupported' | 'failed';
+export type SharePurpose = 'score' | 'revive' | 'undo-refill' | 'remove-lowest-refill';
 
 export interface ResultCardData {
+  readonly purpose?: SharePurpose;
   readonly score: number;
   readonly bestScore: number;
   readonly catLevel: number;
@@ -93,9 +95,9 @@ export class ResultShareController {
         quality: 0.92,
       });
       wx.shareAppMessage({
-        title: `我在猫咪2048拿到了${data.score}分，来挑战我吧！`,
+        title: this.shareTitle(data.purpose ?? 'score', data.score),
         imageUrl,
-        query: `from=score_share&score=${data.score}`,
+        query: `from=${this.shareSource(data.purpose ?? 'score')}&score=${data.score}`,
       });
       return 'shared';
     } catch (error) {
@@ -135,7 +137,37 @@ export class ResultShareController {
     context.font = 'bold 36px sans-serif';
     context.fillText(`Lv.${data.catLevel} ${data.catName}`, 264, 570);
     context.font = 'bold 31px sans-serif';
-    context.fillText('猫咪2048 · 来挑战我的分数', 500, 670);
+    context.fillText(this.cardPrompt(data.purpose ?? 'score'), 500, 670);
     context.restore();
+  }
+
+  private shareTitle(purpose: SharePurpose, score: number): string {
+    const titles: Record<SharePurpose, string> = {
+      score: `我在猫咪2048拿到了${score}分，来挑战我吧！`,
+      revive: '猫咪挤满啦，帮我腾出两个位置继续挑战！',
+      'undo-refill': '帮我补充一次撤回机会，继续挑战猫咪2048！',
+      'remove-lowest-refill': '帮我补充一次消除机会，继续挑战猫咪2048！',
+    };
+    return titles[purpose];
+  }
+
+  private shareSource(purpose: SharePurpose): string {
+    const sources: Record<SharePurpose, string> = {
+      score: 'score_share',
+      revive: 'revive_share',
+      'undo-refill': 'undo_refill_share',
+      'remove-lowest-refill': 'remove_refill_share',
+    };
+    return sources[purpose];
+  }
+
+  private cardPrompt(purpose: SharePurpose): string {
+    const prompts: Record<SharePurpose, string> = {
+      score: '猫咪2048 · 来挑战我的分数',
+      revive: '猫咪2048 · 帮我继续挑战',
+      'undo-refill': '猫咪2048 · 帮我补充撤回',
+      'remove-lowest-refill': '猫咪2048 · 帮我补充消除',
+    };
+    return prompts[purpose];
   }
 }

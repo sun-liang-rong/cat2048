@@ -16,6 +16,7 @@ import {
 } from 'cc';
 import { spriteCropTransform } from './layout';
 import type { SpriteCropRect } from './layout';
+import { selectLabelFont } from './fontPolicy';
 
 export const COLORS = {
   ink: new Color(60, 48, 44, 255),
@@ -39,9 +40,11 @@ const DISPLAY_DARK_SHADOW = new Color(72, 36, 32, 125);
 const DISPLAY_LIGHT_SHADOW = new Color(150, 92, 54, 95);
 
 let displayFont: Font | null = null;
+let numberFont: Font | null = null;
 
-export function setDisplayFont(font: Font | null): void {
-  displayFont = font;
+export function setRuntimeFonts(display: Font | null, numbers: Font | null): void {
+  displayFont = display;
+  numberFont = numbers;
 }
 
 export function createUiNode(name: string, width = 0, height = 0): Node {
@@ -78,13 +81,17 @@ function applyLabelStyle(label: Label, fontSize: number, color: Color, style: La
 
   if (style === 'display') {
     label.lineHeight = Math.round(fontSize * 1.14);
-    if (displayFont) {
+    const selectedFont = selectLabelFont(style, label.string);
+    const customFont = selectedFont === 'number' ? numberFont : selectedFont === 'display' ? displayFont : null;
+    if (customFont) {
       label.useSystemFont = false;
-      label.font = displayFont;
+      label.font = customFont;
     } else {
       label.useSystemFont = true;
-      label.fontFamily = DISPLAY_FONT_FAMILY;
+      label.font = null;
+      label.fontFamily = selectedFont === 'body' ? BODY_FONT_FAMILY : DISPLAY_FONT_FAMILY;
     }
+    if (selectedFont === 'number' && numberFont) return;
     label.isBold = true;
 
     const lightText = isLightColor(color);
@@ -116,6 +123,11 @@ export function createLabel(text: string, fontSize: number, color = COLORS.ink,
   label.verticalAlign = Label.VerticalAlign.CENTER;
   label.overflow = Label.Overflow.SHRINK;
   return label;
+}
+
+export function setLabelText(label: Label, text: string, style: LabelStyle = 'body'): void {
+  label.string = text;
+  applyLabelStyle(label, label.fontSize, label.color, style);
 }
 
 export function createSpriteNode(name: string, frame: SpriteFrame, width: number, height: number): Node {

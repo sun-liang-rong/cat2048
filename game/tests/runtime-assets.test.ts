@@ -20,7 +20,7 @@ describe('runtime image assets', () => {
     const files = filesBelow(assetRoot);
     const images = files.filter((path) => ['.png', '.webp'].includes(extname(path)));
 
-    expect(images).toHaveLength(35);
+    expect(images).toHaveLength(37);
     expect(images.every((path) => extname(path) === '.png')).toBe(true);
     expect(files.filter((path) => path.endsWith('.webp.meta'))).toEqual([]);
 
@@ -40,7 +40,7 @@ describe('runtime image assets', () => {
     const manifest = JSON.parse(output) as Record<string, { kind: string }>;
     const pngEntries = Object.values(manifest).filter((entry) => entry.kind === 'png');
 
-    expect(pngEntries).toHaveLength(35);
+    expect(pngEntries).toHaveLength(37);
   });
 
   it('configures resources as a local WeChat subpackage', () => {

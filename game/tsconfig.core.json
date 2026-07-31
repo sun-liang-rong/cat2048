@@ -11,6 +11,8 @@
   "include": [
     "assets/scripts/core/**/*.ts",
     "assets/scripts/presentation/layout.ts",
+    "assets/scripts/presentation/resourceLoading.ts",
+    "assets/scripts/presentation/startupSequence.ts",
     "assets/scripts/presentation/settingsNavigation.ts",
     "assets/scripts/infrastructure/HapticController.ts",
     "assets/scripts/infrastructure/ResultShareController.ts",

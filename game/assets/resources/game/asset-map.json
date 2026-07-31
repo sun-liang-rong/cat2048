@@ -27,6 +27,7 @@
   "sound_off": "game/ui/sound_off/texture",
   "settings": "game/ui/settings/texture",
   "info": "game/ui/info/texture",
+  "locked": "game/ui/locked/texture",
   "move": "game/audio/move",
   "merge": "game/audio/merge",
   "game_over": "game/audio/game_over"

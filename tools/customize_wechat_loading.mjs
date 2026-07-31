@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const marker = 'CAT2048_CUSTOM_LOADING_SCREEN';
 const generatedBuild = join(root, 'game', 'build', 'wechatgame');
-const catSource = join(root, 'game', 'assets', 'resources', 'game', 'cats', 'cat_01.png');
+const logoSource = join(root, 'game', 'assets', 'resources', 'game', 'branding', 'logo.png');
 const titleGenerator = join(root, 'tools', 'generate_wechat_loading_title.py');
 
 const replacements = [
@@ -20,6 +20,8 @@ const replacements = [
   ['let progressBackground = [100 / 255, 111 / 255, 118 / 255, 1];', 'let progressBackground = [0.16, 0.13, 0.11, 1];'],
   ['let bgColor = [0.01568627450980392,0.03529411764705882,0.0392156862745098,0.00392156862745098];', 'let bgColor = [1, 0.94, 0.83, 1]; // CAT2048_CUSTOM_LOADING_SCREEN'],
 ];
+
+export const filesHaveSameBytes = (left, right) => readFileSync(left).equals(readFileSync(right));
 
 export const customizeFirstScreen = (firstScreenPath) => {
   const source = readFileSync(firstScreenPath, 'utf8');
@@ -37,21 +39,21 @@ export const customizeFirstScreen = (firstScreenPath) => {
 
 const runTitleGenerator = (outputPath) => {
   const temporaryOutput = `${outputPath}.tmp`;
-  let result;
+  const failures = [];
 
   for (const executable of ['python3', 'python']) {
-    result = spawnSync(executable, [titleGenerator, temporaryOutput], {
+    const result = spawnSync(executable, [titleGenerator, temporaryOutput], {
       cwd: root,
       encoding: 'utf8',
     });
-    if (!result.error || result.error.code !== 'ENOENT') break;
+    if (!result.error && result.status === 0) {
+      renameSync(temporaryOutput, outputPath);
+      return;
+    }
+    failures.push(result.error?.message || result.stderr || result.stdout || `${executable} exited ${result.status}`);
   }
 
-  if (result?.error || result?.status !== 0) {
-    const detail = result?.error?.message || result?.stderr || result?.stdout || 'Python 3 with Pillow is required';
-    throw new Error(`Unable to generate loading title: ${detail}`.trim());
-  }
-  renameSync(temporaryOutput, outputPath);
+  throw new Error(`Unable to generate loading title: ${failures.join(' | ') || 'Python 3 with Pillow is required'}`.trim());
 };
 
 export const customizeWeChatLoadingScreen = (buildDirectory = generatedBuild) => {
@@ -59,12 +61,12 @@ export const customizeWeChatLoadingScreen = (buildDirectory = generatedBuild) =>
   const logoPath = join(buildDirectory, 'logo.png');
   const sloganPath = join(buildDirectory, 'slogan.png');
 
-  for (const path of [firstScreenPath, catSource, titleGenerator]) {
+  for (const path of [firstScreenPath, logoSource, titleGenerator]) {
     if (!existsSync(path)) throw new Error(`Required loading-screen file is missing: ${path}`);
   }
 
   runTitleGenerator(sloganPath);
-  copyFileSync(catSource, logoPath);
+  copyFileSync(logoSource, logoPath);
   customizeFirstScreen(firstScreenPath);
 };
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { customizeFirstScreen } from './customize_wechat_loading.mjs';
+import { customizeFirstScreen, filesHaveSameBytes } from './customize_wechat_loading.mjs';
 
 test('customizeFirstScreen replaces default colors and is idempotent', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cat2048-loading-'));
@@ -24,4 +24,16 @@ test('customizeFirstScreen replaces default colors and is idempotent', () => {
   assert.match(output, /let progressBackground = \[0\.16, 0\.13, 0\.11, 1\];/);
   assert.match(output, /let bgColor = \[1, 0\.94, 0\.83, 1\];/);
   assert.equal((output.match(/CAT2048_CUSTOM_LOADING_SCREEN/g) ?? []).length, 1);
+});
+
+test('filesHaveSameBytes detects stale generated logos', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cat2048-logo-'));
+  const source = join(directory, 'source.png');
+  const generated = join(directory, 'generated.png');
+  writeFileSync(source, Buffer.from([1, 2, 3]));
+  writeFileSync(generated, Buffer.from([1, 2, 3]));
+
+  assert.equal(filesHaveSameBytes(source, generated), true);
+  writeFileSync(generated, Buffer.from([3, 2, 1]));
+  assert.equal(filesHaveSameBytes(source, generated), false);
 });

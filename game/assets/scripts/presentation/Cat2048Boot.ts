@@ -19,12 +19,14 @@ import {
   view,
 } from 'cc';
 import { Game2048 } from '../core/Game2048';
-import type { Direction } from '../core/types';
+import type { BoardSnapshot, Direction, ItemKind } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import { HapticController } from '../infrastructure/HapticController';
 import { ResultShareController } from '../infrastructure/ResultShareController';
+import type { SharePurpose, ShareResult } from '../infrastructure/ResultShareController';
 import { RuntimeRandomSource, runtimeStorage } from '../infrastructure/runtime';
-import type { SaveDataV1 } from '../infrastructure/storage';
+import { DEFAULT_SAVE } from '../infrastructure/storage';
+import type { SaveDataV2 } from '../infrastructure/storage';
 import { ArtRepository } from './ArtRepository';
 import { AudioController } from './AudioController';
 import { addCoverBackground } from './background';
@@ -36,10 +38,16 @@ import {
   safeInsetsFromRect,
 } from './layout';
 import { DialogView } from './DialogView';
+import { CollectionView } from './CollectionView';
+import type { CollectionOrigin } from './CollectionView';
+import { GameOverDialogView } from './GameOverDialogView';
 import { HomeView } from './HomeView';
+import { LoadingView } from './LoadingView';
 import { SettingsPanel } from './SettingsPanel';
 import { settingsOrigin } from './settingsNavigation';
+import { runStartupSequence } from './startupSequence';
 import { SwipeInput } from './SwipeInput';
+import { TutorialView } from './TutorialView';
 import {
   COLORS,
   createIconButton,
@@ -47,36 +55,47 @@ import {
   createSpriteNode,
   createUiNode,
   drawRounded,
-  setDisplayFont,
+  setLabelText,
+  setRuntimeFonts,
 } from './uiFactory';
 
 const { ccclass } = _decorator;
 
 const BOTTOM_EDGE_ICON_CROP = { x: 4, y: 0, width: 144, height: 144 } as const;
 
+interface ItemButtonView {
+  readonly node: Node;
+  readonly count: Label;
+  readonly title: Label;
+  readonly icon: Node;
+  readonly baseTitle: string;
+  readonly baseIcon: string;
+}
+
+type ScreenName = 'loading' | 'home' | 'game' | 'collection';
+
 @ccclass('Cat2048Boot')
 export class Cat2048Boot extends Component {
   private readonly art = new ArtRepository();
   private readonly boardView = new BoardView(this.art);
   private readonly homeView = new HomeView(this.art);
+  private readonly collectionView = new CollectionView(this.art);
+  private readonly tutorialView = new TutorialView();
+  private readonly gameOverDialog = new GameOverDialogView(this.art);
+  private readonly loadingView = new LoadingView();
   private readonly game = new Game2048(new RuntimeRandomSource());
   private readonly haptics = new HapticController();
   private readonly resultShare = new ResultShareController();
   private audio!: AudioController;
-  private save: SaveDataV1 = {
-    schemaVersion: 1,
-    highScore: 0,
-    soundEnabled: true,
-    hapticsEnabled: true,
-  };
+  private save: SaveDataV2 = DEFAULT_SAVE;
   private screenRoot: Node | null = null;
   private scoreLabel: Label | null = null;
   private highScoreLabel: Label | null = null;
   private evolutionPanel: Node | null = null;
-  private undoButton: Node | null = null;
-  private removeLowestButton: Node | null = null;
-  private undoCountLabel: Label | null = null;
-  private removeLowestCountLabel: Label | null = null;
+  private undoItem: ItemButtonView | null = null;
+  private removeLowestItem: ItemButtonView | null = null;
+  private gameOverOverlay: Node | null = null;
+  private pendingUnlockLevels: number[] = [];
   private inputLocked = false;
   private swipe: SwipeInput | null = null;
   private readonly dialogs = new DialogView(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
@@ -87,7 +106,10 @@ export class Cat2048Boot extends Component {
   private safeBottom = 20;
   private sceneToken = 0;
   private shareInProgress = false;
+  private swipeGuideActive = false;
   private assetsReady = false;
+  private currentScreen: ScreenName = 'loading';
+  private collectionOrigin: CollectionOrigin = 'home';
 
   protected override onLoad(): void {
     this.setupCanvas();
@@ -110,14 +132,23 @@ export class Cat2048Boot extends Component {
   }
 
   private async initialize(): Promise<void> {
-    // Build the actual home screen immediately so the engine splash never transitions
-    // through a second, project-level loading page.
-    this.showHome();
-    await this.art.preload();
-    if (!this.isValid) return;
-    this.assetsReady = true;
-    setDisplayFont(this.art.font(GAME_CONFIG.fonts.display) ?? null);
-    this.showHome();
+    this.showLoading();
+    await runStartupSequence({
+      preload: () => this.art.preload((ratio) => this.loadingView.setProgress(ratio)),
+      isActive: () => this.isValid,
+      onReady: () => {
+        this.assetsReady = true;
+        setRuntimeFonts(
+          this.art.font(GAME_CONFIG.fonts.display) ?? null,
+          this.art.font(GAME_CONFIG.fonts.numbers) ?? null,
+        );
+        this.showHome();
+      },
+      onError: (error) => {
+        console.error('[Cat2048] Startup asset loading failed', error);
+        this.loadingView.showError();
+      },
+    });
   }
 
   private setupCanvas(): void {
@@ -137,16 +168,31 @@ export class Cat2048Boot extends Component {
   };
 
   private readonly applyResize = (): void => {
-    const wasGame = this.boardView.root !== null;
+    const screenBeforeResize = this.currentScreen;
     this.setupCanvas();
-    if (wasGame) this.showGame(false); else this.showHome();
+    if (!this.assetsReady) {
+      this.showLoading();
+      return;
+    }
+    if (screenBeforeResize === 'game') this.showGame(false);
+    else if (screenBeforeResize === 'collection') this.showCollection(this.collectionOrigin);
+    else this.showHome();
   };
+
+  private showLoading(): void {
+    this.clearScreen();
+    this.currentScreen = 'loading';
+    const root = this.makeScreen('Loading');
+    this.loadingView.build(root, this.uiWidth, this.uiHeight);
+  }
 
   private showHome(): void {
     this.clearScreen();
+    this.currentScreen = 'home';
     const root = this.makeScreen('Home');
     this.homeView.build(root, {
       highScore: this.save.highScore,
+      collectionCount: this.save.unlockedCatLevels.length,
       soundEnabled: this.save.soundEnabled,
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
@@ -155,6 +201,7 @@ export class Cat2048Boot extends Component {
     }, {
       onPlay: () => { if (this.assetsReady) this.startGame(); },
       onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
+      onCollection: () => { if (this.assetsReady) this.showCollection('home'); },
       onToggleSound: () => { if (this.assetsReady) this.toggleSound(); },
       onSettings: () => { if (this.assetsReady) this.showSettingsDialog(); },
     });
@@ -171,9 +218,32 @@ export class Cat2048Boot extends Component {
     this.showGame(true);
   }
 
+  private showCollection(origin: CollectionOrigin): void {
+    this.clearScreen();
+    this.currentScreen = 'collection';
+    this.collectionOrigin = origin;
+    const root = this.makeScreen('Collection');
+    this.collectionView.build(root, {
+      unlockedLevels: this.save.unlockedCatLevels,
+      uiWidth: this.uiWidth,
+      uiHeight: this.uiHeight,
+      topInset: this.topSafeInset(),
+      bottomInset: this.bottomSafeInset(),
+    }, {
+      onBack: () => {
+        if (origin === 'game') this.showGame(false);
+        else this.showHome();
+      },
+    });
+  }
+
   private showGame(startNewGame: boolean): void {
     this.clearScreen();
-    if (startNewGame) this.game.start();
+    this.currentScreen = 'game';
+    if (startNewGame) {
+      this.pendingUnlockLevels = [];
+      this.registerBoardCats(this.game.start());
+    }
     const root = this.makeScreen('Game');
     addCoverBackground(
       root,
@@ -187,11 +257,11 @@ export class Cat2048Boot extends Component {
     const layout = gameLayout(this.uiWidth, this.uiHeight, this.topSafeInset(), this.bottomSafeInset(), BOARD_PIXELS);
     const hudY = this.uiHeight / 2 - layout.hudCenterFromTop;
     const back = createIconButton('Back', this.art.frame(GAME_CONFIG.art.back), '‹', 76,
-      () => { if (!this.inputLocked) this.confirmLeave(); });
+      () => { if (!this.inputLocked && !this.swipeGuideActive) this.confirmLeave(); });
     back.setPosition(-this.uiWidth / 2 + 62, hudY);
     root.addChild(back);
     const settings = createIconButton('Settings', this.art.frame(GAME_CONFIG.art.settings), '⚙', 76,
-      () => { if (!this.inputLocked) this.showSettingsDialog(); }, BOTTOM_EDGE_ICON_CROP);
+      () => { if (!this.inputLocked && !this.swipeGuideActive) this.showSettingsDialog(); }, BOTTOM_EDGE_ICON_CROP);
     settings.setPosition(this.uiWidth / 2 - 62, hudY);
     root.addChild(settings);
 
@@ -207,10 +277,13 @@ export class Cat2048Boot extends Component {
     if (layout.evolutionPanelHeight > 0) {
       this.createEvolutionPanel(root, this.uiHeight / 2 - layout.evolutionPanelCenterFromTop,
         layout.evolutionPanelHeight);
+    } else {
+      this.createCompactCollectionEntry(root, this.uiHeight / 2 - layout.hudCenterFromTop - 75);
     }
 
     const board = this.boardView.mount(root, BOARD_PIXELS);
-    board.setPosition(0, this.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2);
+    const boardY = this.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2;
+    board.setPosition(0, boardY);
     board.setScale(layout.boardScale, layout.boardScale, 1);
     this.swipe = new SwipeInput(
       () => this.inputLocked,
@@ -225,6 +298,9 @@ export class Cat2048Boot extends Component {
     this.boardView.renderInitial(this.game.board);
 
     this.createItemBar(root, this.uiHeight / 2 - layout.itemBarCenterFromTop);
+    this.showSwipeGuideIfNeeded(root, boardY, BOARD_PIXELS * layout.boardScale);
+    if (this.save.tutorial.swipeGuideCompleted && !this.showNextUnlockIfReady()
+      && this.game.status === 'game-over') this.showGameOver();
   }
 
   private createEvolutionPanel(root: Node, y: number, height: number): void {
@@ -252,9 +328,14 @@ export class Cat2048Boot extends Component {
     const title = createLabel('猫咪进化路线', compact ? 21 : 24, COLORS.ink, 250, 38, 'display');
     title.node.setPosition(-173, panelHeight / 2 - (compact ? 26 : 31));
     panel.addChild(title.node);
-    const collection = createLabel(`图鉴 ${highestLevel}/${GAME_CONFIG.cats.length}`, compact ? 18 : 20,
+    const collectionCount = this.save.unlockedCatLevels.length;
+    const collection = createLabel(collectionCount === GAME_CONFIG.cats.length
+      ? '全图鉴达成' : `图鉴 ${collectionCount}/${GAME_CONFIG.cats.length}`, compact ? 18 : 20,
       COLORS.teal, 160, 36, 'display');
     collection.node.setPosition(220, panelHeight / 2 - (compact ? 26 : 31));
+    collection.node.on(Node.EventType.TOUCH_END, () => {
+      if (!this.inputLocked && !this.swipeGuideActive) this.showCollection('game');
+    });
     panel.addChild(collection.node);
 
     const catY = compact ? -2 : 8;
@@ -309,29 +390,41 @@ export class Cat2048Boot extends Component {
     }
   }
 
+  private createCompactCollectionEntry(root: Node, y: number): void {
+    const entry = createUiNode('CompactCollectionEntry', 250, 44);
+    drawRounded(entry, 250, 44, new Color(255, 248, 226, 240), 22,
+      { color: COLORS.teal, width: 3 });
+    entry.setPosition(0, y);
+    const label = createLabel(`图鉴 ${this.save.unlockedCatLevels.length}/${GAME_CONFIG.cats.length}  ›`,
+      19, COLORS.teal, 225, 38, 'display');
+    entry.addChild(label.node);
+    entry.on(Node.EventType.TOUCH_END, () => {
+      if (!this.inputLocked && !this.swipeGuideActive) this.showCollection('game');
+    });
+    root.addChild(entry);
+  }
+
   private createItemBar(root: Node, y: number): void {
     const bar = createUiNode('ItemBar', 650, 96);
     bar.setPosition(0, y);
     root.addChild(bar);
 
-    const undo = this.createItemButton('UndoItem', '撤回一步', '↶', () => this.game.items.canUndo,
+    const undo = this.createItemButton('undo', 'UndoItem', '撤回一步', '↶',
       () => { void this.useUndoItem(); });
     undo.node.setPosition(-167, 0);
     bar.addChild(undo.node);
-    this.undoButton = undo.node;
-    this.undoCountLabel = undo.count;
+    this.undoItem = undo;
 
-    const remove = this.createItemButton('RemoveLowestItem', '消除最低 ×3', '×3',
-      () => this.game.items.canRemoveLowest, () => { void this.useRemoveLowestItem(); });
+    const remove = this.createItemButton('remove-lowest', 'RemoveLowestItem', '消除最低 ×3', '×3',
+      () => { void this.useRemoveLowestItem(); });
     remove.node.setPosition(167, 0);
     bar.addChild(remove.node);
-    this.removeLowestButton = remove.node;
-    this.removeLowestCountLabel = remove.count;
+    this.removeLowestItem = remove;
     this.refreshItemButtons();
   }
 
-  private createItemButton(name: string, titleText: string, iconText: string, isEnabled: () => boolean,
-    onTap: () => void): { node: Node; count: Label } {
+  private createItemButton(kind: ItemKind, name: string, titleText: string, iconText: string,
+    onUse: () => void): ItemButtonView {
     const node = createUiNode(name, 316, 96);
     drawRounded(node, 316, 96, new Color(255, 248, 226, 245), 26,
       { color: COLORS.ink, width: 4 });
@@ -355,29 +448,51 @@ export class Cat2048Boot extends Component {
     node.addChild(badge);
 
     node.on(Node.EventType.TOUCH_START, () => {
-      if (!isEnabled() || this.inputLocked) return;
+      if (!this.canTapItem(kind) || this.inputLocked) return;
       tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start();
     });
     node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
     node.on(Node.EventType.TOUCH_END, () => {
-      if (!isEnabled() || this.inputLocked) return;
-      tween(node).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
+      if (!this.canTapItem(kind) || this.inputLocked) return;
+      tween(node).to(0.08, { scale: Vec3.ONE }).call(() => {
+        if (this.canUseItem(kind)) onUse();
+        else void this.shareItemRefill(kind);
+      }).start();
     });
-    return { node, count };
+    return { node, count, title, icon, baseTitle: titleText, baseIcon: iconText };
   }
 
   private refreshItemButtons(): void {
     const state = this.game.items;
-    this.setItemButtonState(this.undoButton, this.undoCountLabel, state.canUndo, state.undoRemaining);
-    this.setItemButtonState(this.removeLowestButton, this.removeLowestCountLabel,
-      state.canRemoveLowest, state.removeLowestRemaining);
+    this.setItemButtonState(this.undoItem, state.canUndo, state.canRequestUndoRefill,
+      state.undoRemaining, state.undoRefillRemaining);
+    this.setItemButtonState(this.removeLowestItem, state.canRemoveLowest, state.canRequestRemoveLowestRefill,
+      state.removeLowestRemaining, state.removeLowestRefillRemaining);
   }
 
-  private setItemButtonState(node: Node | null, count: Label | null, enabled: boolean, remaining: number): void {
-    if (!node || !count) return;
-    count.string = String(remaining);
-    const opacity = node.getComponent(UIOpacity) ?? node.addComponent(UIOpacity);
-    opacity.opacity = enabled ? 255 : 105;
+  private setItemButtonState(view: ItemButtonView | null, canUse: boolean, canRefill: boolean,
+    remaining: number, refillRemaining: number): void {
+    if (!view) return;
+    view.count.string = String(remaining);
+    setLabelText(view.title, canRefill ? '分享补充' : view.baseTitle, 'display');
+    for (const child of [...view.icon.children]) child.destroy();
+    const shareFrame = canRefill ? this.art.frame(GAME_CONFIG.art.share) : undefined;
+    if (shareFrame) view.icon.addChild(createSpriteNode(`${view.node.name}:Share`, shareFrame, 50, 50));
+    else view.icon.addChild(createLabel(view.baseIcon, 29, COLORS.white, 60, 58, 'display').node);
+    const opacity = view.node.getComponent(UIOpacity) ?? view.node.addComponent(UIOpacity);
+    opacity.opacity = canUse || canRefill ? 255 : refillRemaining > 0 || remaining > 0 ? 145 : 90;
+  }
+
+  private canUseItem(kind: ItemKind): boolean {
+    return kind === 'undo' ? this.game.items.canUndo : this.game.items.canRemoveLowest;
+  }
+
+  private canTapItem(kind: ItemKind): boolean {
+    if (this.swipeGuideActive) return false;
+    const state = this.game.items;
+    return kind === 'undo'
+      ? state.canUndo || state.canRequestUndoRefill
+      : state.canRemoveLowest || state.canRequestRemoveLowestRefill;
   }
 
   private readonly onKeyDown = (event: EventKeyboard): void => {
@@ -398,6 +513,8 @@ export class Cat2048Boot extends Component {
       if (result.status === 'game-over') this.showGameOver();
       return;
     }
+    this.registerBoardCats(result.board);
+    if (!this.save.tutorial.swipeGuideCompleted) this.completeSwipeGuide(false);
     const token = this.sceneToken;
     this.inputLocked = true;
     await this.boardView.animateMove(
@@ -418,7 +535,7 @@ export class Cat2048Boot extends Component {
     this.refreshEvolutionPanel();
     this.refreshItemButtons();
     this.inputLocked = false;
-    if (result.status === 'game-over') this.showGameOver();
+    if (!this.showNextUnlockIfReady() && result.status === 'game-over') this.showGameOver();
   }
 
   private async useUndoItem(): Promise<void> {
@@ -439,6 +556,7 @@ export class Cat2048Boot extends Component {
     this.updateScore(result.score);
     this.refreshEvolutionPanel();
     this.inputLocked = false;
+    this.showItemRefillGuideIfNeeded(this.undoItem);
   }
 
   private async useRemoveLowestItem(): Promise<void> {
@@ -461,6 +579,78 @@ export class Cat2048Boot extends Component {
     this.boardView.rebuild(result.board, false);
     this.refreshEvolutionPanel();
     this.inputLocked = false;
+    this.showItemRefillGuideIfNeeded(this.removeLowestItem);
+  }
+
+  private registerBoardCats(board: BoardSnapshot): void {
+    const unlocked = new Set(this.save.unlockedCatLevels);
+    const newLevels = [...new Set(board.tiles.map((tile) => tile.level))]
+      .filter((level) => !unlocked.has(level))
+      .sort((a, b) => a - b);
+    if (newLevels.length === 0) return;
+    for (const level of newLevels) unlocked.add(level);
+    this.save = {
+      ...this.save,
+      unlockedCatLevels: [...unlocked].sort((a, b) => a - b),
+    };
+    runtimeStorage.save(this.save);
+    for (const level of newLevels) {
+      if (!this.pendingUnlockLevels.includes(level)) this.pendingUnlockLevels.push(level);
+    }
+  }
+
+  private showNextUnlockIfReady(): boolean {
+    if (!this.save.tutorial.swipeGuideCompleted || !this.screenRoot || this.currentScreen !== 'game') return false;
+    const level = this.pendingUnlockLevels.shift();
+    if (!level) return false;
+    const isFirstCollectionGuide = !this.save.tutorial.collectionGuideCompleted;
+    if (isFirstCollectionGuide) {
+      this.save = {
+        ...this.save,
+        tutorial: { ...this.save.tutorial, collectionGuideCompleted: true },
+      };
+      runtimeStorage.save(this.save);
+    }
+    this.inputLocked = true;
+    this.collectionView.showUnlock(this.screenRoot, this.uiWidth, this.uiHeight, level,
+      isFirstCollectionGuide, {
+        onContinue: () => {
+          if (this.currentScreen !== 'game') return;
+          this.inputLocked = false;
+          if (!this.showNextUnlockIfReady() && this.game.status === 'game-over') this.showGameOver();
+        },
+        onViewCollection: () => this.showCollection('game'),
+      });
+    return true;
+  }
+
+  private showSwipeGuideIfNeeded(root: Node, boardY: number, boardSize: number): void {
+    if (this.save.tutorial.swipeGuideCompleted) return;
+    this.swipeGuideActive = true;
+    this.tutorialView.showSwipe(root, this.uiWidth, this.uiHeight, boardY, boardSize,
+      () => this.completeSwipeGuide(true));
+  }
+
+  private completeSwipeGuide(showPendingUnlock: boolean): void {
+    if (this.save.tutorial.swipeGuideCompleted) return;
+    this.save = {
+      ...this.save,
+      tutorial: { ...this.save.tutorial, swipeGuideCompleted: true },
+    };
+    runtimeStorage.save(this.save);
+    this.swipeGuideActive = false;
+    this.tutorialView.dismissSwipe();
+    if (showPendingUnlock) this.showNextUnlockIfReady();
+  }
+
+  private showItemRefillGuideIfNeeded(item: ItemButtonView | null): void {
+    if (!item || this.save.tutorial.itemRefillGuideCompleted || this.currentScreen !== 'game') return;
+    this.save = {
+      ...this.save,
+      tutorial: { ...this.save.tutorial, itemRefillGuideCompleted: true },
+    };
+    runtimeStorage.save(this.save);
+    this.tutorialView.showItemRefillHint(this.screenRoot ?? item.node.parent ?? item.node, item.node, this.uiHeight);
   }
 
   private updateScore(score: number): void {
@@ -507,19 +697,69 @@ export class Cat2048Boot extends Component {
   }
 
   private showGameOver(): void {
+    if (this.gameOverOverlay?.isValid) return;
     this.inputLocked = true;
     this.updateScore(this.game.score);
     this.audio.play('game_over', 0.8);
-    this.showDialog('猫咪挤满啦', `本局得分  ${this.game.score}
-最高分  ${this.save.highScore}`, '返回主页', '再玩一局',
-      () => this.startGame(), () => this.showHome(), {
-        text: '分享战绩',
-        onTap: () => { void this.shareResult(); },
-      });
+    if (!this.screenRoot) return;
+    this.gameOverOverlay = this.gameOverDialog.show(this.screenRoot, {
+      score: this.game.score,
+      bestScore: this.save.highScore,
+      canRevive: this.game.reviveState.canRevive,
+      uiWidth: this.uiWidth,
+      uiHeight: this.uiHeight,
+    }, {
+      onHome: () => { if (!this.shareInProgress) this.showHome(); },
+      onReplay: () => { if (!this.shareInProgress) this.startGame(); },
+      onShareScore: () => { void this.shareResult(); },
+      onRevive: () => { void this.shareRevive(); },
+    });
   }
 
   private async shareResult(): Promise<void> {
-    if (this.shareInProgress || !this.screenRoot) return;
+    await this.shareCurrentGame('score');
+  }
+
+  private async shareItemRefill(kind: ItemKind): Promise<void> {
+    if (this.inputLocked || !this.canTapItem(kind)) return;
+    const canRefill = kind === 'undo'
+      ? this.game.items.canRequestUndoRefill
+      : this.game.items.canRequestRemoveLowestRefill;
+    if (!canRefill) return;
+    this.inputLocked = true;
+    const purpose: SharePurpose = kind === 'undo' ? 'undo-refill' : 'remove-lowest-refill';
+    const result = await this.shareCurrentGame(purpose);
+    if (this.currentScreen !== 'game' || !this.boardView.root) return;
+    if (result === 'shared') this.game.refillItem(kind);
+    this.refreshItemButtons();
+    this.inputLocked = false;
+  }
+
+  private async shareRevive(): Promise<void> {
+    if (this.shareInProgress || !this.game.reviveState.canRevive || !this.boardView.root) return;
+    const result = await this.shareCurrentGame('revive');
+    if (result !== 'shared' || this.currentScreen !== 'game' || !this.boardView.root) return;
+    const revived = this.game.revive();
+    if (!revived.revived || !revived.changed) return;
+
+    this.gameOverOverlay?.destroy();
+    this.gameOverOverlay = null;
+    const token = this.sceneToken;
+    this.haptics.light();
+    this.audio.play('merge', 0.55);
+    await this.boardView.animateRemove(
+      revived.removedTileIds,
+      () => token === this.sceneToken && this.boardView.root !== null,
+    );
+    if (token !== this.sceneToken || !this.boardView.root) return;
+    this.boardView.rebuild(revived.board, false);
+    this.refreshEvolutionPanel();
+    this.refreshItemButtons();
+    this.inputLocked = false;
+  }
+
+  private async shareCurrentGame(purpose: SharePurpose): Promise<ShareResult | null> {
+    if (this.shareInProgress || !this.screenRoot) return null;
     const shareRoot = this.screenRoot;
     const token = this.sceneToken;
     const highestLevel = this.game.board.tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1);
@@ -528,11 +768,12 @@ export class Cat2048Boot extends Component {
     const catPath = this.art.imagePath(cat.asset);
     if (!backgroundPath || !catPath) {
       this.dialogs.showNotice(this.screenRoot, '分享卡片素材暂不可用');
-      return;
+      return 'failed';
     }
 
     this.shareInProgress = true;
     const result = await this.resultShare.share({
+      purpose,
       score: this.game.score,
       bestScore: this.save.highScore,
       catLevel: highestLevel,
@@ -541,10 +782,12 @@ export class Cat2048Boot extends Component {
       catPath,
     });
     this.shareInProgress = false;
-    if (token !== this.sceneToken || this.screenRoot !== shareRoot || result === 'shared') return;
+    if (token !== this.sceneToken || this.screenRoot !== shareRoot) return null;
+    if (result === 'shared') return result;
     this.dialogs.showNotice(shareRoot, result === 'unsupported'
       ? '请在微信小游戏中分享给好友或群'
-      : '战绩卡片生成失败，请稍后重试');
+      : '分享卡片生成失败，请稍后重试');
+    return result;
   }
 
   private showDialog(titleText: string, bodyText: string, cancelText: string, confirmText: string,
@@ -567,7 +810,9 @@ export class Cat2048Boot extends Component {
     const title = createLabel(titleText, 20, COLORS.teal, 160, 30, 'display');
     title.node.setPosition(0, 24);
     node.addChild(title.node);
-    const value = createLabel(valueText, 34, COLORS.ink, 160, 48, 'display');
+    const value = createLabel(valueText, 34, COLORS.ink, 178, 48, 'display');
+    value.enableWrapText = false;
+    value.overflow = Label.Overflow.CLAMP;
     value.node.setPosition(0, -15);
     node.addChild(value.node);
     return { node, value };
@@ -575,8 +820,10 @@ export class Cat2048Boot extends Component {
 
   private clearScreen(): void {
     Tween.stopAll();
+    this.tutorialView.dismissSwipe();
     this.sceneToken += 1;
     this.inputLocked = false;
+    this.swipeGuideActive = false;
     this.shareInProgress = false;
     // Unbind first so late touch-cancel/end cannot fire after the board is gone.
     this.swipe?.unbind();
@@ -585,10 +832,9 @@ export class Cat2048Boot extends Component {
     this.scoreLabel = null;
     this.highScoreLabel = null;
     this.evolutionPanel = null;
-    this.undoButton = null;
-    this.removeLowestButton = null;
-    this.undoCountLabel = null;
-    this.removeLowestCountLabel = null;
+    this.undoItem = null;
+    this.removeLowestItem = null;
+    this.gameOverOverlay = null;
     this.screenRoot?.destroy();
     this.screenRoot = null;
   }

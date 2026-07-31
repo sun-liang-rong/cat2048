@@ -3,6 +3,7 @@ export const MAX_LEVEL = 9;
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type GameStatus = 'running' | 'game-over';
+export type ItemKind = 'undo' | 'remove-lowest';
 
 export interface Position {
   readonly row: number;
@@ -55,8 +56,22 @@ export interface MoveResult extends BoardMoveResult {
 export interface ItemState {
   readonly undoRemaining: number;
   readonly removeLowestRemaining: number;
+  readonly undoRefillRemaining: number;
+  readonly removeLowestRefillRemaining: number;
   readonly canUndo: boolean;
   readonly canRemoveLowest: boolean;
+  readonly canRequestUndoRefill: boolean;
+  readonly canRequestRemoveLowestRefill: boolean;
+}
+
+export interface ItemRefillResult {
+  readonly granted: boolean;
+  readonly items: ItemState;
+}
+
+export interface ReviveState {
+  readonly remaining: 0 | 1;
+  readonly canRevive: boolean;
 }
 
 export interface UndoResult {
@@ -68,6 +83,10 @@ export interface UndoResult {
 
 export interface RemoveTilesResult extends UndoResult {
   readonly removedTileIds: readonly string[];
+}
+
+export interface ReviveResult extends RemoveTilesResult {
+  readonly revived: boolean;
 }
 
 export interface RandomSource {
