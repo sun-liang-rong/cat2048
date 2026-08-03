@@ -21,6 +21,7 @@ describe('economy rules', () => {
     expect(calculateRunReward(1000, 5)).toBe(20);
     expect(calculateRunReward(7000, 7)).toBe(100);
     expect(calculateRunReward(20000, 9)).toBe(150);
+    expect(calculateRunReward(0, 12)).toBe(150);
   });
 
   it('increases daily rewards by streak and caps at 100', () => {

@@ -20,7 +20,7 @@ describe('runtime image assets', () => {
     const files = filesBelow(assetRoot);
     const images = files.filter((path) => ['.png', '.webp'].includes(extname(path)));
 
-    expect(images).toHaveLength(78);
+    expect(images).toHaveLength(81);
     expect(images.every((path) => extname(path) === '.png')).toBe(true);
     expect(files.filter((path) => path.endsWith('.webp.meta'))).toEqual([]);
 
@@ -40,7 +40,7 @@ describe('runtime image assets', () => {
     const manifest = JSON.parse(output) as Record<string, { kind: string }>;
     const pngEntries = Object.values(manifest).filter((entry) => entry.kind === 'png');
 
-    expect(pngEntries).toHaveLength(78);
+    expect(pngEntries).toHaveLength(81);
   });
 
   it('configures resources as a remote WeChat bundle', () => {

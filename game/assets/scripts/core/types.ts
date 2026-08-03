@@ -1,5 +1,5 @@
 export const BOARD_SIZE = 4;
-export const MAX_LEVEL = 9;
+export const MAX_LEVEL = 12;
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type GameStatus = 'running' | 'game-over';

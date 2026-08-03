@@ -39,7 +39,7 @@ export const DEFAULT_EQUIPPED: EquippedCosmetics = {
   buttonTheme: 'button-theme.classic',
 };
 
-const defaultCatAssets: readonly string[] = Array.from({ length: 9 }, (_, index) =>
+const defaultCatAssets: readonly string[] = Array.from({ length: 12 }, (_, index) =>
   `game/cats/cat_${index + 1 < 10 ? '0' : ''}${index + 1}/texture`);
 
 const DEFAULT_ITEM_DEFINITIONS: readonly CosmeticDefinition[] = [

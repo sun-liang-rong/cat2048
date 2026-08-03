@@ -17,6 +17,7 @@ from PIL import ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "art-generation" / "images"
 RAW_SOURCE = SOURCE / "_source"
+EXTRA_CATS_SOURCE = ROOT / "assets" / "art-generation" / "generated" / "cats-10-12"
 OUTPUT = ROOT / "game" / "assets" / "resources" / "game"
 FONT_SOURCE = ROOT / "assets" / "art-generation" / "fonts" / "ZCOOLKuaiLe-Regular.ttf"
 FONT_OUTPUT = OUTPUT / "fonts"
@@ -27,8 +28,9 @@ DISPLAY_FONT_ALLOWLIST = (
     ".,+-:;!?/×★·↶›，。！？、：；（）《》【】“”‘’…—"
 )
 ALPHA_THRESHOLD = 8
+CAT_LEVELS = range(1, 13)
 EXPECTED_IMAGE_SIZES = {
-    **{f"cat_{level:02}.png": (256, 256) for level in range(1, 10)},
+    **{f"cat_{level:02}.png": (256, 256) for level in CAT_LEVELS},
     "bg_home.png": (750, 1334),
     "bg_page.png": (750, 1334),
     "bg_board_wood.png": (1024, 1024),
@@ -175,6 +177,21 @@ def slice_grid(source_name: str, cols: int, rows: int, names: list[str], target:
             result.save(out_dir / f"{name}.png", optimize=True)
 
 
+def copy_generated_cats() -> None:
+    """Copy individually generated late-game cats into the runtime bundle."""
+    out_dir = OUTPUT / "cats"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for level in range(10, 13):
+        source = EXTRA_CATS_SOURCE / f"cat_{level:02}.png"
+        if not source.exists():
+            raise FileNotFoundError(f"Missing generated cat asset: {source}")
+        with Image.open(source) as opened:
+            image = opened.convert("RGBA")
+            if image.size != (256, 256):
+                raise ValueError(f"Invalid generated cat dimensions for {source}: {image.size}")
+            image.save(out_dir / source.name, format="PNG", optimize=True)
+
+
 def slice_grid_cells(source_name: str, cols: int, rows: int, cells: dict[int, str],
                      target: str, size: int) -> None:
     with Image.open(SOURCE / source_name) as opened:
@@ -262,7 +279,7 @@ def generate_tone(name: str, frequencies: list[float], duration: float, volume: 
 
 def validate() -> dict[str, str]:
     required = [
-        *(OUTPUT / "cats" / f"cat_{level:02}.png" for level in range(1, 10)),
+        *(OUTPUT / "cats" / f"cat_{level:02}.png" for level in CAT_LEVELS),
         OUTPUT / "backgrounds" / "bg_home.png",
         OUTPUT / "backgrounds" / "bg_page.png",
         OUTPUT / "backgrounds" / "bg_board_wood.png",
@@ -329,6 +346,7 @@ def main() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     prepare_fonts()
     slice_grid("sheet_cats.png", 3, 3, [f"cat_{i:02}" for i in range(1, 10)], "cats", 256)
+    copy_generated_cats()
     slice_grid("sheet_gameplay.png", 3, 2,
                ["tile_empty", "tile_selected", "sparkle_small", "merge_sparkle", "merge_burst", "max_halo"],
                "gameplay", 256)

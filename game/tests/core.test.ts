@@ -72,12 +72,17 @@ describe('Board movement', () => {
     expect(result.scoreDelta).toBe(4 + 8 + 8 + 16);
   });
 
-  it('never merges terminal level 9 tiles', () => {
+  it('merges through level 11 and keeps terminal level 12 tiles', () => {
     const factory = new Factory();
-    const board = Board.fromLevels([[9, 9, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory);
-    const result = board.move('left', factory);
-    expect(levels(new Board(result.board))[0]).toEqual([9, 9, 0, 0]);
-    expect(result.merges).toHaveLength(0);
+    const advanced = Board.fromLevels([[11, 11, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory)
+      .move('left', factory);
+    expect(levels(new Board(advanced.board))[0]).toEqual([12, 0, 0, 0]);
+    expect(advanced.merges).toHaveLength(1);
+
+    const terminal = Board.fromLevels([[12, 12, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], factory)
+      .move('left', factory);
+    expect(levels(new Board(terminal.board))[0]).toEqual([12, 12, 0, 0]);
+    expect(terminal.merges).toHaveLength(0);
   });
 
   it('validates snapshots, spawn levels, directions, and random values', () => {

@@ -28,6 +28,7 @@ import {
   type EconomySaveData,
   type EquippedCosmetics,
 } from '../economy/catalog';
+import { GAME_CONFIG } from './gameConfig';
 
 export interface SaveDataV3 {
   readonly schemaVersion: 3;
@@ -184,7 +185,7 @@ export class LocalGameStorage {
       || typeof candidate.hapticsEnabled !== 'boolean'
       || !Array.isArray(levels)
       || levels.length === 0
-      || !levels.every((level) => Number.isInteger(level) && level >= 1 && level <= 9)
+      || !levels.every((level) => Number.isInteger(level) && level >= 1 && level <= GAME_CONFIG.cats.length)
       || !tutorial
       || typeof tutorial.swipeGuideCompleted !== 'boolean'
       || typeof tutorial.itemRefillGuideCompleted !== 'boolean'

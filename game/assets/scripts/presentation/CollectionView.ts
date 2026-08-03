@@ -74,7 +74,8 @@ export class CollectionView {
     const gap = 12;
     const gridWidth = Math.min(660, model.uiWidth - 44);
     const cardWidth = (gridWidth - gap * 2) / 3;
-    const cardHeight = Math.min(210, (availableHeight - gap * 2) / 3);
+    const rows = Math.ceil(GAME_CONFIG.cats.length / 3);
+    const cardHeight = Math.min(210, (availableHeight - gap * (rows - 1)) / rows);
 
     GAME_CONFIG.cats.forEach((cat, index) => {
       const row = Math.floor(index / 3);

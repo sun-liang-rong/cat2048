@@ -165,7 +165,8 @@ export class HomeView {
     }
 
     const haloFrame = this.art.frame(GAME_CONFIG.art.maxHalo);
-    const galaxyFrame = this.art.frame(GAME_CONFIG.cats[8].asset);
+    const finalCat = GAME_CONFIG.cats[GAME_CONFIG.cats.length - 1];
+    const galaxyFrame = this.art.frame(finalCat.asset);
     const orangeFrame = this.art.frame(GAME_CONFIG.cats[0].asset);
     if (orangeFrame) {
       const orange = createSpriteNode('HomeOrangeCat', orangeFrame, 206, 206);
@@ -205,7 +206,7 @@ export class HomeView {
     const orangeName = this.createHomePill('Lv.1  橘猫', 182, COLORS.teal);
     orangeName.setPosition(-176, -68);
     card.addChild(orangeName);
-    const galaxyName = this.createHomePill('Lv.9  银河猫', 202, new Color(117, 87, 184, 255));
+    const galaxyName = this.createHomePill(`Lv.${finalCat.level}  ${finalCat.name}`, 254, new Color(117, 87, 184, 255));
     galaxyName.setPosition(176, -68);
     card.addChild(galaxyName);
 
@@ -267,7 +268,7 @@ export class HomeView {
       () => actions.onCollection());
     collection.setPosition(positions[1], 11);
     dock.addChild(collection);
-    const collectionText = createLabel(`图鉴 ${model.collectionCount}/9`, 17, COLORS.ink, 120, 28, 'display');
+    const collectionText = createLabel(`图鉴 ${model.collectionCount}/${GAME_CONFIG.cats.length}`, 17, COLORS.ink, 140, 28, 'display');
     collectionText.node.setPosition(positions[1], -36);
     dock.addChild(collectionText.node);
 

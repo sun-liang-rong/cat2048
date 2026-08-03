@@ -48,8 +48,8 @@ const baseRuntimeImages = existsSync(baseResourcesNative)
   ? filesBelow(baseResourcesNative).filter((path) => ['.png', '.webp'].includes(extname(path).toLowerCase()))
   : [];
 
-if (resourcesPng.length !== 70) {
-  fail(`expected 70 PNG files in resources subpackage, found ${resourcesPng.length}`);
+if (resourcesPng.length !== 73) {
+  fail(`expected 73 PNG files in resources subpackage, found ${resourcesPng.length}`);
 }
 if (webp.length > 0) {
   fail(`found ${webp.length} WebP files in the generated package`);

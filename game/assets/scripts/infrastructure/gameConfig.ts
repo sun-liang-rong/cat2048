@@ -15,7 +15,10 @@ export const GAME_CONFIG = {
     { level: 6, name: '美短虎斑', description: '精力十足，最擅长把局面重新盘活。', asset: 'game/cats/cat_06/texture' },
     { level: 7, name: '奶牛猫', description: '黑白分明，行动却永远出人意料。', asset: 'game/cats/cat_07/texture' },
     { level: 8, name: '孟买黑猫', description: '像一小片夜色，安静又神秘。', asset: 'game/cats/cat_08/texture' },
-    { level: 9, name: '银河极光猫', description: '星光落在毛尖，是进化路线的终点。', asset: 'game/cats/cat_09/texture' },
+    { level: 9, name: '银河极光猫', description: '星光落在毛尖，开启通往星穹的进化。', asset: 'game/cats/cat_09/texture' },
+    { level: 10, name: '星穹守护猫', description: '守护星河的光环，在每次合成中闪耀。', asset: 'game/cats/cat_10/texture' },
+    { level: 11, name: '星环圣灵猫', description: '星环环绕肩头，静静积蓄最后的光芒。', asset: 'game/cats/cat_11/texture' },
+    { level: 12, name: '创世极光猫', description: '万千极光汇于一身，完成猫咪的终极进化。', asset: 'game/cats/cat_12/texture' },
   ],
   art: {
     logo: 'game/branding/logo/texture',

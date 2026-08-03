@@ -241,7 +241,8 @@ export class BoardView {
     const node = createUiNode(`Tile:${tile.id}`, CELL_SIZE, CELL_SIZE);
     const colors = [COLORS.cream, new Color(194, 219, 226, 255), new Color(252, 209, 155, 255),
       new Color(220, 224, 232, 255), new Color(241, 214, 174, 255), new Color(214, 172, 115, 255),
-      new Color(231, 230, 218, 255), new Color(78, 72, 79, 255), new Color(106, 84, 181, 255)];
+      new Color(231, 230, 218, 255), new Color(78, 72, 79, 255), new Color(106, 84, 181, 255),
+      new Color(109, 174, 189, 255), new Color(121, 93, 181, 255), new Color(225, 172, 69, 255)];
     drawRounded(node, CELL_SIZE, CELL_SIZE, colors[tile.level - 1], 24, { color: COLORS.ink, width: 3 });
     node.setPosition(this.positionFor(tile));
     this.tileLayer.addChild(node);

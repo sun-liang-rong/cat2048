@@ -12,6 +12,7 @@ import {
   LocalGameStorage,
   type KeyValueStorage,
 } from '../infrastructure/storage';
+import { GAME_CONFIG } from '../infrastructure/gameConfig';
 
 export interface RunRewardRequest {
   readonly runId: string;
@@ -45,11 +46,13 @@ export interface EconomyClock {
 
 export function calculateRunReward(score: number, highestLevel: number): number {
   const safeScore = Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0;
-  const safeLevel = Math.max(1, Math.min(9, Math.floor(highestLevel)));
+  const safeLevel = Math.max(1, Math.min(GAME_CONFIG.cats.length, Math.floor(highestLevel)));
   const baseReward = Math.max(5, Math.floor(safeScore / 100));
   const levelBonus = (safeLevel >= 5 ? 10 : 0)
     + (safeLevel >= 7 ? 20 : 0)
-    + (safeLevel >= 9 ? 50 : 0);
+    + (safeLevel >= 9 ? 50 : 0)
+    + (safeLevel >= 11 ? 35 : 0)
+    + (safeLevel >= 12 ? 35 : 0);
   return Math.min(150, baseReward + levelBonus);
 }
 
