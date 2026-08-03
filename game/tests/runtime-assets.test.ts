@@ -20,7 +20,7 @@ describe('runtime image assets', () => {
     const files = filesBelow(assetRoot);
     const images = files.filter((path) => ['.png', '.webp'].includes(extname(path)));
 
-    expect(images).toHaveLength(37);
+    expect(images).toHaveLength(78);
     expect(images.every((path) => extname(path) === '.png')).toBe(true);
     expect(files.filter((path) => path.endsWith('.webp.meta'))).toEqual([]);
 
@@ -40,10 +40,10 @@ describe('runtime image assets', () => {
     const manifest = JSON.parse(output) as Record<string, { kind: string }>;
     const pngEntries = Object.values(manifest).filter((entry) => entry.kind === 'png');
 
-    expect(pngEntries).toHaveLength(37);
+    expect(pngEntries).toHaveLength(78);
   });
 
-  it('configures resources as a local WeChat subpackage', () => {
+  it('configures resources as a remote WeChat bundle', () => {
     const meta = JSON.parse(readFileSync(resourcesMetaPath, 'utf8')) as {
       userData?: {
         compressionType?: Record<string, string>;
@@ -51,11 +51,10 @@ describe('runtime image assets', () => {
       };
     };
 
-    expect(meta.userData?.compressionType?.wechatgame).toBe('subpackage');
-    expect(meta.userData?.isRemoteBundle?.wechatgame).toBe(false);
+    expect(meta.userData?.isRemoteBundle?.wechatgame).toBe(true);
   });
 
-  it('pins the resources subpackage in the reproducible WeChat build config', () => {
+  it('pins the resources remote bundle in the reproducible WeChat build config', () => {
     expect(existsSync(wechatBuildConfigPath), 'Missing build-wechatgame.json').toBe(true);
     if (!existsSync(wechatBuildConfigPath)) return;
 
@@ -74,8 +73,7 @@ describe('runtime image assets', () => {
     expect(config.platform).toBe('wechatgame');
     expect(resources).toEqual(expect.objectContaining({
       root: 'db://assets/resources',
-      compressionType: 'subpackage',
-      isRemote: false,
+      isRemote: true,
       output: true,
     }));
   });

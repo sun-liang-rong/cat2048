@@ -61,6 +61,11 @@ export const customizeWeChatLoadingScreen = (buildDirectory = generatedBuild) =>
   const logoPath = join(buildDirectory, 'logo.png');
   const sloganPath = join(buildDirectory, 'slogan.png');
 
+  if (!existsSync(firstScreenPath)) {
+    if (existsSync(join(buildDirectory, 'game.js'))) return false;
+    throw new Error(`Required loading-screen file is missing: ${firstScreenPath}`);
+  }
+
   for (const path of [firstScreenPath, logoSource, titleGenerator]) {
     if (!existsSync(path)) throw new Error(`Required loading-screen file is missing: ${path}`);
   }
@@ -68,14 +73,17 @@ export const customizeWeChatLoadingScreen = (buildDirectory = generatedBuild) =>
   runTitleGenerator(sloganPath);
   copyFileSync(logoSource, logoPath);
   customizeFirstScreen(firstScreenPath);
+  return true;
 };
 
 const isCli = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isCli) {
   try {
     const buildDirectory = process.argv[2] ? resolve(process.argv[2]) : generatedBuild;
-    customizeWeChatLoadingScreen(buildDirectory);
-    console.log('Applied Cat 2048 custom WeChat loading screen.');
+    const customized = customizeWeChatLoadingScreen(buildDirectory);
+    console.log(customized
+      ? 'Applied Cat 2048 custom WeChat loading screen.'
+      : 'Cocos first screen is disabled; no loading-screen customization is needed.');
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

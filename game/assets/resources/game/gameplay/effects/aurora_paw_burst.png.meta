@@ -1,0 +1,44 @@
+{
+    "ver":  "1.0.27",
+    "importer":  "image",
+    "imported":  true,
+    "uuid":  "530f97da-fd5c-4aae-9ad8-70f21dfe4cf8",
+    "files":  [
+                  ".json",
+                  ".png"
+              ],
+    "subMetas":  {
+                     "6c48a":  {
+                                   "importer":  "texture",
+                                   "uuid":  "530f97da-fd5c-4aae-9ad8-70f21dfe4cf8@6c48a",
+                                   "displayName":  "aurora_paw_burst",
+                                   "id":  "6c48a",
+                                   "name":  "texture",
+                                   "userData":  {
+                                                    "wrapModeS":  "repeat",
+                                                    "wrapModeT":  "repeat",
+                                                    "minfilter":  "linear",
+                                                    "magfilter":  "linear",
+                                                    "mipfilter":  "none",
+                                                    "anisotropy":  0,
+                                                    "isUuid":  true,
+                                                    "imageUuidOrDatabaseUri":  "530f97da-fd5c-4aae-9ad8-70f21dfe4cf8",
+                                                    "visible":  false
+                                                },
+                                   "ver":  "1.0.22",
+                                   "imported":  true,
+                                   "files":  [
+                                                 ".json"
+                                             ],
+                                   "subMetas":  {
+
+                                                }
+                               }
+                 },
+    "userData":  {
+                     "type":  "texture",
+                     "fixAlphaTransparencyArtifacts":  false,
+                     "hasAlpha":  true,
+                     "redirect":  "530f97da-fd5c-4aae-9ad8-70f21dfe4cf8@6c48a"
+                 }
+}

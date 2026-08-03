@@ -9,6 +9,7 @@ import {
 } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
+import type { CosmeticRuntime } from './CosmeticRuntime';
 import { addCoverBackground } from './background';
 import {
   COLORS,
@@ -34,15 +35,10 @@ export interface CollectionActions {
   readonly onBack: () => void;
 }
 
-export interface UnlockActions {
-  readonly onContinue: () => void;
-  readonly onViewCollection: () => void;
-}
-
 type CatDefinition = (typeof GAME_CONFIG.cats)[number];
 
 export class CollectionView {
-  public constructor(private readonly art: ArtRepository) {}
+  public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
   public build(parent: Node, model: CollectionViewModel, actions: CollectionActions): void {
     addCoverBackground(
@@ -94,62 +90,13 @@ export class CollectionView {
     });
   }
 
-  public showUnlock(parent: Node, uiWidth: number, uiHeight: number, level: number,
-    isFirstCollectionGuide: boolean, actions: UnlockActions): Node {
-    const cat = GAME_CONFIG.cats[level - 1];
-    const overlay = this.createOverlay(parent, uiWidth, uiHeight, 'CollectionUnlockOverlay');
-    const panel = createUiNode('CollectionUnlockPanel', 590, 650);
-    drawRounded(panel, 590, 650, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
-    overlay.addChild(panel);
-
-    const badge = createUiNode('NewCatBadge', 220, 50);
-    drawRounded(badge, 220, 50, COLORS.mustard, 25);
-    badge.setPosition(0, 255);
-    badge.addChild(createLabel('新猫咪解锁', 23, COLORS.white, 200, 42, 'display').node);
-    panel.addChild(badge);
-
-    const frame = this.art.frame(cat.asset);
-    if (frame) {
-      const image = createSpriteNode('UnlockedCat', frame, 250, 250);
-      image.setPosition(0, 80);
-      panel.addChild(image);
-      image.setScale(0.65, 0.65, 1);
-      tween(image).to(0.3, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
-    }
-
-    const name = createLabel(`Lv.${cat.level}  ${cat.name}`, 38, COLORS.coral, 480, 62, 'display');
-    name.node.setPosition(0, -74);
-    panel.addChild(name.node);
-    const body = createLabel(isFirstCollectionGuide
-      ? `${cat.description}\n已永久收录进猫咪图鉴` : cat.description, 25, COLORS.ink, 480, 100);
-    body.node.setPosition(0, -145);
-    panel.addChild(body.node);
-
-    const continueButton = createButton('继续游戏', 230, 78, COLORS.teal, () => {
-      overlay.destroy();
-      actions.onContinue();
-    }, 27);
-    continueButton.setPosition(-132, -252);
-    panel.addChild(continueButton);
-    const viewButton = createButton('查看图鉴', 230, 78, COLORS.coral, () => {
-      overlay.destroy();
-      actions.onViewCollection();
-    }, 27);
-    viewButton.setPosition(132, -252);
-    panel.addChild(viewButton);
-
-    panel.setScale(0.8, 0.8, 1);
-    tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
-    return overlay;
-  }
-
   private createCard(cat: CatDefinition, unlocked: boolean, width: number, height: number,
     onTap: () => void): Node {
     const card = createUiNode(`CollectionCard:${cat.level}`, width, height);
     drawRounded(card, width, height, unlocked ? new Color(255, 249, 230, 245) : new Color(214, 207, 194, 235),
       22, { color: unlocked ? COLORS.ink : new Color(100, 94, 88, 210), width: 4 });
 
-    const frame = this.art.frame(cat.asset);
+    const frame = this.cosmetics.catFrame(cat.level);
     const catSize = Math.max(72, Math.min(width - 34, height - 66));
     if (frame) {
       const image = createSpriteNode(`CollectionCat:${cat.level}`, frame, catSize, catSize);
@@ -188,7 +135,7 @@ export class CollectionView {
     drawRounded(panel, 590, 650, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
     overlay.addChild(panel);
 
-    const frame = this.art.frame(cat.asset);
+    const frame = this.cosmetics.catFrame(cat.level);
     if (frame) {
       const image = createSpriteNode('CollectionDetailCat', frame, 300, 300);
       image.setPosition(0, 105);

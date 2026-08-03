@@ -8,7 +8,6 @@ import base64
 import hashlib
 import io
 import json
-import os
 import re
 import ssl
 import sys
@@ -29,29 +28,56 @@ except ImportError as exc:
     raise SystemExit("Pillow is required: install the 'Pillow' package in the active Python runtime.") from exc
 
 
-ENV_ALIASES = {
-    "model": ("model", "IMAGE_MODEL"),
-    "key": ("key", "IMAGE_API_KEY"),
-    "base_url": ("baseUrl", "IMAGE_BASE_URL"),
+PROJECT_CONFIG_NAME = "env.json"
+PROJECT_CONFIG_KEYS = {
+    "model": "model",
+    "key": "key",
+    "base_url": "baseUrl",
 }
 VALID_KINDS = {"background", "item", "ui", "effect"}
 VALID_FITS = {"cover", "contain"}
 
 
-def env_value(name: str) -> str:
-    for alias in ENV_ALIASES[name]:
-        value = os.environ.get(alias, "").strip()
-        if value:
-            return value
-    return ""
+def project_config_path() -> Path:
+    return Path.cwd() / PROJECT_CONFIG_NAME
 
 
-def config_status() -> dict[str, Any]:
+def load_project_config(path: Path | None = None) -> dict[str, str]:
+    source = path or project_config_path()
+    try:
+        raw = json.loads(source.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Project config {PROJECT_CONFIG_NAME} was not found.") from exc
+    except OSError as exc:
+        raise ValueError(f"Project config {PROJECT_CONFIG_NAME} could not be read.") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Project config {PROJECT_CONFIG_NAME} is not valid JSON: {exc.msg}.") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"Project config {PROJECT_CONFIG_NAME} must contain a JSON object.")
+
+    config: dict[str, str] = {}
+    for field, json_key in PROJECT_CONFIG_KEYS.items():
+        value = raw.get(json_key)
+        if isinstance(value, str) and value.strip():
+            config[field] = value.strip()
+    return config
+
+
+def config_status(path: Path | None = None) -> dict[str, Any]:
     result: dict[str, Any] = {"configured": True, "variables": {}}
-    for field, aliases in ENV_ALIASES.items():
-        selected = next((alias for alias in aliases if os.environ.get(alias, "").strip()), None)
-        result["variables"][field] = {"present": selected is not None, "source": selected}
-        if selected is None:
+    try:
+        config = load_project_config(path)
+    except ValueError as exc:
+        config = {}
+        result["configured"] = False
+        result["error"] = str(exc)
+    for field, json_key in PROJECT_CONFIG_KEYS.items():
+        present = bool(config.get(field))
+        result["variables"][field] = {
+            "present": present,
+            "source": f"{PROJECT_CONFIG_NAME}:{json_key}" if present else None,
+        }
+        if not present:
             result["configured"] = False
     return result
 
@@ -499,8 +525,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    status = config_status()
+    config_path = project_config_path()
     if args.check_config:
+        status = config_status(config_path)
         print(json.dumps(status, ensure_ascii=False, indent=2))
         if not status["configured"]:
             return 2
@@ -528,13 +555,18 @@ def main() -> int:
     if not args.output_dir:
         print("--output-dir is required for generation.", file=sys.stderr)
         return 2
-    if not status["configured"]:
-        missing = [field for field, state in status["variables"].items() if not state["present"]]
-        print("Missing environment configuration: " + ", ".join(missing), file=sys.stderr)
-        print("Set model, key, baseUrl (or IMAGE_MODEL, IMAGE_API_KEY, IMAGE_BASE_URL).", file=sys.stderr)
+    try:
+        config = load_project_config(config_path)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    missing = [field for field in PROJECT_CONFIG_KEYS if field not in config]
+    if missing:
+        print(f"Missing project configuration in {PROJECT_CONFIG_NAME}: " + ", ".join(missing), file=sys.stderr)
+        print("Set model, key, and baseUrl in env.json.", file=sys.stderr)
         return 2
     try:
-        endpoint = normalized_endpoint(env_value("base_url"))
+        endpoint = normalized_endpoint(config["base_url"])
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -586,10 +618,10 @@ def main() -> int:
             print(f"FAIL {asset_id}: {exc}", file=sys.stderr)
             continue
         prompt = "\n\n".join(part for part in (style_prompt, asset_prompt) if part)
-        payload = request_payload(endpoint, env_value("model"), prompt, str(asset["request_size"]), bool(asset.get("transparent")))
+        payload = request_payload(endpoint, config["model"], prompt, str(asset["request_size"]), bool(asset.get("transparent")))
         print(f"GENERATE {asset_id}")
         try:
-            response = request_json(endpoint, env_value("key"), payload, args.timeout)
+            response = request_json(endpoint, config["key"], payload, args.timeout)
             response_record = response_dir / f"{asset_id}.json"
             save_response_record(response, response_record)
             record["response_record"] = str(response_record)

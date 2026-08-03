@@ -1,0 +1,44 @@
+{
+    "ver":  "1.0.27",
+    "importer":  "image",
+    "imported":  true,
+    "uuid":  "ead085c9-b04e-4e43-9d3c-bd3c602c8392",
+    "files":  [
+                  ".json",
+                  ".png"
+              ],
+    "subMetas":  {
+                     "6c48a":  {
+                                   "importer":  "texture",
+                                   "uuid":  "ead085c9-b04e-4e43-9d3c-bd3c602c8392@6c48a",
+                                   "displayName":  "bg_board_pink",
+                                   "id":  "6c48a",
+                                   "name":  "texture",
+                                   "userData":  {
+                                                    "wrapModeS":  "repeat",
+                                                    "wrapModeT":  "repeat",
+                                                    "minfilter":  "linear",
+                                                    "magfilter":  "linear",
+                                                    "mipfilter":  "none",
+                                                    "anisotropy":  0,
+                                                    "isUuid":  true,
+                                                    "imageUuidOrDatabaseUri":  "ead085c9-b04e-4e43-9d3c-bd3c602c8392",
+                                                    "visible":  false
+                                                },
+                                   "ver":  "1.0.22",
+                                   "imported":  true,
+                                   "files":  [
+                                                 ".json"
+                                             ],
+                                   "subMetas":  {
+
+                                                }
+                               }
+                 },
+    "userData":  {
+                     "type":  "texture",
+                     "fixAlphaTransparencyArtifacts":  false,
+                     "hasAlpha":  true,
+                     "redirect":  "ead085c9-b04e-4e43-9d3c-bd3c602c8392@6c48a"
+                 }
+}

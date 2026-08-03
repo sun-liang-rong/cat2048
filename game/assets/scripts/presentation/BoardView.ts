@@ -2,6 +2,7 @@ import { Color, Node, tween, Tween, Vec3 } from 'cc';
 import type { BoardSnapshot, MergeRecord, MoveResult, Position, Tile } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
+import type { CosmeticRuntime } from './CosmeticRuntime';
 import {
   BOARD_PADDING,
   BOARD_PIXELS,
@@ -37,7 +38,7 @@ export class BoardView {
   private tileNodes = new Map<string, Node>();
   private touchHighlight: Node | null = null;
 
-  public constructor(private readonly art: ArtRepository) {}
+  public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
   /** Root board node (scaled/positioned by Boot or GameScreen). Null until mount. */
   public get root(): Node | null {
@@ -50,7 +51,7 @@ export class BoardView {
     parent.addChild(board);
     this.boardRoot = board;
 
-    const boardFrame = this.art.frame(GAME_CONFIG.art.boardBackground);
+    const boardFrame = this.cosmetics.boardFrame();
     if (boardFrame) board.addChild(createSpriteNode('BoardBackground', boardFrame, boardPixels, boardPixels));
     else drawRounded(board, boardPixels, boardPixels, new Color(189, 139, 82, 255), 38);
 
@@ -215,7 +216,7 @@ export class BoardView {
     const node = this.createTileNode(resultTile);
     node.setScale(0.84, 0.84, 1);
     tween(node).to(0.1, { scale: new Vec3(1.12, 1.12, 1) }).to(0.1, { scale: Vec3.ONE }).start();
-    const sparkleFrame = this.art.frame(GAME_CONFIG.art.mergeSparkle);
+    const sparkleFrame = this.cosmetics.mergeSparkleFrame();
     if (sparkleFrame && this.tileLayer) {
       const sparkle = createSpriteNode('MergeSparkle', sparkleFrame, CELL_SIZE * 1.35, CELL_SIZE * 1.35);
       sparkle.setPosition(this.positionFor(merge.at));
@@ -223,7 +224,7 @@ export class BoardView {
       this.tileLayer.addChild(sparkle);
       tween(sparkle).to(0.1, { scale: Vec3.ONE }).to(0.1, { scale: new Vec3(1.25, 1.25, 1) }).call(() => sparkle.destroy()).start();
     }
-    const burstFrame = this.art.frame(GAME_CONFIG.art.mergeBurst);
+    const burstFrame = this.cosmetics.mergeBurstFrame();
     if (burstFrame && this.tileLayer) {
       const burst = createSpriteNode('MergeBurst', burstFrame, CELL_SIZE * 1.75, CELL_SIZE * 1.75);
       burst.setPosition(this.positionFor(merge.at));
@@ -254,7 +255,7 @@ export class BoardView {
         tween(halo).by(7, { angle: 360 }).repeatForever().start();
       }
     }
-    const frame = this.art.frame(cat.asset);
+    const frame = this.cosmetics.catFrame(tile.level);
     if (frame) {
       const sprite = createSpriteNode(`Cat:${tile.level}`, frame, CELL_SIZE * 0.78, CELL_SIZE * 0.78);
       sprite.setPosition(0, 10);

@@ -50,8 +50,9 @@
     }
   },
   "bundleCommonChunk": false,
-  "mainBundleCompressionType": "merge_all_json",
-  "mainBundleIsRemote": false,
+  "mainBundleCompressionType": "merge_dep",
+  "mainBundleIsRemote": true,
+  "remoteServerAddress": "https://hongshu.sale",
   "startSceneAssetBundle": false,
   "startScene": "104fa7bd-69cf-44b8-8ed1-bfc9af55e101",
   "scenes": [
@@ -72,7 +73,7 @@
   },
   "packages": {
     "wechatgame": {
-      "separateEngine": true,
+      "separateEngine": false,
       "wasmSubpackage": true
     }
   },
@@ -80,8 +81,8 @@
     {
       "name": "resources",
       "root": "db://assets/resources",
-      "compressionType": "subpackage",
-      "isRemote": false,
+      "compressionType": "merge_dep",
+      "isRemote": true,
       "output": true
     }
   ]

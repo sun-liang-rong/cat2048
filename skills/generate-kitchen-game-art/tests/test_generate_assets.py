@@ -1,9 +1,11 @@
 import importlib.util
 import http.server
 import json
+import os
 import threading
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from PIL import Image
@@ -13,6 +15,43 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "generate_assets.py"
 SPEC = importlib.util.spec_from_file_location("generate_assets", SCRIPT)
 generate_assets = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(generate_assets)
+
+
+class ProjectConfigTests(unittest.TestCase):
+    def test_loads_required_fields_from_project_env_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "env.json"
+            config_path.write_text(json.dumps({
+                "model": "json-model",
+                "baseUrl": "https://json.example/v1",
+                "key": "json-key",
+            }), encoding="utf-8")
+
+            with patch.dict(os.environ, {
+                "model": "environment-model",
+                "IMAGE_API_KEY": "environment-key",
+                "IMAGE_BASE_URL": "https://environment.example/v1",
+            }):
+                config = generate_assets.load_project_config(config_path)
+
+        self.assertEqual(config, {
+            "model": "json-model",
+            "key": "json-key",
+            "base_url": "https://json.example/v1",
+        })
+
+    def test_config_status_reports_missing_fields_without_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "env.json"
+            config_path.write_text(json.dumps({"model": "json-model"}), encoding="utf-8")
+
+            status = generate_assets.config_status(config_path)
+
+        self.assertFalse(status["configured"])
+        self.assertTrue(status["variables"]["model"]["present"])
+        self.assertFalse(status["variables"]["key"]["present"])
+        self.assertFalse(status["variables"]["base_url"]["present"])
+        self.assertNotIn("json-model", json.dumps(status))
 
 
 class FetchImageWithRetriesTests(unittest.TestCase):

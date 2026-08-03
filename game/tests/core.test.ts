@@ -156,13 +156,31 @@ describe('Game2048', () => {
 
     const moved = game.move('left');
     expect(moved.changed).toBe(true);
-    expect(game.items).toEqual({ undoRemaining: 1, removeLowestRemaining: 1, canUndo: true, canRemoveLowest: true });
+    expect(game.items).toEqual({
+      undoRemaining: 1,
+      removeLowestRemaining: 1,
+      undoRefillRemaining: 1,
+      removeLowestRefillRemaining: 1,
+      canUndo: true,
+      canRemoveLowest: true,
+      canRequestUndoRefill: false,
+      canRequestRemoveLowestRefill: false,
+    });
 
     const undone = game.undo();
     expect(undone.changed).toBe(true);
     expect(undone.board).toEqual(before);
     expect(undone.score).toBe(12);
-    expect(game.items).toEqual({ undoRemaining: 0, removeLowestRemaining: 1, canUndo: false, canRemoveLowest: true });
+    expect(game.items).toEqual({
+      undoRemaining: 0,
+      removeLowestRemaining: 1,
+      undoRefillRemaining: 1,
+      removeLowestRefillRemaining: 1,
+      canUndo: false,
+      canRemoveLowest: true,
+      canRequestUndoRefill: true,
+      canRequestRemoveLowestRefill: false,
+    });
     expect(game.undo().changed).toBe(false);
   });
 
@@ -203,7 +221,16 @@ describe('Game2048', () => {
     expect(result.removedTileIds).toEqual(expectedIds);
     expect(result.board.tiles.map((tile) => tile.level)).toEqual([2, 2]);
     expect(result.score).toBe(24);
-    expect(game.items).toEqual({ undoRemaining: 1, removeLowestRemaining: 0, canUndo: false, canRemoveLowest: false });
+    expect(game.items).toEqual({
+      undoRemaining: 1,
+      removeLowestRemaining: 0,
+      undoRefillRemaining: 1,
+      removeLowestRefillRemaining: 1,
+      canUndo: false,
+      canRemoveLowest: false,
+      canRequestUndoRefill: false,
+      canRequestRemoveLowestRefill: true,
+    });
   });
 
   it('does not consume removal on an empty board and removes all when fewer than three exist', () => {
@@ -248,7 +275,16 @@ describe('Game2048', () => {
     expect(game.undo().changed).toBe(false);
 
     game.start();
-    expect(game.items).toEqual({ undoRemaining: 1, removeLowestRemaining: 1, canUndo: false, canRemoveLowest: true });
+    expect(game.items).toEqual({
+      undoRemaining: 1,
+      removeLowestRemaining: 1,
+      undoRefillRemaining: 1,
+      removeLowestRefillRemaining: 1,
+      canUndo: false,
+      canRemoveLowest: true,
+      canRequestUndoRefill: false,
+      canRequestRemoveLowestRefill: false,
+    });
   });
 
   it.each([[-0.1], [1], [Number.NaN]])('rejects an invalid level random value: %s', (value) => {

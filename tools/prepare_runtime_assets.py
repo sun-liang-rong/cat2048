@@ -32,6 +32,8 @@ EXPECTED_IMAGE_SIZES = {
     "bg_home.png": (750, 1334),
     "bg_page.png": (750, 1334),
     "bg_board_wood.png": (1024, 1024),
+    "bg_board_pink.png": (1024, 1024),
+    "bg_board_star.png": (1024, 1024),
     "share_score_bg.png": (1000, 800),
     **{name: (256, 256) for name in [
         "tile_empty.png", "tile_selected.png", "sparkle_small.png",
@@ -40,7 +42,14 @@ EXPECTED_IMAGE_SIZES = {
     **{name: (160, 160) for name in [
         "close.png", "back.png", "home.png", "check.png", "share.png",
         "sound_on.png", "sound_off.png", "settings.png", "info.png", "locked.png",
+        "classic_mode.png", "collection.png", "undo.png", "remove_lowest.png",
+        "coin.png",
     ]},
+    **{name: (256, 256) for name in [
+        "aurora_sparkle.png", "aurora_burst.png", "aurora_paw_sparkle.png", "aurora_paw_burst.png",
+        "stars_sparkle.png", "stars_burst.png", "stars_fish_sparkle.png", "stars_confetti_burst.png",
+    ]},
+    **{name: (256, 128) for name in ["primary.png", "secondary.png", "reward.png", "cream.png"]},
 }
 
 
@@ -166,6 +175,54 @@ def slice_grid(source_name: str, cols: int, rows: int, names: list[str], target:
             result.save(out_dir / f"{name}.png", optimize=True)
 
 
+def slice_grid_cells(source_name: str, cols: int, rows: int, cells: dict[int, str],
+                     target: str, size: int) -> None:
+    with Image.open(SOURCE / source_name) as opened:
+        image = opened.convert("RGBA")
+        cell_w = image.width / cols
+        cell_h = image.height / rows
+        out_dir = OUTPUT / target
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for index, name in cells.items():
+            if index < 0 or index >= cols * rows:
+                raise ValueError(f"{source_name}: invalid cell index {index}")
+            row, col = divmod(index, cols)
+            left, top = round(col * cell_w), round(row * cell_h)
+            right, bottom = round((col + 1) * cell_w), round((row + 1) * cell_h)
+            result = trim_and_square(image.crop((left, top, right, bottom)), size)
+            result.save(out_dir / f"{name}.png", optimize=True)
+
+
+def trim_and_rect(image: Image.Image, width: int, height: int) -> Image.Image:
+    rgba = image.convert("RGBA")
+    bbox = rgba.getchannel("A").point(lambda value: 255 if value > ALPHA_THRESHOLD else 0).getbbox()
+    if not bbox:
+        raise ValueError("Button cell has no visible pixels")
+    rgba = rgba.crop(bbox)
+    scale = min(width / rgba.width, height / rgba.height)
+    resized = rgba.resize((max(1, round(rgba.width * scale)), max(1, round(rgba.height * scale))),
+                          Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    canvas.alpha_composite(resized, ((width - resized.width) // 2, (height - resized.height) // 2))
+    return canvas
+
+
+def slice_button_theme(source_name: str, theme: str) -> None:
+    names = ["primary", "secondary", "reward", "cream"]
+    with Image.open(SOURCE / source_name) as opened:
+        image = opened.convert("RGBA")
+        cell_w = image.width / 2
+        cell_h = image.height / 2
+        out_dir = OUTPUT / "ui" / "button-themes" / theme
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for index, name in enumerate(names):
+            row, col = divmod(index, 2)
+            left, top = round(col * cell_w), round(row * cell_h)
+            right, bottom = round((col + 1) * cell_w), round((row + 1) * cell_h)
+            result = trim_and_rect(image.crop((left, top, right, bottom)), 256, 128)
+            result.save(out_dir / f"{name}.png", optimize=True)
+
+
 def prepare_background(name: str, size: tuple[int, int]) -> None:
     """Build a runtime background directly from the generated source image."""
     with Image.open(RAW_SOURCE / f"{name}.png") as opened:
@@ -209,6 +266,8 @@ def validate() -> dict[str, str]:
         OUTPUT / "backgrounds" / "bg_home.png",
         OUTPUT / "backgrounds" / "bg_page.png",
         OUTPUT / "backgrounds" / "bg_board_wood.png",
+        OUTPUT / "backgrounds" / "bg_board_pink.png",
+        OUTPUT / "backgrounds" / "bg_board_star.png",
         OUTPUT / "backgrounds" / "share_score_bg.png",
         OUTPUT / "gameplay" / "tile_empty.png",
         OUTPUT / "gameplay" / "tile_selected.png",
@@ -226,6 +285,20 @@ def validate() -> dict[str, str]:
         OUTPUT / "ui" / "settings.png",
         OUTPUT / "ui" / "info.png",
         OUTPUT / "ui" / "locked.png",
+        OUTPUT / "ui" / "classic_mode.png",
+        OUTPUT / "ui" / "collection.png",
+        OUTPUT / "ui" / "undo.png",
+        OUTPUT / "ui" / "remove_lowest.png",
+        OUTPUT / "ui" / "coin.png",
+        *(OUTPUT / "ui" / "button-themes" / theme / f"{state}.png"
+          for theme in ["berry", "aurora"]
+          for state in ["primary", "secondary", "reward", "cream"]),
+        *(OUTPUT / "cosmetics" / "cat-skins" / skin / f"cat_{level:02}.png"
+          for skin in ["sunny", "aurora"] for level in range(1, 10)),
+        *(OUTPUT / "gameplay" / "effects" / name for name in [
+            "aurora_sparkle.png", "aurora_burst.png", "aurora_paw_sparkle.png", "aurora_paw_burst.png",
+            "stars_sparkle.png", "stars_burst.png", "stars_fish_sparkle.png", "stars_confetti_burst.png",
+        ]),
         OUTPUT / "audio" / "move.wav",
         OUTPUT / "audio" / "merge.wav",
         OUTPUT / "audio" / "game_over.wav",
@@ -239,9 +312,14 @@ def validate() -> dict[str, str]:
                 expected_size = EXPECTED_IMAGE_SIZES[path.name]
                 if image.size != expected_size:
                     raise ValueError(f"Invalid image dimensions for {path}: {image.size}, expected {expected_size}")
-                if path.parent.name in {"cats", "gameplay", "ui"} and image.mode != "RGBA":
+            if (path.parent.name in {"cats", "gameplay", "ui", "sunny", "aurora"}
+                    or path.parent.parent.name == "button-themes") and image.mode != "RGBA":
                     raise ValueError(f"Transparent runtime sprite is not RGBA: {path}")
         logical = path.stem
+        if path.parent.parent.name == "button-themes":
+            logical = f"button_theme_{path.parent.name}_{logical}"
+        elif path.parent.name in {"sunny", "aurora"}:
+            logical = f"cat_skin_{path.parent.name}_{logical}"
         base = path.relative_to(OUTPUT.parent).with_suffix("").as_posix()
         mapping[logical] = base + ("/texture" if path.suffix == ".png" else "")
     return mapping
@@ -258,10 +336,28 @@ def main() -> int:
                ["close", "back", "home", "locked", "check", "share", "reward_video", "sound_on",
                 "sound_off", "settings", "info", "level_locked", "level_current", "level_complete",
                 "daily", "weekly"], "ui", 160)
+    slice_grid_cells("sheet_navigation.png", 3, 2,
+                     {0: "classic_mode", 2: "collection"}, "ui", 160)
+    slice_grid_cells("sheet_economy.png", 4, 2,
+                     {0: "undo", 3: "remove_lowest", 4: "coin"}, "ui", 160)
+    slice_grid("cat_skin_sunny.png", 3, 3,
+               [f"cat_{level:02}" for level in range(1, 10)], "cosmetics/cat-skins/sunny", 256)
+    slice_grid("cat_skin_aurora.png", 3, 3,
+               [f"cat_{level:02}" for level in range(1, 10)], "cosmetics/cat-skins/aurora", 256)
+    slice_grid("effect_aurora.png", 2, 2,
+               ["aurora_sparkle", "aurora_burst", "aurora_paw_sparkle", "aurora_paw_burst"],
+               "gameplay/effects", 256)
+    slice_grid("effect_stars.png", 2, 2,
+               ["stars_sparkle", "stars_burst", "stars_fish_sparkle", "stars_confetti_burst"],
+               "gameplay/effects", 256)
+    slice_button_theme("button_theme_berry.png", "berry")
+    slice_button_theme("button_theme_aurora.png", "aurora")
     for background, size in {
         "bg_home": (750, 1334),
         "bg_page": (750, 1334),
         "bg_board_wood": (1024, 1024),
+        "bg_board_pink": (1024, 1024),
+        "bg_board_star": (1024, 1024),
         "share_score_bg": (1000, 800),
     }.items():
         prepare_background(background, size)

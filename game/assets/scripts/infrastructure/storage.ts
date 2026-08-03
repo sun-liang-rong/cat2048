@@ -20,6 +20,25 @@ export interface SaveDataV2 {
   readonly tutorial: TutorialProgress;
 }
 
+import {
+  DEFAULT_ECONOMY,
+  DEFAULT_EQUIPPED,
+  findCosmetic,
+  type CosmeticCategory,
+  type EconomySaveData,
+  type EquippedCosmetics,
+} from '../economy/catalog';
+
+export interface SaveDataV3 {
+  readonly schemaVersion: 3;
+  readonly highScore: number;
+  readonly soundEnabled: boolean;
+  readonly hapticsEnabled: boolean;
+  readonly unlockedCatLevels: readonly number[];
+  readonly tutorial: TutorialProgress;
+  readonly economy: EconomySaveData;
+}
+
 export interface KeyValueStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -27,8 +46,9 @@ export interface KeyValueStorage {
 
 export const SAVE_KEY = 'cat2048.save.v2';
 export const LEGACY_SAVE_KEY = 'cat2048.save.v1';
-export const DEFAULT_SAVE: SaveDataV2 = {
-  schemaVersion: 2,
+export const CORRUPT_SAVE_KEY = 'cat2048.save.corrupt';
+export const DEFAULT_SAVE: SaveDataV3 = {
+  schemaVersion: 3,
   highScore: 0,
   soundEnabled: true,
   hapticsEnabled: true,
@@ -38,44 +58,65 @@ export const DEFAULT_SAVE: SaveDataV2 = {
     itemRefillGuideCompleted: false,
     collectionGuideCompleted: false,
   },
-};
+  economy: DEFAULT_ECONOMY,
+} as SaveDataV3;
 
 export class LocalGameStorage {
   public constructor(private readonly storage: KeyValueStorage) {}
 
-  public load(): SaveDataV2 {
+  public load(): SaveDataV3 {
+    let rawToBackup: string | null = null;
     try {
       const currentRaw = this.storage.getItem(SAVE_KEY);
       if (currentRaw) {
-        const current = this.normalizeV2(JSON.parse(currentRaw) as unknown);
-        return current ?? this.repair();
+        rawToBackup = currentRaw;
+        const current = this.normalize(JSON.parse(currentRaw) as unknown);
+        return current ?? this.repair(rawToBackup);
       }
 
       const legacyRaw = this.storage.getItem(LEGACY_SAVE_KEY);
       if (!legacyRaw) return this.repair();
+      rawToBackup = legacyRaw;
       const migrated = this.migrateV1(JSON.parse(legacyRaw) as unknown);
-      if (!migrated) return this.repair();
+      if (!migrated) return this.repair(rawToBackup);
       this.persist(migrated, 'Failed to migrate local data.');
       return migrated;
     } catch (error) {
+      if (rawToBackup) this.backupCorrupt(rawToBackup);
       console.warn('[Cat2048] Save data was invalid and has been repaired.', error);
       return this.repair();
     }
   }
 
-  public save(value: SaveDataV2): void {
-    const normalized = this.normalizeV2(value);
-    if (!normalized) throw new Error('Refusing to persist malformed save data.');
+  public save(value: SaveDataV3): void {
+    const normalized = this.normalize(value);
+    if (!normalized) {
+      console.error('[Cat2048] Malformed save data, repairing.');
+      const repaired = this.freshDefault();
+      this.persist(repaired, 'Failed to save local data.');
+      return;
+    }
     this.persist(normalized, 'Failed to save local data.');
   }
 
-  private repair(): SaveDataV2 {
+  private repair(raw?: string): SaveDataV3 {
+    if (raw) this.backupCorrupt(raw);
     const safe = this.freshDefault();
     this.persist(safe, 'Failed to repair local data.');
     return safe;
   }
 
-  private persist(value: SaveDataV2, message: string): void {
+  private backupCorrupt(raw: string): void {
+    try {
+      if (this.storage.getItem(CORRUPT_SAVE_KEY) === null) {
+        this.storage.setItem(CORRUPT_SAVE_KEY, raw);
+      }
+    } catch (error) {
+      console.warn('[Cat2048] Failed to back up corrupt local data.', error);
+    }
+  }
+
+  private persist(value: SaveDataV3, message: string): void {
     try {
       this.storage.setItem(SAVE_KEY, JSON.stringify(value));
     } catch (error) {
@@ -83,7 +124,7 @@ export class LocalGameStorage {
     }
   }
 
-  private freshDefault(): SaveDataV2 {
+  private freshDefault(): SaveDataV3 {
     return {
       ...DEFAULT_SAVE,
       unlockedCatLevels: [...DEFAULT_SAVE.unlockedCatLevels],
@@ -91,7 +132,7 @@ export class LocalGameStorage {
     };
   }
 
-  private migrateV1(value: unknown): SaveDataV2 | null {
+  private migrateV1(value: unknown): SaveDataV3 | null {
     if (!value || typeof value !== 'object') return null;
     const candidate = value as Record<string, unknown>;
     if (candidate.schemaVersion !== 1
@@ -101,7 +142,7 @@ export class LocalGameStorage {
       || typeof candidate.soundEnabled !== 'boolean'
       || (candidate.hapticsEnabled !== undefined && typeof candidate.hapticsEnabled !== 'boolean')) return null;
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       highScore: candidate.highScore,
       soundEnabled: candidate.soundEnabled,
       hapticsEnabled: candidate.hapticsEnabled ?? true,
@@ -111,15 +152,31 @@ export class LocalGameStorage {
         itemRefillGuideCompleted: false,
         collectionGuideCompleted: false,
       },
+      economy: this.defaultEconomy(),
     };
   }
 
-  private normalizeV2(value: unknown): SaveDataV2 | null {
+  private migrateV2(value: Record<string, unknown>): SaveDataV3 | null {
+    const base = this.validateBase(value, 2);
+    if (!base) return null;
+    return { ...base, schemaVersion: 3, economy: this.defaultEconomy() };
+  }
+
+  private normalize(value: unknown): SaveDataV3 | null {
     if (!value || typeof value !== 'object') return null;
     const candidate = value as Record<string, unknown>;
+    if (candidate.schemaVersion === 2) return this.migrateV2(candidate);
+    const base = this.validateBase(candidate, 3);
+    if (!base) return null;
+    const economy = this.normalizeEconomy(candidate.economy);
+    if (!economy) return null;
+    return { ...base, schemaVersion: 3, economy };
+  }
+
+  private validateBase(candidate: Record<string, unknown>, version: 2 | 3): Omit<SaveDataV3, 'schemaVersion' | 'economy'> | null {
     const tutorial = candidate.tutorial as Record<string, unknown> | undefined;
     const levels = candidate.unlockedCatLevels;
-    if (candidate.schemaVersion !== 2
+    if (candidate.schemaVersion !== version
       || typeof candidate.highScore !== 'number'
       || !Number.isInteger(candidate.highScore)
       || candidate.highScore < 0
@@ -131,18 +188,63 @@ export class LocalGameStorage {
       || !tutorial
       || typeof tutorial.swipeGuideCompleted !== 'boolean'
       || typeof tutorial.itemRefillGuideCompleted !== 'boolean'
-      || typeof tutorial.collectionGuideCompleted !== 'boolean') return null;
+      || (version === 2 && typeof tutorial.collectionGuideCompleted !== 'boolean')) return null;
     return {
-      schemaVersion: 2,
       highScore: candidate.highScore,
       soundEnabled: candidate.soundEnabled,
       hapticsEnabled: candidate.hapticsEnabled,
-      unlockedCatLevels: [...new Set([1, ...(levels as number[])])].sort((a, b) => a - b),
+      unlockedCatLevels: Array.from(new Set([1, ...(levels as number[])])).sort((a, b) => a - b),
       tutorial: {
         swipeGuideCompleted: tutorial.swipeGuideCompleted,
         itemRefillGuideCompleted: tutorial.itemRefillGuideCompleted,
-        collectionGuideCompleted: tutorial.collectionGuideCompleted,
+        collectionGuideCompleted: typeof tutorial.collectionGuideCompleted === 'boolean'
+          ? tutorial.collectionGuideCompleted : false,
       },
     };
+  }
+
+  private normalizeEconomy(value: unknown): EconomySaveData | null {
+    if (!value || typeof value !== 'object') return null;
+    const candidate = value as Record<string, unknown>;
+    const equipped = candidate.equipped as Record<string, unknown> | undefined;
+    const owned = candidate.ownedItemIds;
+    const settled = candidate.settledRunIds;
+    if (typeof candidate.coins !== 'number' || !Number.isSafeInteger(candidate.coins) || candidate.coins < 0
+      || !Array.isArray(owned) || !owned.every((id) => typeof id === 'string')
+      || !equipped || typeof equipped.catSkin !== 'string' || typeof equipped.board !== 'string'
+      || typeof equipped.effect !== 'string' || typeof equipped.buttonTheme !== 'string'
+      || (candidate.lastDailyClaimDate !== null && typeof candidate.lastDailyClaimDate !== 'string')
+      || typeof candidate.dailyStreak !== 'number' || !Number.isSafeInteger(candidate.dailyStreak)
+      || candidate.dailyStreak < 0 || !Array.isArray(settled) || !settled.every((id) => typeof id === 'string')) return null;
+    const ownedItemIds = Array.from(new Set([...(DEFAULT_ECONOMY.ownedItemIds), ...(owned as string[])]))
+      .filter((id) => Boolean(findCosmetic(id)));
+    return {
+      coins: candidate.coins,
+      ownedItemIds,
+      equipped: {
+        catSkin: this.validEquipped(equipped.catSkin, 'cat-skin', ownedItemIds, DEFAULT_EQUIPPED.catSkin),
+        board: this.validEquipped(equipped.board, 'board', ownedItemIds, DEFAULT_EQUIPPED.board),
+        effect: this.validEquipped(equipped.effect, 'effect', ownedItemIds, DEFAULT_EQUIPPED.effect),
+        buttonTheme: this.validEquipped(equipped.buttonTheme, 'button-theme', ownedItemIds,
+          DEFAULT_EQUIPPED.buttonTheme),
+      },
+      lastDailyClaimDate: candidate.lastDailyClaimDate as string | null,
+      dailyStreak: candidate.dailyStreak,
+      settledRunIds: Array.from(new Set(settled as string[])),
+    };
+  }
+
+  private defaultEconomy(): EconomySaveData {
+    return {
+      ...DEFAULT_ECONOMY,
+      ownedItemIds: [...DEFAULT_ECONOMY.ownedItemIds],
+      equipped: { ...DEFAULT_ECONOMY.equipped },
+      settledRunIds: [],
+    };
+  }
+
+  private validEquipped(value: unknown, category: CosmeticCategory, owned: readonly string[], fallback: string): string {
+    if (typeof value !== 'string' || owned.indexOf(value) < 0) return fallback;
+    return findCosmetic(value)?.category === category ? value : fallback;
   }
 }

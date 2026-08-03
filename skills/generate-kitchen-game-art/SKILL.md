@@ -1,6 +1,6 @@
 ---
 name: generate-kitchen-game-art
-description: Generate and validate project-bound raster art for the kitchen-themed Cocos Creator sorting game, including kitchen scene backgrounds, transparent item tiles, slot trays, tutorial hands, completion art, and later level asset batches. Use when Codex needs to create, regenerate, or quality-check image resources described by 需求.md through the user's OpenAI-compatible image endpoint configured by the model, key, and baseUrl environment variables.
+description: Generate and validate project-bound raster art for the kitchen-themed Cocos Creator sorting game, including kitchen scene backgrounds, transparent item tiles, slot trays, tutorial hands, completion art, and later level asset batches. Use when Codex needs to create, regenerate, or quality-check image resources described by 需求.md through the user's OpenAI-compatible image endpoint configured by the current project's env.json file.
 ---
 
 # Generate Kitchen Game Art
@@ -9,10 +9,10 @@ Generate coherent, game-ready source images from a manifest and place them under
 
 ## Configuration safety
 
-- Read credentials only from environment variables. Accept the exact names `model`, `key`, and `baseUrl`; also accept `IMAGE_MODEL`, `IMAGE_API_KEY`, and `IMAGE_BASE_URL` as portable aliases.
+- Read configuration only from `env.json` in the current project root. Require the exact JSON keys `model`, `key`, and `baseUrl`; do not fall back to environment variables.
 - Never print, persist, interpolate into filenames, or include `key` in errors.
 - Never add `.env`, response JSON containing signed URLs, or credentials to the skill or project.
-- Treat a missing configuration as a blocker. Run `scripts/generate_assets.py --check-config` to report missing variable names without revealing values.
+- Treat a missing configuration as a blocker. Run `scripts/generate_assets.py --check-config` from the project root to report missing JSON keys without revealing values.
 
 ## Workflow
 

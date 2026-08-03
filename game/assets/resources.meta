@@ -11,10 +11,10 @@
     "bundleName": "resources",
     "priority": 8,
     "compressionType": {
-      "wechatgame": "subpackage"
+      "wechatgame": "merge_dep"
     },
     "isRemoteBundle": {
-      "wechatgame": false
+      "wechatgame": true
     }
   }
 }

@@ -1,5 +1,6 @@
 import { AudioClip, BitmapFont, Font, ImageAsset, resources, SpriteFrame, Texture2D, TTFFont } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
+import { allCosmetics } from '../economy/catalog';
 import { loadResourceDirectory } from './resourceLoading';
 
 export class ArtRepository {
@@ -16,6 +17,18 @@ export class ArtRepository {
     const framePaths = [
       ...GAME_CONFIG.cats.map((cat) => cat.asset),
       ...Object.keys(GAME_CONFIG.art).map((key) => GAME_CONFIG.art[key as keyof typeof GAME_CONFIG.art]),
+      ...allCosmetics().reduce<string[]>((paths, item) => {
+        if (item.previewAsset) paths.push(item.previewAsset);
+        if (item.levelAssets) paths.push(...item.levelAssets);
+        if (item.boardAsset) paths.push(item.boardAsset);
+        if (item.sparkleAsset) paths.push(item.sparkleAsset);
+        if (item.burstAsset) paths.push(item.burstAsset);
+        if (item.primaryAsset) paths.push(item.primaryAsset);
+        if (item.secondaryAsset) paths.push(item.secondaryAsset);
+        if (item.rewardAsset) paths.push(item.rewardAsset);
+        if (item.creamAsset) paths.push(item.creamAsset);
+        return paths;
+      }, []),
     ];
     await Promise.all(framePaths.map(async (path) => {
       const [frame, imagePath] = await Promise.all([

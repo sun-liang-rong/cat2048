@@ -1,14 +1,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { filesHaveSameBytes } from './customize_wechat_loading.mjs';
-
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const buildRoot = join(root, 'game', 'build', 'wechatgame');
 const gameJsonPath = join(buildRoot, 'game.json');
 const firstScreenPath = join(buildRoot, 'first-screen.js');
-const generatedLogoPath = join(buildRoot, 'logo.png');
-const brandingLogoPath = join(root, 'game', 'assets', 'resources', 'game', 'branding', 'logo.png');
 const mainPackageLimit = 4 * 1024 * 1024;
 
 const fail = (message) => {
@@ -26,17 +22,8 @@ const isBelow = (path, directory) => path === directory || path.startsWith(`${di
 if (!existsSync(gameJsonPath)) {
   fail(`missing ${relative(root, gameJsonPath)}`);
 }
-if (!existsSync(firstScreenPath)) {
-  fail('missing generated WeChat first-screen file');
-}
-if (!readFileSync(firstScreenPath, 'utf8').includes('CAT2048_CUSTOM_LOADING_SCREEN')) {
-  fail('custom WeChat loading screen has not been applied');
-}
-if (!existsSync(generatedLogoPath) || !existsSync(brandingLogoPath)) {
-  fail('missing generated or source loading logo');
-}
-if (!filesHaveSameBytes(generatedLogoPath, brandingLogoPath)) {
-  fail('generated loading logo does not match branding/logo.png');
+if (existsSync(firstScreenPath)) {
+  fail('Cocos first screen is enabled; set separateEngine to false for direct app loading');
 }
 
 const gameJson = JSON.parse(readFileSync(gameJsonPath, 'utf8'));
@@ -61,8 +48,8 @@ const baseRuntimeImages = existsSync(baseResourcesNative)
   ? filesBelow(baseResourcesNative).filter((path) => ['.png', '.webp'].includes(extname(path).toLowerCase()))
   : [];
 
-if (resourcesPng.length !== 37) {
-  fail(`expected 37 PNG files in resources subpackage, found ${resourcesPng.length}`);
+if (resourcesPng.length !== 70) {
+  fail(`expected 70 PNG files in resources subpackage, found ${resourcesPng.length}`);
 }
 if (webp.length > 0) {
   fail(`found ${webp.length} WebP files in the generated package`);

@@ -6,6 +6,9 @@ import { COLORS, createButton, createLabel, createUiNode, drawRounded } from './
 export interface GameOverDialogModel {
   readonly score: number;
   readonly bestScore: number;
+  readonly runReward: number;
+  readonly runRewardFailed: boolean;
+  readonly coins: number;
   readonly canRevive: boolean;
   readonly uiWidth: number;
   readonly uiHeight: number;
@@ -41,6 +44,12 @@ export class GameOverDialogView {
     const score = createLabel(`本局得分  ${model.score}\n最高分  ${model.bestScore}`, 29, COLORS.ink, 490, 110, 'display');
     score.node.setPosition(0, panelHeight / 2 - 175);
     panel.addChild(score.node);
+    const reward = createLabel(model.runRewardFailed
+      ? '\u672c\u5c40\u91d1\u5e01\u6682\u672a\u7ed3\u7b97'
+      : `+${model.runReward} \u91d1\u5e01  \u00b7  \u4f59\u989d ${model.coins}`,
+      23, model.runRewardFailed ? COLORS.coral : COLORS.teal, 490, 42, 'display');
+    reward.node.setPosition(0, panelHeight / 2 - 235);
+    panel.addChild(reward.node);
 
     if (model.canRevive) {
       const revive = createButton('分享复活 · 每局1次', 500, 84, COLORS.coral, actions.onRevive, 29,
@@ -59,10 +68,12 @@ export class GameOverDialogView {
     panel.addChild(share);
 
     const bottomY = model.canRevive ? -235 : -175;
-    const home = createButton('返回主页', 230, 78, COLORS.teal, actions.onHome, 27);
+    const home = createButton('返回主页', 230, 78, COLORS.teal, actions.onHome, 27,
+      this.art.frame(GAME_CONFIG.art.home));
     home.setPosition(-135, bottomY);
     panel.addChild(home);
-    const replay = createButton('再玩一局', 230, 78, COLORS.coral, actions.onReplay, 27);
+    const replay = createButton('再玩一局', 230, 78, COLORS.coral, actions.onReplay, 27,
+      this.art.frame(GAME_CONFIG.art.classicMode));
     replay.setPosition(135, bottomY);
     panel.addChild(replay);
 

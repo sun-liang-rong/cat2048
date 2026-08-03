@@ -17,6 +17,7 @@ import {
 import { spriteCropTransform } from './layout';
 import type { SpriteCropRect } from './layout';
 import { selectLabelFont } from './fontPolicy';
+import type { ButtonTheme } from './CosmeticRuntime';
 
 export const COLORS = {
   ink: new Color(60, 48, 44, 255),
@@ -31,6 +32,7 @@ export const COLORS = {
 } as const;
 
 export type LabelStyle = 'body' | 'display';
+export type LabelFontPreference = 'auto' | 'display' | 'number';
 
 const BODY_FONT_FAMILY = 'Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif';
 const DISPLAY_FONT_FAMILY = 'ZCOOL KuaiLe, Microsoft YaHei, PingFang SC, sans-serif';
@@ -41,10 +43,39 @@ const DISPLAY_LIGHT_SHADOW = new Color(150, 92, 54, 95);
 
 let displayFont: Font | null = null;
 let numberFont: Font | null = null;
+let activeButtonTheme: ButtonTheme | null = null;
 
 export function setRuntimeFonts(display: Font | null, numbers: Font | null): void {
   displayFont = display;
   numberFont = numbers;
+}
+
+export function setButtonTheme(theme: ButtonTheme | null): void {
+  activeButtonTheme = theme;
+}
+
+function themedButtonColor(color: Color): Color {
+  const theme = activeButtonTheme;
+  if (!theme) return color;
+  if (color === COLORS.coral) return theme.primary;
+  if (color === COLORS.teal) return theme.secondary;
+  if (color === COLORS.mustard) return theme.reward;
+  if (color === COLORS.cream) return theme.cream;
+  return color;
+}
+
+function themedButtonFrame(color: Color): SpriteFrame | undefined {
+  const theme = activeButtonTheme;
+  if (!theme) return undefined;
+  if (color === COLORS.coral) return theme.primaryFrame;
+  if (color === COLORS.teal) return theme.secondaryFrame;
+  if (color === COLORS.mustard) return theme.rewardFrame;
+  if (color === COLORS.cream) return theme.creamFrame;
+  return undefined;
+}
+
+export function resolveButtonColor(color: Color): Color {
+  return themedButtonColor(color);
 }
 
 export function createUiNode(name: string, width = 0, height = 0): Node {
@@ -74,14 +105,15 @@ function isLightColor(color: Color): boolean {
   return color.r * 0.299 + color.g * 0.587 + color.b * 0.114 > 170;
 }
 
-function applyLabelStyle(label: Label, fontSize: number, color: Color, style: LabelStyle): void {
+function applyLabelStyle(label: Label, fontSize: number, color: Color, style: LabelStyle,
+  fontPreference: LabelFontPreference = 'auto'): void {
   label.enableOutline = false;
   label.enableShadow = false;
   label.isBold = false;
 
   if (style === 'display') {
     label.lineHeight = Math.round(fontSize * 1.14);
-    const selectedFont = selectLabelFont(style, label.string);
+    const selectedFont = fontPreference === 'auto' ? selectLabelFont(style, label.string) : fontPreference;
     const customFont = selectedFont === 'number' ? numberFont : selectedFont === 'display' ? displayFont : null;
     if (customFont) {
       label.useSystemFont = false;
@@ -112,22 +144,25 @@ function applyLabelStyle(label: Label, fontSize: number, color: Color, style: La
 }
 
 export function createLabel(text: string, fontSize: number, color = COLORS.ink,
-  width = 500, height = fontSize * 1.5, style: LabelStyle = 'body'): Label {
+  width = 500, height = fontSize * 1.5, style: LabelStyle = 'body',
+  fontPreference: LabelFontPreference = 'auto'): Label {
   const node = createUiNode(`Label:${text}`, width, height);
   const label = node.addComponent(Label);
   label.string = text;
   label.fontSize = fontSize;
   label.color = color;
-  applyLabelStyle(label, fontSize, color, style);
+  applyLabelStyle(label, fontSize, color, style, fontPreference);
   label.horizontalAlign = Label.HorizontalAlign.CENTER;
   label.verticalAlign = Label.VerticalAlign.CENTER;
   label.overflow = Label.Overflow.SHRINK;
   return label;
 }
 
-export function setLabelText(label: Label, text: string, style: LabelStyle = 'body'): void {
+export function setLabelText(label: Label, text: string, style: LabelStyle = 'body',
+  fontSize = label.fontSize, fontPreference: LabelFontPreference = 'auto'): void {
   label.string = text;
-  applyLabelStyle(label, label.fontSize, label.color, style);
+  label.fontSize = fontSize;
+  applyLabelStyle(label, fontSize, label.color, style, fontPreference);
 }
 
 export function createSpriteNode(name: string, frame: SpriteFrame, width: number, height: number): Node {
@@ -141,10 +176,34 @@ export function createSpriteNode(name: string, frame: SpriteFrame, width: number
   return node;
 }
 
+export function renderButtonBackground(node: Node, width: number, height: number, color: Color): void {
+  node.getChildByName('ButtonBackground')?.destroy();
+  node.getComponent(Graphics)?.clear();
+  const frame = themedButtonFrame(color);
+  if (!frame) {
+    drawRounded(node, width, height, themedButtonColor(color), 24, { color: COLORS.ink, width: 5 });
+    return;
+  }
+
+  const source = frame.originalSize;
+  frame.insetLeft = Math.round(source.width * 0.22);
+  frame.insetRight = Math.round(source.width * 0.22);
+  frame.insetTop = Math.round(source.height * 0.3);
+  frame.insetBottom = Math.round(source.height * 0.3);
+  const background = createSpriteNode('ButtonBackground', frame, width, height);
+  const sprite = background.getComponent(Sprite);
+  if (sprite) {
+    sprite.type = Sprite.Type.SLICED;
+    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+  }
+  node.addChild(background);
+  background.setSiblingIndex(0);
+}
+
 export function createButton(text: string, width: number, height: number, color: Color,
   onTap: () => void, fontSize = 34, icon?: SpriteFrame): Node {
   const node = createUiNode(`Button:${text}`, width, height);
-  drawRounded(node, width, height, color, 24, { color: COLORS.ink, width: 5 });
+  renderButtonBackground(node, width, height, color);
   if (icon) {
     const iconNode = createSpriteNode(`Button:${text}:Icon`, icon, height * 0.64, height * 0.64);
     iconNode.setPosition(-width / 2 + height * 0.58, 0);
@@ -169,7 +228,7 @@ export function createToggle(name: string, enabled: boolean, onChange: (enabled:
 
   const render = (animate: boolean): void => {
     node.name = `${name}:${current ? 'On' : 'Off'}`;
-    drawRounded(node, 110, 58, current ? COLORS.teal : COLORS.cream, 29,
+    drawRounded(node, 110, 58, themedButtonColor(current ? COLORS.teal : COLORS.cream), 29,
       { color: COLORS.ink, width: 4 });
     drawRounded(knob, 46, 46, COLORS.ivory, 23, { color: COLORS.ink, width: 3 });
     const position = new Vec3(current ? 25 : -25, 0, 0);

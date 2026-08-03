@@ -1,0 +1,44 @@
+{
+    "ver":  "1.0.27",
+    "importer":  "image",
+    "imported":  true,
+    "uuid":  "b9531999-e0fe-417f-8d83-b0deca42f94c",
+    "files":  [
+                  ".json",
+                  ".png"
+              ],
+    "subMetas":  {
+                     "6c48a":  {
+                                   "importer":  "texture",
+                                   "uuid":  "b9531999-e0fe-417f-8d83-b0deca42f94c@6c48a",
+                                   "displayName":  "aurora_burst",
+                                   "id":  "6c48a",
+                                   "name":  "texture",
+                                   "userData":  {
+                                                    "wrapModeS":  "repeat",
+                                                    "wrapModeT":  "repeat",
+                                                    "minfilter":  "linear",
+                                                    "magfilter":  "linear",
+                                                    "mipfilter":  "none",
+                                                    "anisotropy":  0,
+                                                    "isUuid":  true,
+                                                    "imageUuidOrDatabaseUri":  "b9531999-e0fe-417f-8d83-b0deca42f94c",
+                                                    "visible":  false
+                                                },
+                                   "ver":  "1.0.22",
+                                   "imported":  true,
+                                   "files":  [
+                                                 ".json"
+                                             ],
+                                   "subMetas":  {
+
+                                                }
+                               }
+                 },
+    "userData":  {
+                     "type":  "texture",
+                     "fixAlphaTransparencyArtifacts":  false,
+                     "hasAlpha":  true,
+                     "redirect":  "b9531999-e0fe-417f-8d83-b0deca42f94c@6c48a"
+                 }
+}

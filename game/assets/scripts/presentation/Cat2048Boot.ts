@@ -1,101 +1,91 @@
 import {
   _decorator,
-  Color,
   Component,
   EventKeyboard,
   input,
   Input,
   KeyCode,
-  Label,
   Node,
   ResolutionPolicy,
   screen,
   sys,
-  tween,
   Tween,
-  UIOpacity,
   UITransform,
-  Vec3,
   view,
 } from 'cc';
 import { Game2048 } from '../core/Game2048';
 import type { BoardSnapshot, Direction, ItemKind } from '../core/types';
+import {
+  LocalEconomyRepository,
+  type EconomyMutationResult,
+  type EconomySnapshot,
+} from '../economy/economy';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import { HapticController } from '../infrastructure/HapticController';
 import { ResultShareController } from '../infrastructure/ResultShareController';
 import type { SharePurpose, ShareResult } from '../infrastructure/ResultShareController';
 import { RuntimeRandomSource, runtimeStorage } from '../infrastructure/runtime';
 import { DEFAULT_SAVE } from '../infrastructure/storage';
-import type { SaveDataV2 } from '../infrastructure/storage';
+import type { SaveDataV3 } from '../infrastructure/storage';
 import { ArtRepository } from './ArtRepository';
 import { AudioController } from './AudioController';
-import { addCoverBackground } from './background';
 import { BoardView } from './BoardView';
-import { BOARD_PIXELS } from './boardGeometry';
 import {
   capsuleBottomInset,
-  gameLayout,
   safeInsetsFromRect,
 } from './layout';
 import { DialogView } from './DialogView';
 import { CollectionView } from './CollectionView';
 import type { CollectionOrigin } from './CollectionView';
+import { EvolutionPanelView } from './EvolutionPanelView';
 import { GameOverDialogView } from './GameOverDialogView';
+import { GameScreen } from './GameScreen';
 import { HomeView } from './HomeView';
+import { ItemBarView } from './ItemBarView';
 import { LoadingView } from './LoadingView';
+import { CosmeticRuntime } from './CosmeticRuntime';
+import { DailyRewardView } from './DailyRewardView';
+import { ShopView } from './ShopView';
 import { SettingsPanel } from './SettingsPanel';
 import { settingsOrigin } from './settingsNavigation';
 import { runStartupSequence } from './startupSequence';
 import { SwipeInput } from './SwipeInput';
 import { TutorialView } from './TutorialView';
 import {
-  COLORS,
-  createIconButton,
-  createLabel,
-  createSpriteNode,
   createUiNode,
-  drawRounded,
-  setLabelText,
+  setButtonTheme,
   setRuntimeFonts,
 } from './uiFactory';
 
 const { ccclass } = _decorator;
 
-const BOTTOM_EDGE_ICON_CROP = { x: 4, y: 0, width: 144, height: 144 } as const;
-
-interface ItemButtonView {
-  readonly node: Node;
-  readonly count: Label;
-  readonly title: Label;
-  readonly icon: Node;
-  readonly baseTitle: string;
-  readonly baseIcon: string;
-}
-
-type ScreenName = 'loading' | 'home' | 'game' | 'collection';
+type ScreenName = 'loading' | 'home' | 'game' | 'collection' | 'shop';
 
 @ccclass('Cat2048Boot')
 export class Cat2048Boot extends Component {
   private readonly art = new ArtRepository();
-  private readonly boardView = new BoardView(this.art);
+  private readonly cosmetics = new CosmeticRuntime(this.art);
+  private readonly boardView = new BoardView(this.art, this.cosmetics);
   private readonly homeView = new HomeView(this.art);
-  private readonly collectionView = new CollectionView(this.art);
+  private readonly collectionView = new CollectionView(this.art, this.cosmetics);
+  private readonly shopView = new ShopView(this.art, this.cosmetics);
+  private readonly dailyRewardView = new DailyRewardView(this.art);
+  private readonly itemBar = new ItemBarView(this.art);
+  private readonly evolutionPanel = new EvolutionPanelView(this.art);
+  private readonly gameScreen = new GameScreen(this.art, this.boardView, this.itemBar, this.evolutionPanel);
   private readonly tutorialView = new TutorialView();
   private readonly gameOverDialog = new GameOverDialogView(this.art);
   private readonly loadingView = new LoadingView();
   private readonly game = new Game2048(new RuntimeRandomSource());
   private readonly haptics = new HapticController();
   private readonly resultShare = new ResultShareController();
+  private readonly economy = new LocalEconomyRepository(sys.localStorage);
   private audio!: AudioController;
-  private save: SaveDataV2 = DEFAULT_SAVE;
+  private save: SaveDataV3 = DEFAULT_SAVE;
   private screenRoot: Node | null = null;
-  private scoreLabel: Label | null = null;
-  private highScoreLabel: Label | null = null;
-  private evolutionPanel: Node | null = null;
-  private undoItem: ItemButtonView | null = null;
-  private removeLowestItem: ItemButtonView | null = null;
   private gameOverOverlay: Node | null = null;
-  private pendingUnlockLevels: number[] = [];
+  private dailyRewardOverlay: Node | null = null;
+  private economySnapshot!: EconomySnapshot;
   private inputLocked = false;
   private swipe: SwipeInput | null = null;
   private readonly dialogs = new DialogView(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
@@ -110,10 +100,17 @@ export class Cat2048Boot extends Component {
   private assetsReady = false;
   private currentScreen: ScreenName = 'loading';
   private collectionOrigin: CollectionOrigin = 'home';
+  private dailyPromptShown = false;
+  private dailyClaimInProgress = false;
+  private gameOverSettlementInProgress = false;
+  private runSequence = 0;
+  private currentRunId = '';
 
   protected override onLoad(): void {
     this.setupCanvas();
     this.save = runtimeStorage.load();
+    this.cosmetics.setEquipped(this.save.economy.equipped);
+    setButtonTheme(this.cosmetics.buttonTheme());
     this.audio = new AudioController(this.node, this.art);
     this.audio.enabled = this.save.soundEnabled;
     this.haptics.enabled = this.save.hapticsEnabled;
@@ -133,6 +130,7 @@ export class Cat2048Boot extends Component {
 
   private async initialize(): Promise<void> {
     this.showLoading();
+    this.applyEconomySnapshot(await this.economy.load());
     await runStartupSequence({
       preload: () => this.art.preload((ratio) => this.loadingView.setProgress(ratio)),
       isActive: () => this.isValid,
@@ -142,6 +140,7 @@ export class Cat2048Boot extends Component {
           this.art.font(GAME_CONFIG.fonts.display) ?? null,
           this.art.font(GAME_CONFIG.fonts.numbers) ?? null,
         );
+        setButtonTheme(this.cosmetics.buttonTheme());
         this.showHome();
       },
       onError: (error) => {
@@ -176,6 +175,7 @@ export class Cat2048Boot extends Component {
     }
     if (screenBeforeResize === 'game') this.showGame(false);
     else if (screenBeforeResize === 'collection') this.showCollection(this.collectionOrigin);
+    else if (screenBeforeResize === 'shop') this.showShop();
     else this.showHome();
   };
 
@@ -193,6 +193,9 @@ export class Cat2048Boot extends Component {
     this.homeView.build(root, {
       highScore: this.save.highScore,
       collectionCount: this.save.unlockedCatLevels.length,
+      coins: this.economySnapshot.coins,
+      canClaimDaily: this.economySnapshot.canClaimDaily,
+      dailyReward: this.economySnapshot.dailyReward,
       soundEnabled: this.save.soundEnabled,
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
@@ -202,9 +205,15 @@ export class Cat2048Boot extends Component {
       onPlay: () => { if (this.assetsReady) this.startGame(); },
       onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
       onCollection: () => { if (this.assetsReady) this.showCollection('home'); },
+      onShop: () => { if (this.assetsReady) this.showShop(); },
+      onDailyReward: () => { if (this.assetsReady) this.showDailyReward(); },
       onToggleSound: () => { if (this.assetsReady) this.toggleSound(); },
       onSettings: () => { if (this.assetsReady) this.showSettingsDialog(); },
     });
+    if (this.economySnapshot.canClaimDaily && !this.dailyPromptShown) {
+      this.dailyPromptShown = true;
+      this.showDailyReward();
+    }
   }
 
   private toggleSound(): void {
@@ -216,6 +225,102 @@ export class Cat2048Boot extends Component {
 
   private startGame(): void {
     this.showGame(true);
+  }
+
+  private showShop(): void {
+    this.clearScreen();
+    this.currentScreen = 'shop';
+    const root = this.makeScreen('Shop');
+    this.shopView.build(root, {
+      economy: this.economySnapshot,
+      uiWidth: this.uiWidth,
+      uiHeight: this.uiHeight,
+      topInset: this.topSafeInset(),
+      bottomInset: this.bottomSafeInset(),
+    }, {
+      onBack: () => this.showHome(),
+      onDailyReward: () => this.showDailyReward(),
+      onPurchase: (itemId) => { void this.purchaseCosmetic(itemId); },
+      onEquip: (itemId) => { void this.equipCosmetic(itemId); },
+    });
+  }
+
+  private showDailyReward(): void {
+    if (!this.screenRoot || this.dailyRewardOverlay?.isValid) return;
+    this.inputLocked = true;
+    this.dailyRewardOverlay = this.dailyRewardView.show(this.screenRoot, this.economySnapshot,
+      this.uiWidth, this.uiHeight, {
+        onClaim: () => { void this.claimDailyReward(); },
+        onClose: () => {
+          if (this.dailyClaimInProgress) return;
+          this.dailyRewardOverlay?.destroy();
+          this.dailyRewardOverlay = null;
+          this.inputLocked = false;
+        },
+      });
+  }
+
+  private async claimDailyReward(): Promise<void> {
+    if (this.dailyClaimInProgress || !this.dailyRewardOverlay?.isValid) return;
+    this.dailyClaimInProgress = true;
+    try {
+      const result = await this.economy.claimDailyReward();
+      this.applyEconomyResult(result);
+      if (!result.ok) {
+        this.inputLocked = false;
+        this.dialogs.showNotice(this.screenRoot, '\u4eca\u65e5\u5956\u52b1\u5df2\u9886\u53d6');
+        return;
+      }
+      this.dailyRewardOverlay?.destroy();
+      this.dailyRewardOverlay = null;
+      this.inputLocked = false;
+      if (this.currentScreen === 'shop') this.showShop();
+      else this.showHome();
+    } catch (error) {
+      console.warn('[Cat2048] Failed to claim daily reward.', error);
+      this.inputLocked = false;
+      this.dialogs.showNotice(this.screenRoot, '\u6bcf\u65e5\u5956\u52b1\u9886\u53d6\u5931\u8d25');
+    } finally {
+      this.dailyClaimInProgress = false;
+    }
+  }
+
+  private async purchaseCosmetic(itemId: string): Promise<void> {
+    if (this.inputLocked) return;
+    this.inputLocked = true;
+    try {
+      const result = await this.economy.purchase(itemId);
+      this.applyEconomyResult(result);
+      this.inputLocked = false;
+      if (!result.ok) {
+        this.dialogs.showNotice(this.screenRoot, this.economyErrorText(result));
+        return;
+      }
+      this.showShop();
+    } catch (error) {
+      this.inputLocked = false;
+      console.warn('[Cat2048] Failed to purchase cosmetic.', error);
+      this.dialogs.showNotice(this.screenRoot, '\u8d2d\u4e70\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');
+    }
+  }
+
+  private async equipCosmetic(itemId: string): Promise<void> {
+    if (this.inputLocked) return;
+    this.inputLocked = true;
+    try {
+      const result = await this.economy.equip(itemId);
+      this.applyEconomyResult(result);
+      this.inputLocked = false;
+      if (!result.ok) {
+        this.dialogs.showNotice(this.screenRoot, '\u8be5\u88c5\u9970\u5c1a\u672a\u62e5\u6709');
+        return;
+      }
+      this.showShop();
+    } catch (error) {
+      this.inputLocked = false;
+      console.warn('[Cat2048] Failed to equip cosmetic.', error);
+      this.dialogs.showNotice(this.screenRoot, '\u88c5\u5907\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');
+    }
   }
 
   private showCollection(origin: CollectionOrigin): void {
@@ -241,258 +346,47 @@ export class Cat2048Boot extends Component {
     this.clearScreen();
     this.currentScreen = 'game';
     if (startNewGame) {
-      this.pendingUnlockLevels = [];
+      this.currentRunId = `run-${Date.now()}-${++this.runSequence}`;
       this.registerBoardCats(this.game.start());
     }
     const root = this.makeScreen('Game');
-    addCoverBackground(
-      root,
-      this.art,
-      GAME_CONFIG.art.pageBackground,
-      this.uiWidth,
-      this.uiHeight,
-      new Color(249, 235, 206, 255),
-    );
-
-    const layout = gameLayout(this.uiWidth, this.uiHeight, this.topSafeInset(), this.bottomSafeInset(), BOARD_PIXELS);
-    const hudY = this.uiHeight / 2 - layout.hudCenterFromTop;
-    const back = createIconButton('Back', this.art.frame(GAME_CONFIG.art.back), '‹', 76,
-      () => { if (!this.inputLocked && !this.swipeGuideActive) this.confirmLeave(); });
-    back.setPosition(-this.uiWidth / 2 + 62, hudY);
-    root.addChild(back);
-    const settings = createIconButton('Settings', this.art.frame(GAME_CONFIG.art.settings), '⚙', 76,
-      () => { if (!this.inputLocked && !this.swipeGuideActive) this.showSettingsDialog(); }, BOTTOM_EDGE_ICON_CROP);
-    settings.setPosition(this.uiWidth / 2 - 62, hudY);
-    root.addChild(settings);
-
-    const scoreCard = this.createHudCard('本局', String(this.game.score));
-    scoreCard.node.setPosition(-115, hudY);
-    root.addChild(scoreCard.node);
-    this.scoreLabel = scoreCard.value;
-    const bestCard = this.createHudCard('最高', String(this.save.highScore));
-    bestCard.node.setPosition(115, hudY);
-    root.addChild(bestCard.node);
-    this.highScoreLabel = bestCard.value;
-
-    if (layout.evolutionPanelHeight > 0) {
-      this.createEvolutionPanel(root, this.uiHeight / 2 - layout.evolutionPanelCenterFromTop,
-        layout.evolutionPanelHeight);
-    } else {
-      this.createCompactCollectionEntry(root, this.uiHeight / 2 - layout.hudCenterFromTop - 75);
-    }
-
-    const board = this.boardView.mount(root, BOARD_PIXELS);
-    const boardY = this.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2;
-    board.setPosition(0, boardY);
-    board.setScale(layout.boardScale, layout.boardScale, 1);
-    this.swipe = new SwipeInput(
-      () => this.inputLocked,
-      (direction) => { void this.performMove(direction); },
-      (x, y) => this.boardView.showTouchHighlight(x, y),
-      () => this.boardView.clearTouchHighlight(),
-    );
-    this.swipe.bind(board, (uiX, uiY) => {
-      const local = board.getComponent(UITransform)?.convertToNodeSpaceAR(new Vec3(uiX, uiY, 0));
-      return local ? { x: local.x, y: local.y } : null;
+    const frame = this.gameScreen.build(root, {
+      uiWidth: this.uiWidth,
+      uiHeight: this.uiHeight,
+      topInset: this.topSafeInset(),
+      bottomInset: this.bottomSafeInset(),
+      score: this.game.score,
+      highScore: this.save.highScore,
+      board: this.game.board,
+      items: this.game.items,
+      unlockedCount: this.save.unlockedCatLevels.length,
+    }, {
+      isLocked: () => this.inputLocked || this.swipeGuideActive,
+      onBack: () => this.confirmLeave(),
+      onSettings: () => this.showSettingsDialog(),
+      onCollection: () => this.showCollection('game'),
+      onSwipe: (direction) => { void this.performMove(direction); },
+      onUseItem: (kind) => {
+        if (kind === 'undo') void this.useUndoItem();
+        else void this.useRemoveLowestItem();
+      },
+      onRefillItem: (kind) => { void this.shareItemRefill(kind); },
+      canUseItem: (kind) => this.canUseItem(kind),
+      canRefillItem: (kind) => this.canRequestItemRefill(kind),
     });
-    this.boardView.renderInitial(this.game.board);
-
-    this.createItemBar(root, this.uiHeight / 2 - layout.itemBarCenterFromTop);
-    this.showSwipeGuideIfNeeded(root, boardY, BOARD_PIXELS * layout.boardScale);
-    if (this.save.tutorial.swipeGuideCompleted && !this.showNextUnlockIfReady()
-      && this.game.status === 'game-over') this.showGameOver();
-  }
-
-  private createEvolutionPanel(root: Node, y: number, height: number): void {
-    const panel = createUiNode('EvolutionPanel', 650, height);
-    drawRounded(panel, 650, height, new Color(255, 248, 226, 232), 28,
-      { color: new Color(76, 61, 54, 220), width: 4 });
-    panel.setPosition(0, y);
-    root.addChild(panel);
-    this.evolutionPanel = panel;
-    this.refreshEvolutionPanel();
-  }
-
-  private refreshEvolutionPanel(): void {
-    const panel = this.evolutionPanel;
-    if (!panel) return;
-    for (const child of [...panel.children]) child.destroy();
-
-    const panelHeight = panel.getComponent(UITransform)?.height ?? 0;
-    const compact = panelHeight < 190;
-    const highestLevel = this.game.board.tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1);
-    const current = GAME_CONFIG.cats[highestLevel - 1];
-    const next = GAME_CONFIG.cats[Math.min(highestLevel, GAME_CONFIG.cats.length - 1)];
-    const maxed = highestLevel === GAME_CONFIG.cats.length;
-
-    const title = createLabel('猫咪进化路线', compact ? 21 : 24, COLORS.ink, 250, 38, 'display');
-    title.node.setPosition(-173, panelHeight / 2 - (compact ? 26 : 31));
-    panel.addChild(title.node);
-    const collectionCount = this.save.unlockedCatLevels.length;
-    const collection = createLabel(collectionCount === GAME_CONFIG.cats.length
-      ? '全图鉴达成' : `图鉴 ${collectionCount}/${GAME_CONFIG.cats.length}`, compact ? 18 : 20,
-      COLORS.teal, 160, 36, 'display');
-    collection.node.setPosition(220, panelHeight / 2 - (compact ? 26 : 31));
-    collection.node.on(Node.EventType.TOUCH_END, () => {
-      if (!this.inputLocked && !this.swipeGuideActive) this.showCollection('game');
-    });
-    panel.addChild(collection.node);
-
-    const catY = compact ? -2 : 8;
-    const catSize = compact ? 68 : 94;
-    const currentFrame = this.art.frame(current.asset);
-    if (currentFrame) {
-      const cat = createSpriteNode('EvolutionCurrentCat', currentFrame, catSize, catSize);
-      cat.setPosition(-185, catY);
-      panel.addChild(cat);
-    }
-    const currentText = createLabel(`Lv.${highestLevel}  ${current.name}`, compact ? 18 : 21,
-      COLORS.ink, 250, compact ? 32 : 38, 'display');
-    currentText.node.setPosition(-185, compact ? -45 : -55);
-    panel.addChild(currentText.node);
-
-    const arrowBadge = createUiNode('EvolutionArrow', compact ? 42 : 52, compact ? 42 : 52);
-    drawRounded(arrowBadge, compact ? 42 : 52, compact ? 42 : 52, COLORS.teal, compact ? 21 : 26);
-    arrowBadge.setPosition(0, catY);
-    const arrow = createLabel('›', compact ? 34 : 42, COLORS.white, compact ? 36 : 44, compact ? 36 : 44, 'display');
-    arrow.node.setPosition(2, 2);
-    arrowBadge.addChild(arrow.node);
-    panel.addChild(arrowBadge);
-
-    if (maxed) {
-      const complete = createLabel('全图鉴达成', compact ? 19 : 22, COLORS.mustard, 200, 42, 'display');
-      complete.node.setPosition(185, catY);
-      panel.addChild(complete.node);
-    } else {
-      const nextFrame = this.art.frame(next.asset);
-      if (nextFrame) {
-        const nextCat = createSpriteNode('EvolutionNextCat', nextFrame, catSize, catSize);
-        nextCat.setPosition(185, catY);
-        panel.addChild(nextCat);
-      }
-      const nextText = createLabel(`Lv.${highestLevel + 1}  ${next.name}`, compact ? 17 : 20,
-        COLORS.ink, 250, compact ? 32 : 38, 'display');
-      nextText.node.setPosition(185, compact ? -45 : -55);
-      panel.addChild(nextText.node);
-    }
-
-    if (!compact) {
-      const trackWidth = 570;
-      const track = createUiNode('EvolutionProgressTrack', trackWidth, 18);
-      drawRounded(track, trackWidth, 18, new Color(226, 207, 171, 255), 9);
-      track.setPosition(0, -panelHeight / 2 + 31);
-      panel.addChild(track);
-      const fillWidth = Math.max(18, trackWidth * highestLevel / GAME_CONFIG.cats.length);
-      const fill = createUiNode('EvolutionProgressFill', fillWidth, 18);
-      drawRounded(fill, fillWidth, 18, maxed ? COLORS.mustard : COLORS.teal, 9);
-      fill.setPosition(-trackWidth / 2 + fillWidth / 2, 0);
-      track.addChild(fill);
-    }
-  }
-
-  private createCompactCollectionEntry(root: Node, y: number): void {
-    const entry = createUiNode('CompactCollectionEntry', 250, 44);
-    drawRounded(entry, 250, 44, new Color(255, 248, 226, 240), 22,
-      { color: COLORS.teal, width: 3 });
-    entry.setPosition(0, y);
-    const label = createLabel(`图鉴 ${this.save.unlockedCatLevels.length}/${GAME_CONFIG.cats.length}  ›`,
-      19, COLORS.teal, 225, 38, 'display');
-    entry.addChild(label.node);
-    entry.on(Node.EventType.TOUCH_END, () => {
-      if (!this.inputLocked && !this.swipeGuideActive) this.showCollection('game');
-    });
-    root.addChild(entry);
-  }
-
-  private createItemBar(root: Node, y: number): void {
-    const bar = createUiNode('ItemBar', 650, 96);
-    bar.setPosition(0, y);
-    root.addChild(bar);
-
-    const undo = this.createItemButton('undo', 'UndoItem', '撤回一步', '↶',
-      () => { void this.useUndoItem(); });
-    undo.node.setPosition(-167, 0);
-    bar.addChild(undo.node);
-    this.undoItem = undo;
-
-    const remove = this.createItemButton('remove-lowest', 'RemoveLowestItem', '消除最低 ×3', '×3',
-      () => { void this.useRemoveLowestItem(); });
-    remove.node.setPosition(167, 0);
-    bar.addChild(remove.node);
-    this.removeLowestItem = remove;
-    this.refreshItemButtons();
-  }
-
-  private createItemButton(kind: ItemKind, name: string, titleText: string, iconText: string,
-    onUse: () => void): ItemButtonView {
-    const node = createUiNode(name, 316, 96);
-    drawRounded(node, 316, 96, new Color(255, 248, 226, 245), 26,
-      { color: COLORS.ink, width: 4 });
-
-    const icon = createUiNode(`${name}:Icon`, 68, 68);
-    drawRounded(icon, 68, 68, COLORS.teal, 22);
-    icon.setPosition(-111, 0);
-    const iconLabel = createLabel(iconText, 29, COLORS.white, 60, 58, 'display');
-    icon.addChild(iconLabel.node);
-    node.addChild(icon);
-
-    const title = createLabel(titleText, 25, COLORS.ink, 176, 46, 'display');
-    title.node.setPosition(11, 7);
-    node.addChild(title.node);
-
-    const badge = createUiNode(`${name}:CountBadge`, 54, 32);
-    drawRounded(badge, 54, 32, COLORS.mustard, 16);
-    badge.setPosition(119, -26);
-    const count = createLabel('1', 20, COLORS.white, 48, 28, 'display');
-    badge.addChild(count.node);
-    node.addChild(badge);
-
-    node.on(Node.EventType.TOUCH_START, () => {
-      if (!this.canTapItem(kind) || this.inputLocked) return;
-      tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start();
-    });
-    node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
-    node.on(Node.EventType.TOUCH_END, () => {
-      if (!this.canTapItem(kind) || this.inputLocked) return;
-      tween(node).to(0.08, { scale: Vec3.ONE }).call(() => {
-        if (this.canUseItem(kind)) onUse();
-        else void this.shareItemRefill(kind);
-      }).start();
-    });
-    return { node, count, title, icon, baseTitle: titleText, baseIcon: iconText };
-  }
-
-  private refreshItemButtons(): void {
-    const state = this.game.items;
-    this.setItemButtonState(this.undoItem, state.canUndo, state.canRequestUndoRefill,
-      state.undoRemaining, state.undoRefillRemaining);
-    this.setItemButtonState(this.removeLowestItem, state.canRemoveLowest, state.canRequestRemoveLowestRefill,
-      state.removeLowestRemaining, state.removeLowestRefillRemaining);
-  }
-
-  private setItemButtonState(view: ItemButtonView | null, canUse: boolean, canRefill: boolean,
-    remaining: number, refillRemaining: number): void {
-    if (!view) return;
-    view.count.string = String(remaining);
-    setLabelText(view.title, canRefill ? '分享补充' : view.baseTitle, 'display');
-    for (const child of [...view.icon.children]) child.destroy();
-    const shareFrame = canRefill ? this.art.frame(GAME_CONFIG.art.share) : undefined;
-    if (shareFrame) view.icon.addChild(createSpriteNode(`${view.node.name}:Share`, shareFrame, 50, 50));
-    else view.icon.addChild(createLabel(view.baseIcon, 29, COLORS.white, 60, 58, 'display').node);
-    const opacity = view.node.getComponent(UIOpacity) ?? view.node.addComponent(UIOpacity);
-    opacity.opacity = canUse || canRefill ? 255 : refillRemaining > 0 || remaining > 0 ? 145 : 90;
+    this.swipe = frame.swipe;
+    this.showSwipeGuideIfNeeded(root, frame.boardY, frame.boardSize);
+    if (this.save.tutorial.swipeGuideCompleted && this.game.status === 'game-over') this.showGameOver();
   }
 
   private canUseItem(kind: ItemKind): boolean {
     return kind === 'undo' ? this.game.items.canUndo : this.game.items.canRemoveLowest;
   }
 
-  private canTapItem(kind: ItemKind): boolean {
-    if (this.swipeGuideActive) return false;
-    const state = this.game.items;
+  private canRequestItemRefill(kind: ItemKind): boolean {
     return kind === 'undo'
-      ? state.canUndo || state.canRequestUndoRefill
-      : state.canRemoveLowest || state.canRequestRemoveLowestRefill;
+      ? this.game.items.canRequestUndoRefill
+      : this.game.items.canRequestRemoveLowestRefill;
   }
 
   private readonly onKeyDown = (event: EventKeyboard): void => {
@@ -514,7 +408,7 @@ export class Cat2048Boot extends Component {
       return;
     }
     this.registerBoardCats(result.board);
-    if (!this.save.tutorial.swipeGuideCompleted) this.completeSwipeGuide(false);
+    if (!this.save.tutorial.swipeGuideCompleted) this.completeSwipeGuide();
     const token = this.sceneToken;
     this.inputLocked = true;
     await this.boardView.animateMove(
@@ -532,43 +426,42 @@ export class Cat2048Boot extends Component {
     );
     if (token !== this.sceneToken || !this.boardView.root) return;
     this.updateScore(result.score);
-    this.refreshEvolutionPanel();
-    this.refreshItemButtons();
+    this.refreshGameViews();
     this.inputLocked = false;
-    if (!this.showNextUnlockIfReady() && result.status === 'game-over') this.showGameOver();
+    if (result.status === 'game-over') this.showGameOver();
   }
 
   private async useUndoItem(): Promise<void> {
     if (this.inputLocked || !this.game.items.canUndo || !this.boardView.root) return;
     const result = this.game.undo();
     if (!result.changed) {
-      this.refreshItemButtons();
+      this.gameScreen.refreshItems(this.game.items);
       return;
     }
     const token = this.sceneToken;
     this.inputLocked = true;
-    this.refreshItemButtons();
+    this.refreshGameViews();
     await this.boardView.fadeRebuild(
       result.board,
       () => token === this.sceneToken && this.boardView.root !== null,
     );
     if (token !== this.sceneToken || !this.boardView.root) return;
     this.updateScore(result.score);
-    this.refreshEvolutionPanel();
+    this.refreshGameViews();
     this.inputLocked = false;
-    this.showItemRefillGuideIfNeeded(this.undoItem);
+    this.showItemRefillGuideIfNeeded('undo');
   }
 
   private async useRemoveLowestItem(): Promise<void> {
     if (this.inputLocked || !this.game.items.canRemoveLowest || !this.boardView.root) return;
     const result = this.game.removeLowestTiles(3);
     if (!result.changed) {
-      this.refreshItemButtons();
+      this.gameScreen.refreshItems(this.game.items);
       return;
     }
     const token = this.sceneToken;
     this.inputLocked = true;
-    this.refreshItemButtons();
+    this.gameScreen.refreshItems(this.game.items);
     this.haptics.light();
     this.audio.play('merge', 0.55);
     await this.boardView.animateRemove(
@@ -577,61 +470,38 @@ export class Cat2048Boot extends Component {
     );
     if (token !== this.sceneToken || !this.boardView.root) return;
     this.boardView.rebuild(result.board, false);
-    this.refreshEvolutionPanel();
+    this.refreshGameViews();
     this.inputLocked = false;
-    this.showItemRefillGuideIfNeeded(this.removeLowestItem);
+    this.showItemRefillGuideIfNeeded('remove-lowest');
   }
 
   private registerBoardCats(board: BoardSnapshot): void {
     const unlocked = new Set(this.save.unlockedCatLevels);
-    const newLevels = [...new Set(board.tiles.map((tile) => tile.level))]
+    const newLevels = Array.from(new Set(board.tiles.map((tile) => tile.level)))
       .filter((level) => !unlocked.has(level))
       .sort((a, b) => a - b);
     if (newLevels.length === 0) return;
     for (const level of newLevels) unlocked.add(level);
     this.save = {
       ...this.save,
-      unlockedCatLevels: [...unlocked].sort((a, b) => a - b),
+      unlockedCatLevels: Array.from(unlocked).sort((a, b) => a - b),
     };
     runtimeStorage.save(this.save);
-    for (const level of newLevels) {
-      if (!this.pendingUnlockLevels.includes(level)) this.pendingUnlockLevels.push(level);
-    }
   }
 
-  private showNextUnlockIfReady(): boolean {
-    if (!this.save.tutorial.swipeGuideCompleted || !this.screenRoot || this.currentScreen !== 'game') return false;
-    const level = this.pendingUnlockLevels.shift();
-    if (!level) return false;
-    const isFirstCollectionGuide = !this.save.tutorial.collectionGuideCompleted;
-    if (isFirstCollectionGuide) {
-      this.save = {
-        ...this.save,
-        tutorial: { ...this.save.tutorial, collectionGuideCompleted: true },
-      };
-      runtimeStorage.save(this.save);
-    }
-    this.inputLocked = true;
-    this.collectionView.showUnlock(this.screenRoot, this.uiWidth, this.uiHeight, level,
-      isFirstCollectionGuide, {
-        onContinue: () => {
-          if (this.currentScreen !== 'game') return;
-          this.inputLocked = false;
-          if (!this.showNextUnlockIfReady() && this.game.status === 'game-over') this.showGameOver();
-        },
-        onViewCollection: () => this.showCollection('game'),
-      });
-    return true;
+  private refreshGameViews(): void {
+    this.gameScreen.refreshEvolution(this.game.board, this.save.unlockedCatLevels.length);
+    this.gameScreen.refreshItems(this.game.items);
   }
 
   private showSwipeGuideIfNeeded(root: Node, boardY: number, boardSize: number): void {
     if (this.save.tutorial.swipeGuideCompleted) return;
     this.swipeGuideActive = true;
     this.tutorialView.showSwipe(root, this.uiWidth, this.uiHeight, boardY, boardSize,
-      () => this.completeSwipeGuide(true));
+      () => this.completeSwipeGuide());
   }
 
-  private completeSwipeGuide(showPendingUnlock: boolean): void {
+  private completeSwipeGuide(): void {
     if (this.save.tutorial.swipeGuideCompleted) return;
     this.save = {
       ...this.save,
@@ -640,26 +510,53 @@ export class Cat2048Boot extends Component {
     runtimeStorage.save(this.save);
     this.swipeGuideActive = false;
     this.tutorialView.dismissSwipe();
-    if (showPendingUnlock) this.showNextUnlockIfReady();
   }
 
-  private showItemRefillGuideIfNeeded(item: ItemButtonView | null): void {
-    if (!item || this.save.tutorial.itemRefillGuideCompleted || this.currentScreen !== 'game') return;
+  private showItemRefillGuideIfNeeded(kind: ItemKind): void {
+    if (this.save.tutorial.itemRefillGuideCompleted || this.currentScreen !== 'game') return;
+    const item = this.itemBar.nodeFor(kind);
+    if (!item) return;
     this.save = {
       ...this.save,
       tutorial: { ...this.save.tutorial, itemRefillGuideCompleted: true },
     };
     runtimeStorage.save(this.save);
-    this.tutorialView.showItemRefillHint(this.screenRoot ?? item.node.parent ?? item.node, item.node, this.uiHeight);
+    this.tutorialView.showItemRefillHint(this.screenRoot ?? item.parent ?? item, item, this.uiHeight);
   }
 
   private updateScore(score: number): void {
-    if (this.scoreLabel) this.scoreLabel.string = String(score);
     if (score > this.save.highScore) {
       this.save = { ...this.save, highScore: score };
       runtimeStorage.save(this.save);
-      if (this.highScoreLabel) this.highScoreLabel.string = String(score);
     }
+    this.gameScreen.updateScore(score, this.save.highScore);
+  }
+
+  private applyEconomyResult(result: EconomyMutationResult): void {
+    this.applyEconomySnapshot(result);
+  }
+
+  private applyEconomySnapshot(snapshot: EconomySnapshot): void {
+    this.economySnapshot = snapshot;
+    this.save = {
+      ...runtimeStorage.load(),
+      economy: {
+        coins: snapshot.coins,
+        ownedItemIds: snapshot.ownedItemIds,
+        equipped: snapshot.equipped,
+        lastDailyClaimDate: snapshot.lastDailyClaimDate,
+        dailyStreak: snapshot.dailyStreak,
+        settledRunIds: snapshot.settledRunIds,
+      },
+    };
+    this.cosmetics.setEquipped(this.save.economy.equipped);
+    setButtonTheme(this.cosmetics.buttonTheme());
+  }
+
+  private economyErrorText(result: EconomyMutationResult): string {
+    if (result.reason === 'insufficient-coins') return '\u91d1\u5e01\u4e0d\u8db3';
+    if (result.reason === 'already-owned') return '\u8be5\u88c5\u9970\u5df2\u62e5\u6709';
+    return '\u88c5\u9970\u64cd\u4f5c\u5931\u8d25';
   }
 
   private confirmLeave(): void {
@@ -697,15 +594,38 @@ export class Cat2048Boot extends Component {
   }
 
   private showGameOver(): void {
-    if (this.gameOverOverlay?.isValid) return;
+    if (this.gameOverOverlay?.isValid || this.gameOverSettlementInProgress) return;
+    this.gameOverSettlementInProgress = true;
     this.inputLocked = true;
     this.updateScore(this.game.score);
     this.audio.play('game_over', 0.8);
-    if (!this.screenRoot) return;
+    void this.settleAndShowGameOver();
+  }
+
+  private async settleAndShowGameOver(): Promise<void> {
+    let reward = 0;
+    let rewardFailed = false;
+    try {
+      const result = await this.economy.settleRun({
+        runId: this.currentRunId,
+        score: this.game.score,
+        highestLevel: this.game.board.tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1),
+      });
+      reward = result.awardedCoins;
+      this.applyEconomyResult(result);
+    } catch (error) {
+      rewardFailed = true;
+      console.warn('[Cat2048] Failed to settle run reward.', error);
+    }
+    this.gameOverSettlementInProgress = false;
+    if (this.currentScreen !== 'game' || !this.screenRoot) return;
     this.gameOverOverlay = this.gameOverDialog.show(this.screenRoot, {
       score: this.game.score,
       bestScore: this.save.highScore,
       canRevive: this.game.reviveState.canRevive,
+      runReward: reward,
+      runRewardFailed: rewardFailed,
+      coins: this.economySnapshot.coins,
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
     }, {
@@ -721,17 +641,13 @@ export class Cat2048Boot extends Component {
   }
 
   private async shareItemRefill(kind: ItemKind): Promise<void> {
-    if (this.inputLocked || !this.canTapItem(kind)) return;
-    const canRefill = kind === 'undo'
-      ? this.game.items.canRequestUndoRefill
-      : this.game.items.canRequestRemoveLowestRefill;
-    if (!canRefill) return;
+    if (this.inputLocked || !this.canRequestItemRefill(kind)) return;
     this.inputLocked = true;
     const purpose: SharePurpose = kind === 'undo' ? 'undo-refill' : 'remove-lowest-refill';
     const result = await this.shareCurrentGame(purpose);
     if (this.currentScreen !== 'game' || !this.boardView.root) return;
     if (result === 'shared') this.game.refillItem(kind);
-    this.refreshItemButtons();
+    this.gameScreen.refreshItems(this.game.items);
     this.inputLocked = false;
   }
 
@@ -753,8 +669,7 @@ export class Cat2048Boot extends Component {
     );
     if (token !== this.sceneToken || !this.boardView.root) return;
     this.boardView.rebuild(revived.board, false);
-    this.refreshEvolutionPanel();
-    this.refreshItemButtons();
+    this.refreshGameViews();
     this.inputLocked = false;
   }
 
@@ -804,20 +719,6 @@ export class Cat2048Boot extends Component {
     });
   }
 
-  private createHudCard(titleText: string, valueText: string): { node: Node; value: Label } {
-    const node = createUiNode(`Hud:${titleText}`, 190, 92);
-    drawRounded(node, 190, 92, new Color(255, 248, 226, 240), 22, { color: COLORS.ink, width: 4 });
-    const title = createLabel(titleText, 20, COLORS.teal, 160, 30, 'display');
-    title.node.setPosition(0, 24);
-    node.addChild(title.node);
-    const value = createLabel(valueText, 34, COLORS.ink, 178, 48, 'display');
-    value.enableWrapText = false;
-    value.overflow = Label.Overflow.CLAMP;
-    value.node.setPosition(0, -15);
-    node.addChild(value.node);
-    return { node, value };
-  }
-
   private clearScreen(): void {
     Tween.stopAll();
     this.tutorialView.dismissSwipe();
@@ -828,12 +729,10 @@ export class Cat2048Boot extends Component {
     // Unbind first so late touch-cancel/end cannot fire after the board is gone.
     this.swipe?.unbind();
     this.swipe = null;
+    this.dailyRewardOverlay = null;
     this.boardView.unmount();
-    this.scoreLabel = null;
-    this.highScoreLabel = null;
-    this.evolutionPanel = null;
-    this.undoItem = null;
-    this.removeLowestItem = null;
+    this.gameScreen.clear();
+    this.shopView.clear();
     this.gameOverOverlay = null;
     this.screenRoot?.destroy();
     this.screenRoot = null;
