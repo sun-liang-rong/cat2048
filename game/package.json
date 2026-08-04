@@ -14,7 +14,7 @@
     "typecheck:core": "tsc -p tsconfig.core.json --noEmit",
     "customize:wechat-loading": "node ../tools/customize_wechat_loading.mjs",
     "verify:wechat-build": "node ../tools/verify_wechat_build.mjs",
-    "verify": "npm run prepare:assets && npm run typecheck:core && npm test"
+    "verify": "npm run typecheck:core && npm test"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

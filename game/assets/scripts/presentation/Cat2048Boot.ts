@@ -71,7 +71,7 @@ export class Cat2048Boot extends Component {
   private readonly shopView = new ShopView(this.art, this.cosmetics);
   private readonly dailyRewardView = new DailyRewardView(this.art);
   private readonly itemBar = new ItemBarView(this.art);
-  private readonly evolutionPanel = new EvolutionPanelView(this.art);
+  private readonly evolutionPanel = new EvolutionPanelView(this.art, this.cosmetics);
   private readonly gameScreen = new GameScreen(this.art, this.boardView, this.itemBar, this.evolutionPanel);
   private readonly tutorialView = new TutorialView();
   private readonly gameOverDialog = new GameOverDialogView(this.art);

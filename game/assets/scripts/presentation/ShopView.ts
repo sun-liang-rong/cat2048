@@ -75,7 +75,6 @@ export class ShopView {
     this.parent = parent;
     this.model = model;
     this.actions = actions;
-    this.category = 'cat-skin';
 
     const background = createUiNode('ShopBackground', model.uiWidth, model.uiHeight);
     drawRounded(background, model.uiWidth, model.uiHeight, new Color(249, 235, 206, 255), 0);

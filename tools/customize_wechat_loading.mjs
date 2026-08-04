@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const marker = 'CAT2048_CUSTOM_LOADING_SCREEN';
 const generatedBuild = join(root, 'game', 'build', 'wechatgame');
-const logoSource = join(root, 'game', 'assets', 'resources', 'game', 'branding', 'logo.png');
+const logoSource = join(root, 'game', 'assets', 'resources', 'game', 'ui', 'common', 'logo.png');
 const titleGenerator = join(root, 'tools', 'generate_wechat_loading_title.py');
 
 const replacements = [

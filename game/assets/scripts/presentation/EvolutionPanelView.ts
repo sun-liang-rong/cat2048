@@ -1,6 +1,7 @@
 import { Color, Label, Node, UITransform } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
+import type { CosmeticRuntime } from './CosmeticRuntime';
 import {
   COLORS,
   createLabel,
@@ -19,7 +20,10 @@ export class EvolutionPanelView {
   private compactCollectionLabel: Label | null = null;
   private actions: EvolutionPanelActions | null = null;
 
-  public constructor(private readonly art: ArtRepository) {}
+  public constructor(
+    private readonly art: ArtRepository,
+    private readonly cosmetics: CosmeticRuntime,
+  ) {}
 
   public mount(parent: Node, y: number, height: number, highestLevel: number,
     unlockedCount: number, actions: EvolutionPanelActions): void {
@@ -69,7 +73,7 @@ export class EvolutionPanelView {
 
     const catY = compact ? -2 : 8;
     const catSize = compact ? 68 : 94;
-    const currentFrame = this.art.frame(current.asset);
+    const currentFrame = this.cosmetics.catFrame(current.level);
     if (currentFrame) {
       const cat = createSpriteNode('EvolutionCurrentCat', currentFrame, catSize, catSize);
       cat.setPosition(-185, catY);
@@ -96,7 +100,7 @@ export class EvolutionPanelView {
       complete.node.setPosition(185, catY);
       panel.addChild(complete.node);
     } else {
-      const nextFrame = this.art.frame(next.asset);
+      const nextFrame = this.cosmetics.catFrame(next.level);
       if (nextFrame) {
         const nextCat = createSpriteNode('EvolutionNextCat', nextFrame, catSize, catSize);
         nextCat.setPosition(185, catY);

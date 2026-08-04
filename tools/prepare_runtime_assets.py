@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "art-generation" / "images"
 RAW_SOURCE = SOURCE / "_source"
 EXTRA_CATS_SOURCE = ROOT / "assets" / "art-generation" / "generated" / "cats-10-12"
+INDIVIDUAL_CATS_SOURCE = ROOT / "assets" / "cat2048" / "skins-v2" / "individual"
 OUTPUT = ROOT / "game" / "assets" / "resources" / "game"
 FONT_SOURCE = ROOT / "assets" / "art-generation" / "fonts" / "ZCOOLKuaiLe-Regular.ttf"
 FONT_OUTPUT = OUTPUT / "fonts"
@@ -52,6 +53,15 @@ EXPECTED_IMAGE_SIZES = {
         "stars_sparkle.png", "stars_burst.png", "stars_fish_sparkle.png", "stars_confetti_burst.png",
     ]},
     **{name: (256, 128) for name in ["primary.png", "secondary.png", "reward.png", "cream.png"]},
+}
+
+BACKGROUND_TARGETS = {
+    "bg_home": "backgrounds/common",
+    "bg_page": "backgrounds/common",
+    "share_score_bg": "backgrounds/common",
+    "bg_board_wood": "backgrounds/board/wood",
+    "bg_board_pink": "backgrounds/board/pink",
+    "bg_board_star": "backgrounds/board/star",
 }
 
 
@@ -178,18 +188,19 @@ def slice_grid(source_name: str, cols: int, rows: int, names: list[str], target:
 
 
 def copy_generated_cats() -> None:
-    """Copy individually generated late-game cats into the runtime bundle."""
-    out_dir = OUTPUT / "cats"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for level in range(10, 13):
-        source = EXTRA_CATS_SOURCE / f"cat_{level:02}.png"
-        if not source.exists():
-            raise FileNotFoundError(f"Missing generated cat asset: {source}")
-        with Image.open(source) as opened:
-            image = opened.convert("RGBA")
-            if image.size != (256, 256):
-                raise ValueError(f"Invalid generated cat dimensions for {source}: {image.size}")
-            image.save(out_dir / source.name, format="PNG", optimize=True)
+    """Copy the approved 36 individual cat renders into all three skin themes."""
+    for skin in ["classic", "sunny", "aurora"]:
+        out_dir = OUTPUT / "cats" / skin
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for level in CAT_LEVELS:
+            source = INDIVIDUAL_CATS_SOURCE / f"cat_{skin}_{level:02}.png"
+            if not source.exists():
+                raise FileNotFoundError(f"Missing generated cat asset: {source}")
+            with Image.open(source) as opened:
+                image = opened.convert("RGBA")
+                if image.size != (256, 256):
+                    raise ValueError(f"Invalid generated cat dimensions for {source}: {image.size}")
+                image.save(out_dir / f"cat_{level:02}.png", format="PNG", optimize=True)
 
 
 def slice_grid_cells(source_name: str, cols: int, rows: int, cells: dict[int, str],
@@ -240,7 +251,7 @@ def slice_button_theme(source_name: str, theme: str) -> None:
             result.save(out_dir / f"{name}.png", optimize=True)
 
 
-def prepare_background(name: str, size: tuple[int, int]) -> None:
+def prepare_background(name: str, size: tuple[int, int], target: str) -> None:
     """Build a runtime background directly from the generated source image."""
     with Image.open(RAW_SOURCE / f"{name}.png") as opened:
         image = opened.convert("RGBA")
@@ -253,7 +264,7 @@ def prepare_background(name: str, size: tuple[int, int]) -> None:
         left = max(0, (resized.width - width) // 2)
         top = max(0, (resized.height - height) // 2)
         result = resized.crop((left, top, left + width, top + height))
-    destination = OUTPUT / "backgrounds" / name
+    destination = OUTPUT / target / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     result.save(destination.with_suffix(".png"), format="PNG", optimize=True)
 
@@ -279,43 +290,32 @@ def generate_tone(name: str, frequencies: list[float], duration: float, volume: 
 
 def validate() -> dict[str, str]:
     required = [
-        *(OUTPUT / "cats" / f"cat_{level:02}.png" for level in CAT_LEVELS),
-        OUTPUT / "backgrounds" / "bg_home.png",
-        OUTPUT / "backgrounds" / "bg_page.png",
-        OUTPUT / "backgrounds" / "bg_board_wood.png",
-        OUTPUT / "backgrounds" / "bg_board_pink.png",
-        OUTPUT / "backgrounds" / "bg_board_star.png",
-        OUTPUT / "backgrounds" / "share_score_bg.png",
-        OUTPUT / "gameplay" / "tile_empty.png",
-        OUTPUT / "gameplay" / "tile_selected.png",
-        OUTPUT / "gameplay" / "sparkle_small.png",
-        OUTPUT / "gameplay" / "merge_sparkle.png",
-        OUTPUT / "gameplay" / "merge_burst.png",
-        OUTPUT / "gameplay" / "max_halo.png",
-        OUTPUT / "ui" / "close.png",
-        OUTPUT / "ui" / "back.png",
-        OUTPUT / "ui" / "home.png",
-        OUTPUT / "ui" / "check.png",
-        OUTPUT / "ui" / "share.png",
-        OUTPUT / "ui" / "sound_on.png",
-        OUTPUT / "ui" / "sound_off.png",
-        OUTPUT / "ui" / "settings.png",
-        OUTPUT / "ui" / "info.png",
-        OUTPUT / "ui" / "locked.png",
-        OUTPUT / "ui" / "classic_mode.png",
-        OUTPUT / "ui" / "collection.png",
-        OUTPUT / "ui" / "undo.png",
-        OUTPUT / "ui" / "remove_lowest.png",
-        OUTPUT / "ui" / "coin.png",
+        *(OUTPUT / "cats" / "classic" / f"cat_{level:02}.png" for level in CAT_LEVELS),
+        *(OUTPUT / "cats" / skin / f"cat_{level:02}.png"
+          for skin in ["sunny", "aurora"] for level in CAT_LEVELS),
+        *(OUTPUT / "backgrounds" / "common" / name
+          for name in ["bg_home.png", "bg_page.png", "share_score_bg.png"]),
+        *(OUTPUT / "backgrounds" / "board" / theme / f"bg_board_{theme}.png"
+          for theme in ["wood", "pink", "star"]),
+        *(OUTPUT / "ui" / "common" / name for name in [
+            "tile_empty.png", "tile_selected.png", "close.png", "back.png", "home.png",
+            "locked.png", "check.png", "share.png", "reward_video.png", "sound_on.png",
+            "sound_off.png", "settings.png", "info.png", "level_locked.png",
+            "level_current.png", "level_complete.png", "daily.png", "weekly.png",
+            "classic_mode.png", "collection.png", "undo.png", "remove_lowest.png", "coin.png",
+        ]),
+        *(OUTPUT / "effects" / "classic" / name for name in [
+            "sparkle_small.png", "merge_sparkle.png", "merge_burst.png", "max_halo.png",
+        ]),
+        *(OUTPUT / "effects" / theme / name for theme, name in [
+            ("aurora", "aurora_sparkle.png"), ("aurora", "aurora_burst.png"),
+            ("aurora", "aurora_paw_sparkle.png"), ("aurora", "aurora_paw_burst.png"),
+            ("stars", "stars_sparkle.png"), ("stars", "stars_burst.png"),
+            ("stars", "stars_fish_sparkle.png"), ("stars", "stars_confetti_burst.png"),
+        ]),
         *(OUTPUT / "ui" / "button-themes" / theme / f"{state}.png"
           for theme in ["berry", "aurora"]
           for state in ["primary", "secondary", "reward", "cream"]),
-        *(OUTPUT / "cosmetics" / "cat-skins" / skin / f"cat_{level:02}.png"
-          for skin in ["sunny", "aurora"] for level in range(1, 10)),
-        *(OUTPUT / "gameplay" / "effects" / name for name in [
-            "aurora_sparkle.png", "aurora_burst.png", "aurora_paw_sparkle.png", "aurora_paw_burst.png",
-            "stars_sparkle.png", "stars_burst.png", "stars_fish_sparkle.png", "stars_confetti_burst.png",
-        ]),
         OUTPUT / "audio" / "move.wav",
         OUTPUT / "audio" / "merge.wav",
         OUTPUT / "audio" / "game_over.wav",
@@ -329,7 +329,7 @@ def validate() -> dict[str, str]:
                 expected_size = EXPECTED_IMAGE_SIZES[path.name]
                 if image.size != expected_size:
                     raise ValueError(f"Invalid image dimensions for {path}: {image.size}, expected {expected_size}")
-            if (path.parent.name in {"cats", "gameplay", "ui", "sunny", "aurora"}
+            if (path.parent.name in {"classic", "sunny", "aurora", "stars", "common"}
                     or path.parent.parent.name == "button-themes") and image.mode != "RGBA":
                     raise ValueError(f"Transparent runtime sprite is not RGBA: {path}")
         logical = path.stem
@@ -345,29 +345,26 @@ def validate() -> dict[str, str]:
 def main() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     prepare_fonts()
-    slice_grid("sheet_cats.png", 3, 3, [f"cat_{i:02}" for i in range(1, 10)], "cats", 256)
     copy_generated_cats()
-    slice_grid("sheet_gameplay.png", 3, 2,
-               ["tile_empty", "tile_selected", "sparkle_small", "merge_sparkle", "merge_burst", "max_halo"],
-               "gameplay", 256)
+    slice_grid_cells("sheet_gameplay.png", 3, 2,
+                     {0: "tile_empty", 1: "tile_selected"}, "ui/common", 256)
+    slice_grid_cells("sheet_gameplay.png", 3, 2,
+                     {2: "sparkle_small", 3: "merge_sparkle", 4: "merge_burst", 5: "max_halo"},
+                     "effects/classic", 256)
     slice_grid("sheet_utility.png", 4, 4,
                ["close", "back", "home", "locked", "check", "share", "reward_video", "sound_on",
-                "sound_off", "settings", "info", "level_locked", "level_current", "level_complete",
-                "daily", "weekly"], "ui", 160)
+                 "sound_off", "settings", "info", "level_locked", "level_current", "level_complete",
+                 "daily", "weekly"], "ui/common", 160)
     slice_grid_cells("sheet_navigation.png", 3, 2,
-                     {0: "classic_mode", 2: "collection"}, "ui", 160)
+                     {0: "classic_mode", 2: "collection"}, "ui/common", 160)
     slice_grid_cells("sheet_economy.png", 4, 2,
-                     {0: "undo", 3: "remove_lowest", 4: "coin"}, "ui", 160)
-    slice_grid("cat_skin_sunny.png", 3, 3,
-               [f"cat_{level:02}" for level in range(1, 10)], "cosmetics/cat-skins/sunny", 256)
-    slice_grid("cat_skin_aurora.png", 3, 3,
-               [f"cat_{level:02}" for level in range(1, 10)], "cosmetics/cat-skins/aurora", 256)
+                     {0: "undo", 3: "remove_lowest", 4: "coin"}, "ui/common", 160)
     slice_grid("effect_aurora.png", 2, 2,
                ["aurora_sparkle", "aurora_burst", "aurora_paw_sparkle", "aurora_paw_burst"],
-               "gameplay/effects", 256)
+               "effects/aurora", 256)
     slice_grid("effect_stars.png", 2, 2,
                ["stars_sparkle", "stars_burst", "stars_fish_sparkle", "stars_confetti_burst"],
-               "gameplay/effects", 256)
+               "effects/stars", 256)
     slice_button_theme("button_theme_berry.png", "berry")
     slice_button_theme("button_theme_aurora.png", "aurora")
     for background, size in {
@@ -378,7 +375,7 @@ def main() -> int:
         "bg_board_star": (1024, 1024),
         "share_score_bg": (1000, 800),
     }.items():
-        prepare_background(background, size)
+        prepare_background(background, size, BACKGROUND_TARGETS[background])
     generate_tone("move", [330, 440], 0.08)
     generate_tone("merge", [523.25, 659.25, 783.99], 0.18)
     generate_tone("game_over", [293.66, 246.94, 196.00], 0.42, 0.18)

@@ -16,7 +16,8 @@
 - Modify: `assets/cat2048/skins-v2/sprite-manifest.json`
 - Modify: `assets/cat2048/skins-v2/manifest.json`
 
-- [ ] Replace all prompts with the approved Q版手游萌系 direction: one consistent seated cat silhouette per family, 12 row-major levels, no text, no background, no grid, no duplicate cats, no detached particles, no human-like body, no mask face, no heavy watercolor noise, and at least 12% transparent gutter inside every cell.
+- [ ] Replace all prompts with the approved clean Q版手游萌系 direction: 12 independently designed recognizable cats per sheet, a shared seated icon composition, no text, no background, no grid, no duplicate cats, no detached particles, no human-like body, no mask face, no heavy watercolor noise, and at least 12% transparent gutter inside every cell.
+- [ ] Spell out the exact LV1-LV12 breed, coat, and fantasy progression inside each of the three sheet prompts; do not leave any level to an unbounded model improvisation.
 - [ ] Keep exactly three assets (`cat_classic_sheet`, `cat_sunny_sheet`, `cat_aurora_sheet`) at `2048x2048`, with stable filenames and `transparent: true`.
 - [ ] Run `python skills/generate-kitchen-game-art/scripts/generate_assets.py --manifest assets/cat2048/skins-v2/sprite-manifest.json --output-dir assets/cat2048/skins-v2/sprite-sheets --check-manifest` and confirm it reports three valid assets.
 
@@ -71,4 +72,3 @@
 - [ ] Inspect all three source sheets, the contact sheet, and representative LV1/LV6/LV9/LV12 outputs with alpha shown against both light and dark checkerboards.
 - [ ] Run `node tools/verify_wechat_build.mjs` from `game/` and confirm every asset-map entry resolves to an existing runtime texture.
 - [ ] Run `git diff --check` and record the exact generated asset paths and test commands in the handoff.
-

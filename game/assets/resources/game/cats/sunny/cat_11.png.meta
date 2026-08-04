@@ -1,0 +1,44 @@
+{
+    "ver":  "1.0.27",
+    "importer":  "image",
+    "imported":  true,
+    "uuid":  "0118ee38-13e9-45b1-863b-7f919e649c86",
+    "files":  [
+                  ".json",
+                  ".png"
+              ],
+    "subMetas":  {
+                     "6c48a":  {
+                                   "importer":  "texture",
+                                   "uuid":  "0118ee38-13e9-45b1-863b-7f919e649c86@6c48a",
+                                   "displayName": "cat_11",
+                                   "id":  "6c48a",
+                                   "name":  "texture",
+                                   "userData":  {
+                                                    "wrapModeS":  "repeat",
+                                                    "wrapModeT":  "repeat",
+                                                    "minfilter":  "linear",
+                                                    "magfilter":  "linear",
+                                                    "mipfilter":  "none",
+                                                    "anisotropy":  0,
+                                                    "isUuid":  true,
+                                                    "imageUuidOrDatabaseUri":  "0118ee38-13e9-45b1-863b-7f919e649c86",
+                                                    "visible":  false
+                                                },
+                                   "ver":  "1.0.22",
+                                   "imported":  true,
+                                   "files":  [
+                                                 ".json"
+                                             ],
+                                   "subMetas":  {
+
+                                                }
+                               }
+                 },
+    "userData":  {
+                     "type":  "texture",
+                     "fixAlphaTransparencyArtifacts":  false,
+                     "hasAlpha":  true,
+                     "redirect":  "0118ee38-13e9-45b1-863b-7f919e649c86@6c48a"
+                 }
+}

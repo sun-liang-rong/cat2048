@@ -35,10 +35,17 @@ describe('cosmetic catalog', () => {
       'cat-skin.default', 'board.wood', 'effect.classic', 'button-theme.classic',
     ]);
     expect(defaults.map((item) => item.previewAsset)).toEqual([
-      'game/cats/cat_01/texture',
-      'game/backgrounds/bg_board_wood/texture',
-      'game/gameplay/merge_burst/texture',
+      'game/cats/classic/cat_01/texture',
+      'game/backgrounds/board/wood/bg_board_wood/texture',
+      'game/effects/classic/merge_burst/texture',
       undefined,
     ]);
+  });
+
+  it('exposes twelve levels for every cat skin family', () => {
+    const catSkins = allCosmetics().filter((item) => item.category === 'cat-skin');
+
+    expect(catSkins).toHaveLength(3);
+    expect(catSkins.every((item) => item.levelAssets?.length === 12)).toBe(true);
   });
 });

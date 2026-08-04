@@ -40,7 +40,7 @@ export const DEFAULT_EQUIPPED: EquippedCosmetics = {
 };
 
 const defaultCatAssets: readonly string[] = Array.from({ length: 12 }, (_, index) =>
-  `game/cats/cat_${index + 1 < 10 ? '0' : ''}${index + 1}/texture`);
+  `game/cats/classic/cat_${index + 1 < 10 ? '0' : ''}${index + 1}/texture`);
 
 const DEFAULT_ITEM_DEFINITIONS: readonly CosmeticDefinition[] = [
   {
@@ -56,17 +56,17 @@ const DEFAULT_ITEM_DEFINITIONS: readonly CosmeticDefinition[] = [
     category: 'board',
     name: '\u6728\u8d28\u732b\u7a9d',
     price: 0,
-    previewAsset: 'game/backgrounds/bg_board_wood/texture',
-    boardAsset: 'game/backgrounds/bg_board_wood/texture',
+    previewAsset: 'game/backgrounds/board/wood/bg_board_wood/texture',
+    boardAsset: 'game/backgrounds/board/wood/bg_board_wood/texture',
   },
   {
     id: 'effect.classic',
     category: 'effect',
     name: '\u7ecf\u5178\u5408\u6210',
     price: 0,
-    previewAsset: 'game/gameplay/merge_burst/texture',
-    sparkleAsset: 'game/gameplay/merge_sparkle/texture',
-    burstAsset: 'game/gameplay/merge_burst/texture',
+    previewAsset: 'game/effects/classic/merge_burst/texture',
+    sparkleAsset: 'game/effects/classic/merge_sparkle/texture',
+    burstAsset: 'game/effects/classic/merge_burst/texture',
   },
   {
     id: 'button-theme.classic',
@@ -85,8 +85,8 @@ export const DEFAULT_ECONOMY: EconomySaveData = {
   settledRunIds: [],
 };
 
-const skinAssets = (skin: string): readonly string[] => Array.from({ length: 9 }, (_, index) =>
-  `game/cosmetics/cat-skins/${skin}/cat_${index + 1 < 10 ? '0' : ''}${index + 1}/texture`);
+const skinAssets = (skin: string): readonly string[] => Array.from({ length: 12 }, (_, index) =>
+  `game/cats/${skin}/cat_${index + 1 < 10 ? '0' : ''}${index + 1}/texture`);
 
 export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
@@ -110,34 +110,34 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
     category: 'board',
     name: '\u7c89\u8272\u732b\u7a9d',
     price: 250,
-    previewAsset: 'game/backgrounds/bg_board_pink/texture',
-    boardAsset: 'game/backgrounds/bg_board_pink/texture',
+    previewAsset: 'game/backgrounds/board/pink/bg_board_pink/texture',
+    boardAsset: 'game/backgrounds/board/pink/bg_board_pink/texture',
   },
   {
     id: 'board.star',
     category: 'board',
     name: '\u661f\u7a7a\u732b\u7a9d',
     price: 500,
-    previewAsset: 'game/backgrounds/bg_board_star/texture',
-    boardAsset: 'game/backgrounds/bg_board_star/texture',
+    previewAsset: 'game/backgrounds/board/star/bg_board_star/texture',
+    boardAsset: 'game/backgrounds/board/star/bg_board_star/texture',
   },
   {
     id: 'effect.aurora',
     category: 'effect',
     name: '\u6781\u5149\u5408\u6210',
     price: 300,
-    previewAsset: 'game/gameplay/effects/aurora_burst/texture',
-    sparkleAsset: 'game/gameplay/effects/aurora_sparkle/texture',
-    burstAsset: 'game/gameplay/effects/aurora_burst/texture',
+    previewAsset: 'game/effects/aurora/aurora_burst/texture',
+    sparkleAsset: 'game/effects/aurora/aurora_sparkle/texture',
+    burstAsset: 'game/effects/aurora/aurora_burst/texture',
   },
   {
     id: 'effect.stars',
     category: 'effect',
     name: '\u661f\u5c51\u5408\u6210',
     price: 600,
-    previewAsset: 'game/gameplay/effects/stars_burst/texture',
-    sparkleAsset: 'game/gameplay/effects/stars_sparkle/texture',
-    burstAsset: 'game/gameplay/effects/stars_burst/texture',
+    previewAsset: 'game/effects/stars/stars_burst/texture',
+    sparkleAsset: 'game/effects/stars/stars_sparkle/texture',
+    burstAsset: 'game/effects/stars/stars_burst/texture',
   },
   {
     id: 'button-theme.berry',

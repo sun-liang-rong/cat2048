@@ -20,15 +20,12 @@
 
 ```bash
 npm install
-npm run prepare:assets
 npm run typecheck:core
 npm test
 npm run verify
 ```
 
-资源准备脚本从仓库根目录的美术源文件裁切并校验运行时资源，输出到
-`assets/resources/game/`。背景直接由 `_source` 中的生成原图缩放裁切，无需在其上级目录保留重复副本。
-不要将 `_source`、接口响应记录或未使用的大图复制进 Cocos 工程。
+运行时资源已提交在 `assets/resources/game/`，并按资源类型和主题整理。可选的 `prepare:assets` 命令需要仓库根目录下的美术源文件；本次精简后该源文件目录不包含在当前工作区。
 
 ## 操作
 

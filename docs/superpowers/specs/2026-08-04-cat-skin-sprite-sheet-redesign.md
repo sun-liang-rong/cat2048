@@ -14,11 +14,11 @@
 
 ## Art Direction
 
-All three families share a stable seated cat silhouette, frontal three-quarter camera, eye line, ear placement, tail direction, upper-left lighting, and transparent padding. The family identity comes from the palette and markings; progression comes from increasingly mature fur detail, a small number of readable accessories, and restrained energy effects at LV9-LV12.
+All three families share the same clean Q-version mobile-game rendering system: compact seated three-quarter cats, consistent icon scale, controlled dark-brown contours, simple cel shading, upper-left lighting, normal expressive eyes, visible muzzle, and transparent padding. Individual levels may use distinct recognizable breeds and silhouettes, matching the existing collection's readable cat variety. Progression comes from ordinary breed and coat recognition at LV1-LV8, then restrained fantasy details at LV9-LV12.
 
-- `classic`: warm orange-and-cream tabby, progressing from simple stripes to honey-gold collar, mantle, crown, and a compact solar emblem.
-- `sunny`: cream-gold garden cat, progressing from soft leaf markings to peach blossom accents, a leaf mantle, flower crown, and a compact sun halo.
-- `aurora`: midnight indigo cosmic cat, progressing from cyan star flecks to constellation markings, aurora tail ribbons, orbit rings, and a restrained star crown.
+- `classic`: a cat-breed almanac based on orange tabby, blue-white, calico, ragdoll, Siamese, American shorthair, tuxedo, Bombay, then four warm celestial evolutions.
+- `sunny`: the same level rhythm interpreted through peach, honey, leaf, blossom, and solar-garden motifs.
+- `aurora`: the same level rhythm interpreted through indigo, lavender, cyan, constellation, orbit, and aurora motifs.
 
 Each level must remain readable at approximately 80px. No text, labels, borders, ground plane, cast shadow, cropped anatomy, extra animals, or accessories that cover the mouth are allowed.
 

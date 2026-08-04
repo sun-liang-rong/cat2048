@@ -15,12 +15,59 @@ const filesBelow = (directory: string): string[] => readdirSync(directory, { wit
     return entry.isDirectory() ? filesBelow(path) : [path];
   });
 
+const catImagePaths = ['classic', 'sunny', 'aurora'].reduce<string[]>((paths, theme) => {
+  const levels = 12;
+  for (let index = 1; index <= levels; index += 1) {
+    paths.push(`cats/${theme}/cat_${index < 10 ? '0' : ''}${index}.png`);
+  }
+  return paths;
+}, []);
+
+const buttonThemeImagePaths = ['berry', 'aurora'].reduce<string[]>((paths, theme) => {
+  for (const state of ['primary', 'secondary', 'reward', 'cream']) {
+    paths.push(`ui/button-themes/${theme}/${state}.png`);
+  }
+  return paths;
+}, []);
+
+const expectedImagePaths = [
+  ...['bg_home.png', 'bg_page.png', 'share_score_bg.png'].map((name) => `backgrounds/common/${name}`),
+  ...['wood', 'pink', 'star'].map((theme) => `backgrounds/board/${theme}/bg_board_${theme}.png`),
+  ...catImagePaths,
+  'ui/common/logo.png',
+  'ui/common/tile_empty.png',
+  'ui/common/tile_selected.png',
+  ...[
+    'back', 'check', 'classic_mode', 'close', 'coin', 'collection', 'daily', 'home', 'info',
+    'level_complete', 'level_current', 'level_locked', 'locked', 'remove_lowest',
+    'reward_video', 'settings', 'share', 'sound_off', 'sound_on', 'undo', 'weekly',
+  ].map((name) => `ui/common/${name}.png`),
+  ...buttonThemeImagePaths,
+  ...['sparkle_small', 'merge_sparkle', 'merge_burst', 'max_halo']
+    .map((name) => `effects/classic/${name}.png`),
+  ...['aurora_sparkle', 'aurora_burst', 'aurora_paw_sparkle', 'aurora_paw_burst']
+    .map((name) => `effects/aurora/${name}.png`),
+  ...['stars_sparkle', 'stars_burst', 'stars_fish_sparkle', 'stars_confetti_burst']
+    .map((name) => `effects/stars/${name}.png`),
+  'fonts/score.png',
+].sort();
+
 describe('runtime image assets', () => {
+  it('keeps every runtime image in its type and theme directory', () => {
+    const actual = filesBelow(assetRoot)
+      .filter((path) => extname(path) === '.png')
+      .map((path) => relative(assetRoot, path).split('\\').join('/'))
+      .sort();
+
+    expect(actual).toEqual(expectedImagePaths);
+    expect(actual.some((path) => /^(branding|cosmetics|gameplay)\//.test(path))).toBe(false);
+  });
+
   it('uses PNG files supported by the WeChat package filesystem', () => {
     const files = filesBelow(assetRoot);
     const images = files.filter((path) => ['.png', '.webp'].includes(extname(path)));
 
-    expect(images).toHaveLength(81);
+    expect(images).toHaveLength(expectedImagePaths.length);
     expect(images.every((path) => extname(path) === '.png')).toBe(true);
     expect(files.filter((path) => path.endsWith('.webp.meta'))).toEqual([]);
 
@@ -40,7 +87,7 @@ describe('runtime image assets', () => {
     const manifest = JSON.parse(output) as Record<string, { kind: string }>;
     const pngEntries = Object.values(manifest).filter((entry) => entry.kind === 'png');
 
-    expect(pngEntries).toHaveLength(81);
+    expect(pngEntries).toHaveLength(expectedImagePaths.length);
   });
 
   it('configures resources as a remote WeChat bundle', () => {
