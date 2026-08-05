@@ -1,7 +1,7 @@
-import { AudioClip, BitmapFont, Font, ImageAsset, resources, SpriteFrame, Texture2D, TTFFont } from 'cc';
+import { AudioClip, Font, ImageAsset, resources, SpriteFrame, Texture2D, TTFFont } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import { allCosmetics } from '../economy/catalog';
-import { loadResourceDirectory } from './resourceLoading';
+import { loadRuntimeResourceDirectories } from './resourceLoading';
 
 export class ArtRepository {
   private readonly frames = new Map<string, SpriteFrame>();
@@ -10,11 +10,13 @@ export class ArtRepository {
   private readonly fonts = new Map<string, Font>();
 
   public async preload(onProgress?: (ratio: number) => void): Promise<void> {
-    await loadResourceDirectory((directory, progress, complete) => {
+    const loadDirectory = (directory: string, progress: (finished: number, total: number) => void,
+      complete: (error: Error | null) => void): void => {
       resources.loadDir(directory, progress, (error) => complete(error));
-    }, 'game', onProgress);
+    };
+    await loadRuntimeResourceDirectories(loadDirectory, (ratio) => onProgress?.(ratio * 0.62));
 
-    const framePaths = [
+    const framePaths = Array.from(new Set([
       ...GAME_CONFIG.cats.map((cat) => cat.asset),
       ...Object.keys(GAME_CONFIG.art).map((key) => GAME_CONFIG.art[key as keyof typeof GAME_CONFIG.art]),
       ...allCosmetics().reduce<string[]>((paths, item) => {
@@ -29,7 +31,8 @@ export class ArtRepository {
         if (item.creamAsset) paths.push(item.creamAsset);
         return paths;
       }, []),
-    ];
+    ]));
+    let loadedFrames = 0;
     await Promise.all(framePaths.map(async (path) => {
       const [frame, imagePath] = await Promise.all([
         this.loadFrame(path),
@@ -37,16 +40,22 @@ export class ArtRepository {
       ]);
       this.frames.set(path, frame);
       if (imagePath) this.imagePaths.set(path, imagePath);
+      loadedFrames += 1;
+      onProgress?.(0.62 + (loadedFrames / Math.max(1, framePaths.length)) * 0.25);
     }));
-    await Promise.all([
-      this.cacheFont(GAME_CONFIG.fonts.display, TTFFont),
-      this.cacheFont(GAME_CONFIG.fonts.numbers, BitmapFont),
-    ]);
-    await Promise.all(['move', 'merge', 'game_over'].map(async (name) => {
+    await this.cacheFont(GAME_CONFIG.fonts.display, TTFFont);
+    onProgress?.(0.92);
+
+    const audioNames = ['move', 'merge', 'game_over'];
+    let loadedAudio = 0;
+    await Promise.all(audioNames.map(async (name) => {
       const path = `game/audio/${name}`;
       try { this.clips.set(name, await this.loadClip(path)); }
       catch (error) { console.warn(`[Cat2048] Optional audio unavailable: ${path}`, error); }
+      loadedAudio += 1;
+      onProgress?.(0.92 + (loadedAudio / audioNames.length) * 0.08);
     }));
+    onProgress?.(1);
   }
 
   public frame(path: string): SpriteFrame | undefined { return this.frames.get(path); }

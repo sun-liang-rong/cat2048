@@ -12,9 +12,10 @@
 1. 使用 Cocos Dashboard 导入本目录 `game/`，编辑器版本选择 3.8.8。
 2. 首次打开后等待 Cocos 导入素材并生成 `temp/`。
 3. 打开 `assets/main.scene`，将其设为启动场景，然后使用浏览器预览。
-4. 微信小游戏构建时选择竖屏；本切片不依赖任何微信 API。
-5. 微信小游戏保留分离引擎首屏，但 `splashScreen.logo` 已指定为项目猫图，并关闭普通
-   Cocos Splash。启动流程为“猫咪 2048 加载页 → 游戏首页”，不显示 Cocos Logo。
+4. 微信小游戏构建时选择竖屏；排行榜联调需要配置微信登录和后端地址。
+5. 微信小游戏构建时关闭普通 `useSplashScreen` 和 `wechatgame.separateEngine`，但保留
+   Cocos 微信首屏。项目扩展会在构建后把 `resources/game` 的加载进度接入 Cocos 进度条，
+   资源加载完成后才结束首屏并显示游戏首页；项目不再显示独立的 `LoadingView`。
 
 ## 命令
 
@@ -24,6 +25,19 @@ npm run typecheck:core
 npm test
 npm run verify
 ```
+
+## 排行榜联调
+
+后端位于仓库根目录的 `server/`，先在 `server/.env` 配置 MySQL、微信小程序 AppID/AppSecret 和 JWT 密钥，再运行：
+
+```bash
+cd ../server
+npm install
+npm run prisma:deploy
+npm run start:dev
+```
+
+将 `assets/scripts/infrastructure/gameConfig.ts` 中的 `leaderboardBaseUrl` 设置为可从当前运行环境访问的 NestJS 服务地址。微信小游戏正式构建还需要把该地址配置为合法的 request 域名并使用 HTTPS；未配置地址时游戏仍可正常游玩，成绩会保存在本地待重试队列中。
 
 运行时资源已提交在 `assets/resources/game/`，并按资源类型和主题整理。可选的 `prepare:assets` 命令需要仓库根目录下的美术源文件；本次精简后该源文件目录不包含在当前工作区。
 

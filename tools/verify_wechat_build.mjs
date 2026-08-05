@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const buildRoot = join(root, 'game', 'build', 'wechatgame');
 const gameJsonPath = join(buildRoot, 'game.json');
+const gameJsPath = join(buildRoot, 'game.js');
 const firstScreenPath = join(buildRoot, 'first-screen.js');
 const mainPackageLimit = 4 * 1024 * 1024;
 
@@ -22,8 +23,19 @@ const isBelow = (path, directory) => path === directory || path.startsWith(`${di
 if (!existsSync(gameJsonPath)) {
   fail(`missing ${relative(root, gameJsonPath)}`);
 }
-if (existsSync(firstScreenPath)) {
-  fail('Cocos first screen is enabled; set separateEngine to false for direct app loading');
+if (!existsSync(gameJsPath)) {
+  fail(`missing ${relative(root, gameJsPath)}`);
+}
+if (!existsSync(firstScreenPath)) {
+  fail(`missing ${relative(root, firstScreenPath)}`);
+}
+if (!readFileSync(gameJsPath, 'utf8').includes('CAT2048_COCOS_LOADING_BRIDGE')) {
+  fail('Cocos first-screen runtime bridge has not been applied');
+}
+for (const asset of ['logo.png', 'slogan.png']) {
+  if (!existsSync(join(buildRoot, asset))) {
+    fail(`missing Cocos first-screen asset ${asset}`);
+  }
 }
 
 const gameJson = JSON.parse(readFileSync(gameJsonPath, 'utf8'));

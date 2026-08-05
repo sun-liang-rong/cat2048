@@ -1,7 +1,34 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadResourceDirectory } from '../assets/scripts/presentation/resourceLoading';
+import {
+  loadResourceDirectory,
+  loadRuntimeResourceDirectories,
+  RUNTIME_RESOURCE_DIRECTORIES,
+} from '../assets/scripts/presentation/resourceLoading';
 
 describe('loadResourceDirectory', () => {
+  it('preloads runtime directories without the unused bitmap-font source', () => {
+    expect(RUNTIME_RESOURCE_DIRECTORIES).toEqual([
+      'game/cats',
+      'game/backgrounds',
+      'game/effects',
+      'game/ui',
+    ]);
+  });
+
+  it('aggregates progress across the runtime directories', async () => {
+    const loadedDirectories: string[] = [];
+    const onProgress = vi.fn();
+
+    await loadRuntimeResourceDirectories((directory, progress, complete) => {
+      loadedDirectories.push(directory);
+      progress(1, 1);
+      complete(null);
+    }, onProgress);
+
+    expect(loadedDirectories).toEqual([...RUNTIME_RESOURCE_DIRECTORIES]);
+    expect(onProgress).toHaveBeenLastCalledWith(1);
+  });
+
   it('reports normalized progress and resolves after the directory loads', async () => {
     const onProgress = vi.fn();
 

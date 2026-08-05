@@ -1,78 +1,73 @@
-import {
-  copyFileSync,
-  existsSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const marker = 'CAT2048_CUSTOM_LOADING_SCREEN';
 const generatedBuild = join(root, 'game', 'build', 'wechatgame');
-const logoSource = join(root, 'game', 'assets', 'resources', 'game', 'ui', 'common', 'logo.png');
-const titleGenerator = join(root, 'tools', 'generate_wechat_loading_title.py');
+const marker = 'CAT2048_COCOS_LOADING_BRIDGE';
 
-const replacements = [
-  ['let progressBarColor = [61 / 255, 197 / 255, 222 / 255, 1];', 'let progressBarColor = [0.92, 0.31, 0.23, 1];'],
-  ['let progressBackground = [100 / 255, 111 / 255, 118 / 255, 1];', 'let progressBackground = [0.16, 0.13, 0.11, 1];'],
-  ['let bgColor = [0.01568627450980392,0.03529411764705882,0.0392156862745098,0.00392156862745098];', 'let bgColor = [1, 0.94, 0.83, 1]; // CAT2048_CUSTOM_LOADING_SCREEN'],
-];
+const bridgeSource = `// ${marker}
+const runtimeReady = new Promise((resolve) => {
+    let ready = false;
+    globalThis.__cat2048CocosLoading = {
+        setProgress: (ratio) => {
+            const normalized = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0;
+            void firstScreen.setProgress(0.6 + normalized * 0.39);
+        },
+        markReady: () => {
+            if (ready) return;
+            ready = true;
+            resolve();
+        },
+        markError: (error) => {
+            console.error('[Cat2048] Runtime asset loading failed', error);
+        },
+    };
+});`;
 
-export const filesHaveSameBytes = (left, right) => readFileSync(left).equals(readFileSync(right));
+const applicationStart = `    }).then(() => {
+        return firstScreen.end().then(() => application.start());
+    });`;
+const bridgedApplicationStart = `    }).then(() => {
+        return application.start();
+    }).then(() => {
+        return runtimeReady.then(() => firstScreen.end());
+    });`;
 
-export const customizeFirstScreen = (firstScreenPath) => {
-  const source = readFileSync(firstScreenPath, 'utf8');
-  if (source.includes(marker)) return;
+const normalizeNewlines = (source) => source.replace(/\r\n/g, '\n');
 
-  const output = replacements.reduce((result, [expected, replacement]) => {
-    if (!result.includes(expected)) {
-      throw new Error(`Unsupported Cocos first-screen template: missing ${expected}`);
-    }
-    return result.replace(expected, replacement);
-  }, source);
+const restoreNewlines = (source, newline) => source.replace(/\n/g, newline);
 
-  writeFileSync(firstScreenPath, output);
-};
-
-const runTitleGenerator = (outputPath) => {
-  const temporaryOutput = `${outputPath}.tmp`;
-  const failures = [];
-
-  for (const executable of ['python3', 'python']) {
-    const result = spawnSync(executable, [titleGenerator, temporaryOutput], {
-      cwd: root,
-      encoding: 'utf8',
-    });
-    if (!result.error && result.status === 0) {
-      renameSync(temporaryOutput, outputPath);
-      return;
-    }
-    failures.push(result.error?.message || result.stderr || result.stdout || `${executable} exited ${result.status}`);
-  }
-
-  throw new Error(`Unable to generate loading title: ${failures.join(' | ') || 'Python 3 with Pillow is required'}`.trim());
-};
-
-export const customizeWeChatLoadingScreen = (buildDirectory = generatedBuild) => {
+export const patchWeChatBootstrap = (buildDirectory = generatedBuild) => {
+  const gamePath = join(buildDirectory, 'game.js');
   const firstScreenPath = join(buildDirectory, 'first-screen.js');
-  const logoPath = join(buildDirectory, 'logo.png');
-  const sloganPath = join(buildDirectory, 'slogan.png');
 
+  if (!existsSync(gamePath)) {
+    throw new Error(`Required WeChat bootstrap is missing: ${gamePath}`);
+  }
   if (!existsSync(firstScreenPath)) {
-    if (existsSync(join(buildDirectory, 'game.js'))) return false;
-    throw new Error(`Required loading-screen file is missing: ${firstScreenPath}`);
+    throw new Error(`Required Cocos first screen is missing: ${firstScreenPath}`);
   }
 
-  for (const path of [firstScreenPath, logoSource, titleGenerator]) {
-    if (!existsSync(path)) throw new Error(`Required loading-screen file is missing: ${path}`);
+  const original = readFileSync(gamePath, 'utf8');
+  if (original.includes(marker)) return false;
+
+  const newline = original.includes('\r\n') ? '\r\n' : '\n';
+  const source = normalizeNewlines(original);
+  const requireAnchor = "const firstScreen = require('./first-screen');";
+
+  if (!source.includes(requireAnchor)) {
+    throw new Error('Unsupported Cocos game.js template: missing first-screen import');
+  }
+  if (!source.includes(applicationStart)) {
+    throw new Error('Unsupported Cocos game.js template: missing first-screen end chain');
   }
 
-  runTitleGenerator(sloganPath);
-  copyFileSync(logoSource, logoPath);
-  customizeFirstScreen(firstScreenPath);
+  const output = source
+    .replace(requireAnchor, `${requireAnchor}\n${bridgeSource}`)
+    .replace(applicationStart, bridgedApplicationStart);
+
+  writeFileSync(gamePath, restoreNewlines(output, newline));
   return true;
 };
 
@@ -80,10 +75,10 @@ const isCli = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(impo
 if (isCli) {
   try {
     const buildDirectory = process.argv[2] ? resolve(process.argv[2]) : generatedBuild;
-    const customized = customizeWeChatLoadingScreen(buildDirectory);
-    console.log(customized
-      ? 'Applied Cat 2048 custom WeChat loading screen.'
-      : 'Cocos first screen is disabled; no loading-screen customization is needed.');
+    const patched = patchWeChatBootstrap(buildDirectory);
+    console.log(patched
+      ? 'Applied Cat 2048 runtime bridge to the Cocos WeChat first screen.'
+      : 'Cocos WeChat first-screen runtime bridge is already applied.');
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

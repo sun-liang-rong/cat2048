@@ -33,6 +33,7 @@ export interface HomeViewActions {
   onPlay(): void;
   onInfo(): void;
   onCollection(): void;
+  onLeaderboard(): void;
   onShop(): void;
   onDailyReward(): void;
   onToggleSound(): void;
@@ -245,17 +246,17 @@ export class HomeView {
 
   private addHomeActionDock(root: Node, model: HomeViewModel, actions: HomeViewActions): void {
     const dockY = -model.uiHeight / 2 + model.bottomInset + 78;
-    const shadow = createUiNode('HomeDockShadow', 638, 106);
-    drawRounded(shadow, 638, 106, new Color(91, 58, 40, 92), 28);
+    const shadow = createUiNode('HomeDockShadow', 710, 106);
+    drawRounded(shadow, 710, 106, new Color(91, 58, 40, 92), 28);
     shadow.setPosition(0, dockY - 7);
     root.addChild(shadow);
-    const dock = createUiNode('HomeActionDock', 638, 106);
-    drawRounded(dock, 638, 106, new Color(255, 249, 230, 242), 28,
+    const dock = createUiNode('HomeActionDock', 710, 106);
+    drawRounded(dock, 710, 106, new Color(255, 249, 230, 242), 28,
       { color: new Color(77, 61, 54, 210), width: 4 });
     dock.setPosition(0, dockY);
     root.addChild(dock);
 
-    const positions = [-256, -128, 0, 128, 256] as const;
+    const positions = [-290, -174, -58, 58, 174, 290] as const;
     const info = createIconButton('Info', this.art.frame(GAME_CONFIG.art.info), 'i', 64,
       () => actions.onInfo(), BOTTOM_EDGE_ICON_CROP);
     info.setPosition(positions[0], 11);
@@ -272,33 +273,41 @@ export class HomeView {
     collectionText.node.setPosition(positions[1], -36);
     dock.addChild(collectionText.node);
 
+    const leaderboard = createIconButton('Leaderboard', undefined, '\u699c', 58,
+      () => actions.onLeaderboard());
+    leaderboard.setPosition(positions[2], 11);
+    dock.addChild(leaderboard);
+    const leaderboardText = createLabel('\u6392\u884c\u699c', 16, COLORS.ink, 116, 28, 'display');
+    leaderboardText.node.setPosition(positions[2], -36);
+    dock.addChild(leaderboardText.node);
+
     const shop = createIconButton('Shop', this.art.frame(GAME_CONFIG.art.coin), '\u5546', 64,
       () => actions.onShop());
-    shop.setPosition(positions[2], 11);
+    shop.setPosition(positions[3], 11);
     dock.addChild(shop);
     const shopText = createLabel('\u5546\u5e97', 18, COLORS.ink, 100, 28, 'display');
-    shopText.node.setPosition(positions[2], -36);
+    shopText.node.setPosition(positions[3], -36);
     dock.addChild(shopText.node);
 
     const sound = createIconButton('SoundToggle', this.art.frame(model.soundEnabled
       ? GAME_CONFIG.art.soundOn : GAME_CONFIG.art.soundOff), model.soundEnabled ? '♪' : '×', 64,
       () => actions.onToggleSound(), model.soundEnabled ? TOP_EDGE_ICON_CROP : BOTTOM_EDGE_ICON_CROP);
-    sound.setPosition(positions[3], 11);
+    sound.setPosition(positions[4], 11);
     dock.addChild(sound);
     const soundText = createLabel(model.soundEnabled ? '音效开' : '音效关', 18, COLORS.ink, 110, 28, 'display');
-    soundText.node.setPosition(positions[3], -36);
+    soundText.node.setPosition(positions[4], -36);
     dock.addChild(soundText.node);
 
     const settings = createIconButton('Settings', this.art.frame(GAME_CONFIG.art.settings), '⚙', 64,
       () => actions.onSettings(), BOTTOM_EDGE_ICON_CROP);
-    settings.setPosition(positions[4], 11);
+    settings.setPosition(positions[5], 11);
     dock.addChild(settings);
     const settingsText = createLabel('设置', 18, COLORS.ink, 100, 28, 'display');
-    settingsText.node.setPosition(positions[4], -36);
+    settingsText.node.setPosition(positions[5], -36);
     dock.addChild(settingsText.node);
 
     const dividerColor = new Color(77, 61, 54, 55);
-    for (const x of [-192, -64, 64, 192]) {
+    for (const x of [-232, -116, 0, 116, 232]) {
       const divider = createUiNode(`DockDivider:${x}`, 2, 60);
       drawRounded(divider, 2, 60, dividerColor, 1);
       divider.setPosition(x, 0);

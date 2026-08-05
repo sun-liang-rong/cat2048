@@ -25,6 +25,11 @@ import { HapticController } from '../infrastructure/HapticController';
 import { ResultShareController } from '../infrastructure/ResultShareController';
 import type { SharePurpose, ShareResult } from '../infrastructure/ResultShareController';
 import { RuntimeRandomSource, runtimeStorage } from '../infrastructure/runtime';
+import {
+  createWechatLeaderboardClient,
+  highestLevelOfTiles,
+  type ScorePayload,
+} from '../infrastructure/leaderboard';
 import { DEFAULT_SAVE } from '../infrastructure/storage';
 import type { SaveDataV3 } from '../infrastructure/storage';
 import { ArtRepository } from './ArtRepository';
@@ -42,7 +47,7 @@ import { GameOverDialogView } from './GameOverDialogView';
 import { GameScreen } from './GameScreen';
 import { HomeView } from './HomeView';
 import { ItemBarView } from './ItemBarView';
-import { LoadingView } from './LoadingView';
+import { LeaderboardView } from './LeaderboardView';
 import { CosmeticRuntime } from './CosmeticRuntime';
 import { DailyRewardView } from './DailyRewardView';
 import { ShopView } from './ShopView';
@@ -52,6 +57,11 @@ import { runStartupSequence } from './startupSequence';
 import { SwipeInput } from './SwipeInput';
 import { TutorialView } from './TutorialView';
 import {
+  markCocosLoadingError,
+  markCocosLoadingReady,
+  reportCocosLoadingProgress,
+} from './cocosLoadingBridge';
+import {
   createUiNode,
   setButtonTheme,
   setRuntimeFonts,
@@ -59,7 +69,7 @@ import {
 
 const { ccclass } = _decorator;
 
-type ScreenName = 'loading' | 'home' | 'game' | 'collection' | 'shop';
+type ScreenName = 'home' | 'game' | 'collection' | 'shop' | 'leaderboard';
 
 @ccclass('Cat2048Boot')
 export class Cat2048Boot extends Component {
@@ -68,6 +78,7 @@ export class Cat2048Boot extends Component {
   private readonly boardView = new BoardView(this.art, this.cosmetics);
   private readonly homeView = new HomeView(this.art);
   private readonly collectionView = new CollectionView(this.art, this.cosmetics);
+  private readonly leaderboardView = new LeaderboardView(this.art);
   private readonly shopView = new ShopView(this.art, this.cosmetics);
   private readonly dailyRewardView = new DailyRewardView(this.art);
   private readonly itemBar = new ItemBarView(this.art);
@@ -75,11 +86,14 @@ export class Cat2048Boot extends Component {
   private readonly gameScreen = new GameScreen(this.art, this.boardView, this.itemBar, this.evolutionPanel);
   private readonly tutorialView = new TutorialView();
   private readonly gameOverDialog = new GameOverDialogView(this.art);
-  private readonly loadingView = new LoadingView();
   private readonly game = new Game2048(new RuntimeRandomSource());
   private readonly haptics = new HapticController();
   private readonly resultShare = new ResultShareController();
   private readonly economy = new LocalEconomyRepository(sys.localStorage);
+  private readonly leaderboard = createWechatLeaderboardClient(
+    GAME_CONFIG.network.leaderboardBaseUrl,
+    sys.localStorage,
+  );
   private audio!: AudioController;
   private save: SaveDataV3 = DEFAULT_SAVE;
   private screenRoot: Node | null = null;
@@ -98,13 +112,15 @@ export class Cat2048Boot extends Component {
   private shareInProgress = false;
   private swipeGuideActive = false;
   private assetsReady = false;
-  private currentScreen: ScreenName = 'loading';
+  private currentScreen: ScreenName = 'home';
   private collectionOrigin: CollectionOrigin = 'home';
   private dailyPromptShown = false;
   private dailyClaimInProgress = false;
   private gameOverSettlementInProgress = false;
   private runSequence = 0;
   private currentRunId = '';
+  private leaderboardRequestSequence = 0;
+  private leaderboardProfileSyncStarted = false;
 
   protected override onLoad(): void {
     this.setupCanvas();
@@ -129,23 +145,24 @@ export class Cat2048Boot extends Component {
   }
 
   private async initialize(): Promise<void> {
-    this.showLoading();
     this.applyEconomySnapshot(await this.economy.load());
     await runStartupSequence({
-      preload: () => this.art.preload((ratio) => this.loadingView.setProgress(ratio)),
+      preload: () => this.art.preload(reportCocosLoadingProgress),
       isActive: () => this.isValid,
       onReady: () => {
         this.assetsReady = true;
         setRuntimeFonts(
           this.art.font(GAME_CONFIG.fonts.display) ?? null,
-          this.art.font(GAME_CONFIG.fonts.numbers) ?? null,
+          null,
         );
         setButtonTheme(this.cosmetics.buttonTheme());
         this.showHome();
+        void this.flushPendingLeaderboardScores();
+        markCocosLoadingReady();
       },
       onError: (error) => {
         console.error('[Cat2048] Startup asset loading failed', error);
-        this.loadingView.showError();
+        markCocosLoadingError(error);
       },
     });
   }
@@ -170,21 +187,14 @@ export class Cat2048Boot extends Component {
     const screenBeforeResize = this.currentScreen;
     this.setupCanvas();
     if (!this.assetsReady) {
-      this.showLoading();
       return;
     }
     if (screenBeforeResize === 'game') this.showGame(false);
     else if (screenBeforeResize === 'collection') this.showCollection(this.collectionOrigin);
     else if (screenBeforeResize === 'shop') this.showShop();
+    else if (screenBeforeResize === 'leaderboard') this.showLeaderboard();
     else this.showHome();
   };
-
-  private showLoading(): void {
-    this.clearScreen();
-    this.currentScreen = 'loading';
-    const root = this.makeScreen('Loading');
-    this.loadingView.build(root, this.uiWidth, this.uiHeight);
-  }
 
   private showHome(): void {
     this.clearScreen();
@@ -205,6 +215,7 @@ export class Cat2048Boot extends Component {
       onPlay: () => { if (this.assetsReady) this.startGame(); },
       onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
       onCollection: () => { if (this.assetsReady) this.showCollection('home'); },
+      onLeaderboard: () => { if (this.assetsReady) this.showLeaderboard(); },
       onShop: () => { if (this.assetsReady) this.showShop(); },
       onDailyReward: () => { if (this.assetsReady) this.showDailyReward(); },
       onToggleSound: () => { if (this.assetsReady) this.toggleSound(); },
@@ -225,6 +236,70 @@ export class Cat2048Boot extends Component {
 
   private startGame(): void {
     this.showGame(true);
+  }
+
+  private showLeaderboard(): void {
+    this.clearScreen();
+    this.currentScreen = 'leaderboard';
+    const root = this.makeScreen('Leaderboard');
+    this.leaderboardView.build(root, {
+      data: null,
+      status: 'loading',
+      uiWidth: this.uiWidth,
+      uiHeight: this.uiHeight,
+      topInset: this.topSafeInset(),
+      bottomInset: this.bottomSafeInset(),
+    }, {
+      onBack: () => this.showHome(),
+      onRetry: () => { void this.loadLeaderboard(); },
+    });
+    void this.loadLeaderboard();
+  }
+
+  private async loadLeaderboard(): Promise<void> {
+    if (this.currentScreen !== 'leaderboard') return;
+    const token = this.sceneToken;
+    const requestSequence = ++this.leaderboardRequestSequence;
+    this.leaderboardView.update({
+      data: null,
+      status: 'loading',
+      uiWidth: this.uiWidth,
+      uiHeight: this.uiHeight,
+      topInset: this.topSafeInset(),
+      bottomInset: this.bottomSafeInset(),
+    });
+    try {
+      if (!this.leaderboardProfileSyncStarted) {
+        this.leaderboardProfileSyncStarted = true;
+        await this.leaderboard.syncAuthorizedProfile();
+      }
+      void this.flushPendingLeaderboardScores();
+      const data = await this.leaderboard.getLeaderboard();
+      if (token !== this.sceneToken
+        || requestSequence !== this.leaderboardRequestSequence
+        || this.currentScreen !== 'leaderboard') return;
+      this.leaderboardView.update({
+        data,
+        status: 'ready',
+        uiWidth: this.uiWidth,
+        uiHeight: this.uiHeight,
+        topInset: this.topSafeInset(),
+        bottomInset: this.bottomSafeInset(),
+      });
+    } catch (error) {
+      if (token !== this.sceneToken
+        || requestSequence !== this.leaderboardRequestSequence
+        || this.currentScreen !== 'leaderboard') return;
+      console.warn('[Cat2048] Failed to load leaderboard.', error);
+      this.leaderboardView.update({
+        data: null,
+        status: 'error',
+        uiWidth: this.uiWidth,
+        uiHeight: this.uiHeight,
+        topInset: this.topSafeInset(),
+        bottomInset: this.bottomSafeInset(),
+      });
+    }
   }
 
   private showShop(): void {
@@ -598,8 +673,30 @@ export class Cat2048Boot extends Component {
     this.gameOverSettlementInProgress = true;
     this.inputLocked = true;
     this.updateScore(this.game.score);
+    void this.submitCurrentScore();
     this.audio.play('game_over', 0.8);
     void this.settleAndShowGameOver();
+  }
+
+  private async submitCurrentScore(): Promise<void> {
+    const payload: ScorePayload = {
+      runId: this.currentRunId,
+      score: this.game.score,
+      highestLevel: highestLevelOfTiles(this.game.board.tiles),
+    };
+    try {
+      await this.leaderboard.submitScore(payload);
+    } catch (error) {
+      console.warn('[Cat2048] Leaderboard score queued for retry.', error);
+    }
+  }
+
+  private async flushPendingLeaderboardScores(): Promise<void> {
+    try {
+      await this.leaderboard.flushPendingScores();
+    } catch (error) {
+      console.warn('[Cat2048] Failed to flush pending leaderboard scores.', error);
+    }
   }
 
   private async settleAndShowGameOver(): Promise<void> {
@@ -733,6 +830,7 @@ export class Cat2048Boot extends Component {
     this.boardView.unmount();
     this.gameScreen.clear();
     this.shopView.clear();
+    this.leaderboardView.clear();
     this.gameOverOverlay = null;
     this.screenRoot?.destroy();
     this.screenRoot = null;

@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id          String            @id @default(uuid()) @db.Char(36)
+  openid      String            @unique @db.VarChar(128)
+  nickname    String?           @db.VarChar(32)
+  avatarUrl   String?           @db.VarChar(512)
+  highScore   Int               @default(0)
+  highScoreAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  submissions ScoreSubmission[]
+
+  @@index([highScore, highScoreAt, id])
+}
+
+model ScoreSubmission {
+  id           String   @id @default(uuid()) @db.Char(36)
+  playerId     String   @db.Char(36)
+  runId        String   @db.VarChar(64)
+  score        Int
+  highestLevel Int      @db.TinyInt
+  createdAt    DateTime @default(now())
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, runId])
+  @@index([playerId, createdAt])
+}

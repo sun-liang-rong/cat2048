@@ -23,6 +23,10 @@ export const GAME_CONFIG = {
     { level: 11, name: '星环圣灵猫', description: '星环环绕肩头，静静积蓄最后的光芒。', asset: classicCatAsset(11) },
     { level: 12, name: '创世极光猫', description: '万千极光汇于一身，完成猫咪的终极进化。', asset: classicCatAsset(12) },
   ],
+  network: {
+    // Set this to the deployed NestJS API origin before the WeChat build.
+    leaderboardBaseUrl: 'http://127.0.0.1:3000',
+  },
   art: {
     logo: 'game/ui/common/logo/texture',
     homeBackground: 'game/backgrounds/common/bg_home/texture',
@@ -53,6 +57,5 @@ export const GAME_CONFIG = {
   },
   fonts: {
     display: 'game/fonts/display',
-    numbers: 'game/fonts/score',
   },
 } as const;

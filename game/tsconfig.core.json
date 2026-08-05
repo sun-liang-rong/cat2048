@@ -15,8 +15,14 @@
     "assets/scripts/presentation/startupSequence.ts",
     "assets/scripts/presentation/settingsNavigation.ts",
     "assets/scripts/infrastructure/HapticController.ts",
+    "assets/scripts/infrastructure/leaderboard.ts",
     "assets/scripts/infrastructure/ResultShareController.ts",
     "assets/scripts/infrastructure/storage.ts",
     "tests/**/*.ts"
+  ],
+  "exclude": [
+    "tests/runtime-assets.test.ts",
+    "tests/swipeDirection.test.ts",
+    "tests/swipeInput.test.ts"
   ]
 }

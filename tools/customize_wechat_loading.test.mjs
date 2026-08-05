@@ -4,36 +4,56 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { customizeFirstScreen, filesHaveSameBytes } from './customize_wechat_loading.mjs';
+import { patchWeChatBootstrap } from './customize_wechat_loading.mjs';
 
-test('customizeFirstScreen replaces default colors and is idempotent', () => {
+const gameFixture = [
+  "const firstScreen = require('./first-screen');",
+  '',
+  "firstScreen.start('default', 'default', 'false').then(() => {",
+  "    return System.import('./application.js');",
+  '}).then((module) => {',
+  '    return firstScreen.setProgress(0.2).then(() => Promise.resolve(module));',
+  '}).then(({ Application }) => {',
+  '    return new Application();',
+  '}).then((application) => {',
+  '    return firstScreen.setProgress(0.4).then(() => Promise.resolve(application));',
+  '}).then((application) => {',
+  '    return onApplicationCreated(application);',
+  '});',
+  'function onApplicationCreated(application) {',
+  "    return System.import('cc').then((module) => {",
+  '        return firstScreen.setProgress(0.6).then(() => Promise.resolve(module));',
+  '    }).then((cc) => {',
+  "        require('./engine-adapter');",
+  '        return application.init(cc);',
+  '    }).then(() => {',
+  '        return firstScreen.end().then(() => application.start());',
+  '    });',
+  '}',
+].join('\n');
+
+test('patchWeChatBootstrap holds the Cocos first screen until runtime readiness', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cat2048-loading-'));
-  const firstScreen = join(directory, 'first-screen.js');
-  writeFileSync(firstScreen, [
-    'let progressBarColor = [61 / 255, 197 / 255, 222 / 255, 1];',
-    'let progressBackground = [100 / 255, 111 / 255, 118 / 255, 1];',
-    'let bgColor = [0.01568627450980392,0.03529411764705882,0.0392156862745098,0.00392156862745098];',
-  ].join('\n'));
+  const gamePath = join(directory, 'game.js');
+  writeFileSync(gamePath, gameFixture);
+  writeFileSync(join(directory, 'first-screen.js'), 'module.exports = {};');
 
-  customizeFirstScreen(firstScreen);
-  customizeFirstScreen(firstScreen);
+  assert.equal(patchWeChatBootstrap(directory), true);
+  assert.equal(patchWeChatBootstrap(directory), false);
 
-  const output = readFileSync(firstScreen, 'utf8');
-  assert.match(output, /CAT2048_CUSTOM_LOADING_SCREEN/);
-  assert.match(output, /let progressBarColor = \[0\.92, 0\.31, 0\.23, 1\];/);
-  assert.match(output, /let progressBackground = \[0\.16, 0\.13, 0\.11, 1\];/);
-  assert.match(output, /let bgColor = \[1, 0\.94, 0\.83, 1\];/);
-  assert.equal((output.match(/CAT2048_CUSTOM_LOADING_SCREEN/g) ?? []).length, 1);
+  const output = readFileSync(gamePath, 'utf8');
+  assert.equal((output.match(/CAT2048_COCOS_LOADING_BRIDGE/g) ?? []).length, 1);
+  assert.match(output, /globalThis\.__cat2048CocosLoading/);
+  assert.match(output, /runtimeReady\.then\(\(\) => firstScreen\.end\(\)\)/);
+  assert.doesNotMatch(output, /firstScreen\.end\(\)\.then\(\(\) => application\.start\(\)\)/);
 });
 
-test('filesHaveSameBytes detects stale generated logos', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'cat2048-logo-'));
-  const source = join(directory, 'source.png');
-  const generated = join(directory, 'generated.png');
-  writeFileSync(source, Buffer.from([1, 2, 3]));
-  writeFileSync(generated, Buffer.from([1, 2, 3]));
+test('patchWeChatBootstrap rejects unsupported generated bootstraps before writing', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cat2048-loading-'));
+  const gamePath = join(directory, 'game.js');
+  writeFileSync(gamePath, 'const firstScreen = require(\'./first-screen\');');
+  writeFileSync(join(directory, 'first-screen.js'), 'module.exports = {};');
 
-  assert.equal(filesHaveSameBytes(source, generated), true);
-  writeFileSync(generated, Buffer.from([3, 2, 1]));
-  assert.equal(filesHaveSameBytes(source, generated), false);
+  assert.throws(() => patchWeChatBootstrap(directory), /missing first-screen end chain/);
+  assert.equal(readFileSync(gamePath, 'utf8'), "const firstScreen = require('./first-screen');");
 });
