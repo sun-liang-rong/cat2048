@@ -13,9 +13,9 @@
 2. 首次打开后等待 Cocos 导入素材并生成 `temp/`。
 3. 打开 `assets/main.scene`，将其设为启动场景，然后使用浏览器预览。
 4. 微信小游戏构建时选择竖屏；排行榜联调需要配置微信登录和后端地址。
-5. 微信小游戏构建时关闭普通 `useSplashScreen` 和 `wechatgame.separateEngine`，但保留
-   Cocos 微信首屏。项目扩展会在构建后把 `resources/game` 的加载进度接入 Cocos 进度条，
-   资源加载完成后才结束首屏并显示游戏首页；项目不再显示独立的 `LoadingView`。
+5. 微信小游戏构建时关闭普通 `useSplashScreen` 和 `wechatgame.separateEngine`，保留
+   Cocos 微信首屏作为第一阶段加载页。原生首屏结束后，游戏会显示黑底项目加载页，
+   持续展示 logo 和 `resources/game` 的实际加载进度，资源全部加载完成后才进入首页。
 
 ## 命令
 

@@ -24,8 +24,7 @@ export const GAME_CONFIG = {
     { level: 12, name: '创世极光猫', description: '万千极光汇于一身，完成猫咪的终极进化。', asset: classicCatAsset(12) },
   ],
   network: {
-    // Set this to the deployed NestJS API origin before the WeChat build.
-    leaderboardBaseUrl: 'http://127.0.0.1:3000',
+    leaderboardBaseUrl: 'https://hongshu.sale/wx_server',
   },
   art: {
     logo: 'game/ui/common/logo/texture',

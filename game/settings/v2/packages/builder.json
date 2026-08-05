@@ -39,5 +39,17 @@
         }
       }
     }
+  },
+  "splash-setting": {
+    "background": {
+      "image": "project://settings/logo.png",
+      "type": "default"
+    },
+    "logo": {
+      "type": "custom",
+      "image": "project://settings/logo.png"
+    },
+    "totalTime": 5000,
+    "displayRatio": 1
   }
 }

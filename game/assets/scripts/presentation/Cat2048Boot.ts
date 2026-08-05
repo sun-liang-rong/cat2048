@@ -47,6 +47,7 @@ import { GameOverDialogView } from './GameOverDialogView';
 import { GameScreen } from './GameScreen';
 import { HomeView } from './HomeView';
 import { ItemBarView } from './ItemBarView';
+import { LoadingView } from './LoadingView';
 import { LeaderboardView } from './LeaderboardView';
 import { CosmeticRuntime } from './CosmeticRuntime';
 import { DailyRewardView } from './DailyRewardView';
@@ -56,11 +57,7 @@ import { settingsOrigin } from './settingsNavigation';
 import { runStartupSequence } from './startupSequence';
 import { SwipeInput } from './SwipeInput';
 import { TutorialView } from './TutorialView';
-import {
-  markCocosLoadingError,
-  markCocosLoadingReady,
-  reportCocosLoadingProgress,
-} from './cocosLoadingBridge';
+import { markCocosLoadingReady } from './cocosLoadingBridge';
 import {
   createUiNode,
   setButtonTheme,
@@ -69,7 +66,7 @@ import {
 
 const { ccclass } = _decorator;
 
-type ScreenName = 'home' | 'game' | 'collection' | 'shop' | 'leaderboard';
+type ScreenName = 'loading' | 'home' | 'game' | 'collection' | 'shop' | 'leaderboard';
 
 @ccclass('Cat2048Boot')
 export class Cat2048Boot extends Component {
@@ -86,6 +83,7 @@ export class Cat2048Boot extends Component {
   private readonly gameScreen = new GameScreen(this.art, this.boardView, this.itemBar, this.evolutionPanel);
   private readonly tutorialView = new TutorialView();
   private readonly gameOverDialog = new GameOverDialogView(this.art);
+  private readonly loadingView = new LoadingView();
   private readonly game = new Game2048(new RuntimeRandomSource());
   private readonly haptics = new HapticController();
   private readonly resultShare = new ResultShareController();
@@ -112,7 +110,7 @@ export class Cat2048Boot extends Component {
   private shareInProgress = false;
   private swipeGuideActive = false;
   private assetsReady = false;
-  private currentScreen: ScreenName = 'home';
+  private currentScreen: ScreenName = 'loading';
   private collectionOrigin: CollectionOrigin = 'home';
   private dailyPromptShown = false;
   private dailyClaimInProgress = false;
@@ -145,9 +143,12 @@ export class Cat2048Boot extends Component {
   }
 
   private async initialize(): Promise<void> {
+    this.showLoading();
+    // The Cocos first screen should hand off to this page before remote assets load.
+    markCocosLoadingReady();
     this.applyEconomySnapshot(await this.economy.load());
     await runStartupSequence({
-      preload: () => this.art.preload(reportCocosLoadingProgress),
+      preload: () => this.art.preload((ratio) => this.loadingView.setProgress(ratio)),
       isActive: () => this.isValid,
       onReady: () => {
         this.assetsReady = true;
@@ -158,11 +159,10 @@ export class Cat2048Boot extends Component {
         setButtonTheme(this.cosmetics.buttonTheme());
         this.showHome();
         void this.flushPendingLeaderboardScores();
-        markCocosLoadingReady();
       },
       onError: (error) => {
         console.error('[Cat2048] Startup asset loading failed', error);
-        markCocosLoadingError(error);
+        this.loadingView.showError();
       },
     });
   }
@@ -187,6 +187,7 @@ export class Cat2048Boot extends Component {
     const screenBeforeResize = this.currentScreen;
     this.setupCanvas();
     if (!this.assetsReady) {
+      this.showLoading();
       return;
     }
     if (screenBeforeResize === 'game') this.showGame(false);
@@ -195,6 +196,13 @@ export class Cat2048Boot extends Component {
     else if (screenBeforeResize === 'leaderboard') this.showLeaderboard();
     else this.showHome();
   };
+
+  private showLoading(): void {
+    this.clearScreen();
+    this.currentScreen = 'loading';
+    const root = this.makeScreen('Loading');
+    this.loadingView.build(root, this.uiWidth, this.uiHeight);
+  }
 
   private showHome(): void {
     this.clearScreen();
