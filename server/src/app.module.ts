@@ -7,10 +7,17 @@ import { HealthController } from './health.controller';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { PlayersModule } from './players/players.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { resolveServerEnvFilePath } from './config/env-file-path';
+
+const envFilePath = resolveServerEnvFilePath(__dirname, process.cwd());
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, cache: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      ...(envFilePath ? { envFilePath } : {}),
+    }),
     ThrottlerModule.forRoot([{ name: 'default', limit: 60, ttl: 60_000 }]),
     PrismaModule,
     PlayersModule,
