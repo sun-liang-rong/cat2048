@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   capsuleBottomInset,
   gameLayout,
+  homeActionDockPositions,
   homeContentShift,
   safeInsetsFromRect,
   spriteCropTransform,
 } from '../assets/scripts/presentation/layout';
 
 describe('portrait layout', () => {
+  it('centers five home dock actions with equal spacing', () => {
+    expect(homeActionDockPositions(5)).toEqual([-232, -116, 0, 116, 232]);
+  });
+
   it('uses Cocos safe-area coordinates without applying device pixel ratio twice', () => {
     expect(safeInsetsFromRect(1600, { x: 0, y: 28, width: 750, height: 1512 }))
       .toEqual({ top: 60, bottom: 28 });

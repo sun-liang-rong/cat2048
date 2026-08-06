@@ -85,6 +85,13 @@ export function homeContentShift(uiHeight: number, topInset: number, bottomInset
   return Math.max(0, Math.min(maxShift, centeredShift));
 }
 
+/** Returns evenly spaced x positions centered around the home action dock. */
+export function homeActionDockPositions(count: number, spacing = 116): number[] {
+  if (!Number.isInteger(count) || count <= 0) return [];
+  const center = (count - 1) / 2;
+  return Array.from({ length: count }, (_, index) => (index - center) * spacing);
+}
+
 /** Keeps the HUD, one-hand board, and item bar clear of both safe areas. */
 export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, bottomInset: number,
   boardPixels: number): GameLayout {

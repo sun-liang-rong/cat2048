@@ -158,6 +158,7 @@ export class Cat2048Boot extends Component {
         );
         setButtonTheme(this.cosmetics.buttonTheme());
         this.showHome();
+        void this.authenticateLeaderboard();
         void this.flushPendingLeaderboardScores();
       },
       onError: (error) => {
@@ -704,6 +705,14 @@ export class Cat2048Boot extends Component {
       await this.leaderboard.flushPendingScores();
     } catch (error) {
       console.warn('[Cat2048] Failed to flush pending leaderboard scores.', error);
+    }
+  }
+
+  private async authenticateLeaderboard(): Promise<void> {
+    try {
+      await this.leaderboard.ensureAuthenticated();
+    } catch (error) {
+      console.warn('[Cat2048] Leaderboard authentication unavailable.', error);
     }
   }
 

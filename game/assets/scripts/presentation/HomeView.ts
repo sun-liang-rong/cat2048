@@ -2,7 +2,7 @@ import { Color, Node, tween, Vec3 } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
 import { addCoverBackground } from './background';
-import { homeContentShift } from './layout';
+import { homeActionDockPositions, homeContentShift } from './layout';
 import {
   COLORS,
   createButton,
@@ -72,8 +72,17 @@ export class HomeView {
     play.setScale(1.02, 1.02, 1);
     tween(play).to(0.24, { scale: new Vec3(1.12, 1.12, 1) }, { easing: 'backOut' }).start();
 
+    const leaderboardShadow = createUiNode('LeaderboardButtonShadow', 516, 88);
+    drawRounded(leaderboardShadow, 516, 88, new Color(117, 63, 47, 130), 26);
+    leaderboardShadow.setPosition(0, this.homeTopY(model, 842) - 8);
+    parent.addChild(leaderboardShadow);
+    const leaderboard = createButton('\u6392\u884c\u699c', 500, 76, COLORS.teal,
+      () => actions.onLeaderboard(), 30);
+    leaderboard.setPosition(0, this.homeTopY(model, 842));
+    parent.addChild(leaderboard);
+
     const hint = createLabel('滑动合成  ·  轻松上手', 22, new Color(90, 72, 64, 220), 500, 50);
-    hint.node.setPosition(0, this.homeTopY(model, 792));
+    hint.node.setPosition(0, this.homeTopY(model, 928));
     hint.node.setScale(0.9, 0.9, 1);
     parent.addChild(hint.node);
 
@@ -256,7 +265,7 @@ export class HomeView {
     dock.setPosition(0, dockY);
     root.addChild(dock);
 
-    const positions = [-290, -174, -58, 58, 174, 290] as const;
+    const positions = homeActionDockPositions(5);
     const info = createIconButton('Info', this.art.frame(GAME_CONFIG.art.info), 'i', 64,
       () => actions.onInfo(), BOTTOM_EDGE_ICON_CROP);
     info.setPosition(positions[0], 11);
@@ -273,41 +282,34 @@ export class HomeView {
     collectionText.node.setPosition(positions[1], -36);
     dock.addChild(collectionText.node);
 
-    const leaderboard = createIconButton('Leaderboard', undefined, '\u699c', 58,
-      () => actions.onLeaderboard());
-    leaderboard.setPosition(positions[2], 11);
-    dock.addChild(leaderboard);
-    const leaderboardText = createLabel('\u6392\u884c\u699c', 16, COLORS.ink, 116, 28, 'display');
-    leaderboardText.node.setPosition(positions[2], -36);
-    dock.addChild(leaderboardText.node);
-
     const shop = createIconButton('Shop', this.art.frame(GAME_CONFIG.art.coin), '\u5546', 64,
       () => actions.onShop());
-    shop.setPosition(positions[3], 11);
+    shop.setPosition(positions[2], 11);
     dock.addChild(shop);
     const shopText = createLabel('\u5546\u5e97', 18, COLORS.ink, 100, 28, 'display');
-    shopText.node.setPosition(positions[3], -36);
+    shopText.node.setPosition(positions[2], -36);
     dock.addChild(shopText.node);
 
     const sound = createIconButton('SoundToggle', this.art.frame(model.soundEnabled
       ? GAME_CONFIG.art.soundOn : GAME_CONFIG.art.soundOff), model.soundEnabled ? '♪' : '×', 64,
       () => actions.onToggleSound(), model.soundEnabled ? TOP_EDGE_ICON_CROP : BOTTOM_EDGE_ICON_CROP);
-    sound.setPosition(positions[4], 11);
+    sound.setPosition(positions[3], 11);
     dock.addChild(sound);
     const soundText = createLabel(model.soundEnabled ? '音效开' : '音效关', 18, COLORS.ink, 110, 28, 'display');
-    soundText.node.setPosition(positions[4], -36);
+    soundText.node.setPosition(positions[3], -36);
     dock.addChild(soundText.node);
 
     const settings = createIconButton('Settings', this.art.frame(GAME_CONFIG.art.settings), '⚙', 64,
       () => actions.onSettings(), BOTTOM_EDGE_ICON_CROP);
-    settings.setPosition(positions[5], 11);
+    settings.setPosition(positions[4], 11);
     dock.addChild(settings);
     const settingsText = createLabel('设置', 18, COLORS.ink, 100, 28, 'display');
-    settingsText.node.setPosition(positions[5], -36);
+    settingsText.node.setPosition(positions[4], -36);
     dock.addChild(settingsText.node);
 
     const dividerColor = new Color(77, 61, 54, 55);
-    for (const x of [-232, -116, 0, 116, 232]) {
+    for (let index = 0; index < positions.length - 1; index += 1) {
+      const x = (positions[index] + positions[index + 1]) / 2;
       const divider = createUiNode(`DockDivider:${x}`, 2, 60);
       drawRounded(divider, 2, 60, dividerColor, 1);
       divider.setPosition(x, 0);

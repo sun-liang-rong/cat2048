@@ -149,6 +149,7 @@ export class LeaderboardClient {
   private readonly queue: PendingScoreQueue;
   private accessToken: string | null = null;
   private player: PlayerSummary | null = null;
+  private loginInFlight: Promise<PlayerSummary> | null = null;
 
   public constructor(
     private readonly transport: LeaderboardHttpTransport,
@@ -166,6 +167,23 @@ export class LeaderboardClient {
 
   public currentPlayer(): PlayerSummary | null {
     return this.player;
+  }
+
+  public ensureAuthenticated(): Promise<PlayerSummary> {
+    if (this.accessToken && this.player) return Promise.resolve(this.player);
+    if (this.loginInFlight) return this.loginInFlight;
+    const loginPromise = this.login().then(
+      (player) => {
+        this.loginInFlight = null;
+        return player;
+      },
+      (error) => {
+        this.loginInFlight = null;
+        throw error;
+      },
+    );
+    this.loginInFlight = loginPromise;
+    return loginPromise;
   }
 
   public async login(): Promise<PlayerSummary> {
@@ -250,13 +268,13 @@ export class LeaderboardClient {
     } catch (error) {
       if (!retry || !(error instanceof LeaderboardHttpError) || error.status !== 401) throw error;
       this.clearSession();
-      await this.login();
+      await this.ensureAuthenticated();
       return this.authorizedRequest<TResponse>(request, false);
     }
   }
 
   private async ensureAccessToken(): Promise<void> {
-    if (!this.accessToken) await this.login();
+    if (!this.accessToken) await this.ensureAuthenticated();
   }
 
   private loadSession(storage: StorageLike): void {

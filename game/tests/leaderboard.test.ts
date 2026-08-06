@@ -56,6 +56,41 @@ describe('highestLevelOfTiles', () => {
 });
 
 describe('LeaderboardClient', () => {
+  it('reuses an in-flight startup login for the first authorized request', async () => {
+    const storage = new MemoryStorage();
+    const authResponse = {
+      data: {
+        accessToken: 'token-1',
+        expiresIn: 604800,
+        player: { id: 'player-1', nickname: null, avatarUrl: null, highScore: 0 },
+      },
+    } as const;
+    let resolveAuth!: (response: typeof authResponse) => void;
+    const pendingAuth = new Promise<typeof authResponse>((resolve) => {
+      resolveAuth = resolve;
+    });
+    const transport: LeaderboardHttpTransport = {
+      async request<TResponse>(request: { path: string }): Promise<TResponse> {
+        if (request.path === '/v1/auth/wechat') {
+          return pendingAuth as unknown as TResponse;
+        }
+        return { data: { entries: [], me: null } } as TResponse;
+      },
+    };
+    const login: LeaderboardLoginProvider = {
+      getLoginCode: vi.fn().mockResolvedValue('code-1'),
+    };
+    const client = new LeaderboardClient(transport, login, storage);
+
+    const startupAuthentication = client.ensureAuthenticated();
+    const leaderboardRequest = client.getLeaderboard();
+    resolveAuth(authResponse);
+
+    await expect(startupAuthentication).resolves.toMatchObject({ id: 'player-1' });
+    await expect(leaderboardRequest).resolves.toEqual({ entries: [], me: null });
+    expect(login.getLoginCode).toHaveBeenCalledOnce();
+  });
+
   it('syncs the WeChat game profile through getUserInfo when getUserProfile is unavailable', async () => {
     const storage = new MemoryStorage();
     const requests: Array<{ url: string; method: string; data: unknown }> = [];
