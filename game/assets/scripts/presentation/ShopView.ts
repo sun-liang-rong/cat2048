@@ -43,10 +43,10 @@ export interface ShopViewActions {
 }
 
 const CATEGORY_LABELS: Readonly<Record<CosmeticCategory, string>> = {
-  'cat-skin': '\u732b\u54aa\u76ae\u80a4',
-  board: '\u68cb\u76d8\u80cc\u666f',
-  effect: '\u5408\u6210\u7279\u6548',
-  'button-theme': '\u6309\u94ae\u4e3b\u9898',
+  'cat-skin': '猫咪皮肤',
+  board: '棋盘背景',
+  effect: '合成特效',
+  'button-theme': '按钮主题',
 };
 
 const CATEGORIES: readonly CosmeticCategory[] = ['cat-skin', 'board', 'effect', 'button-theme'];
@@ -81,16 +81,16 @@ export class ShopView {
     parent.addChild(background);
 
     const headerY = model.uiHeight / 2 - model.topInset - 62;
-    const back = createIconButton('ShopBack', this.art.frame(GAME_CONFIG.art.back), '\u2039', 72,
+    const back = createIconButton('ShopBack', this.art.frame(GAME_CONFIG.art.back), '‹', 72,
       () => actions.onBack());
     back.setPosition(-model.uiWidth / 2 + 58, headerY);
     parent.addChild(back);
 
-    const title = createLabel('\u88c5\u9970\u5546\u5e97', 45, COLORS.coral, 300, 70, 'display');
+    const title = createLabel('装饰商店', 45, COLORS.coral, 300, 70, 'display');
     title.node.setPosition(-82, headerY + 8);
     parent.addChild(title.node);
 
-    this.wallet = createButton(`\u91d1\u5e01 ${model.economy.coins}`, 205, 64, COLORS.mustard,
+    this.wallet = createButton(`金币 ${model.economy.coins}`, 205, 64, COLORS.mustard,
       () => actions.onDailyReward(), 22, this.art.frame(GAME_CONFIG.art.coin));
     this.wallet.setPosition(model.uiWidth / 2 - 130, headerY + 4);
     parent.addChild(this.wallet);
@@ -166,7 +166,7 @@ export class ShopView {
     });
 
     if (items.length === 0) {
-      const empty = createLabel('\u6682\u65e0\u5546\u54c1', 26, COLORS.ink, 360, 60, 'display');
+      const empty = createLabel('暂无商品', 26, COLORS.ink, 360, 60, 'display');
       content.addChild(empty.node);
     }
   }
@@ -199,7 +199,7 @@ export class ShopView {
 
     const owned = model.economy.ownedItemIds.indexOf(item.id) >= 0;
     const equipped = this.isEquipped(item);
-    const actionText = equipped ? '\u5df2\u88c5\u5907' : owned ? '\u88c5\u5907' : `\u8d2d\u4e70 ${item.price}`;
+    const actionText = equipped ? '已装备' : owned ? '装备' : `购买 ${item.price}`;
     const canBuy = owned || model.economy.coins >= item.price;
     const action = createButton(actionText, width - 38, 54,
       equipped ? COLORS.teal : canBuy ? COLORS.coral : new Color(156, 148, 136, 210),

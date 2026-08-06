@@ -18,3 +18,10 @@ export function tweenOpacity(node: Node, opacity: number, seconds: number): Prom
     tween(target).to(seconds, { opacity }).call(() => resolve()).start();
   });
 }
+
+/** 基于引擎 tween 的延迟，随 director 暂停而暂停（不同于 setTimeout）。 */
+export function tweenDelay(node: Node, seconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    tween(node).delay(seconds).call(() => resolve()).start();
+  });
+}

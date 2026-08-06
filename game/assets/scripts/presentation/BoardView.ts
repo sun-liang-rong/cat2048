@@ -11,6 +11,7 @@ import {
   cellCenter,
 } from './boardGeometry';
 import {
+  tweenDelay,
   tweenOpacity,
   tweenPosition,
   tweenScale,
@@ -28,9 +29,20 @@ export interface BoardFeedback {
   onMove(): void;
 }
 
-function delay(seconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
-}
+const TILE_LEVEL_COLORS = [
+  COLORS.cream,
+  new Color(194, 219, 226, 255),
+  new Color(252, 209, 155, 255),
+  new Color(220, 224, 232, 255),
+  new Color(241, 214, 174, 255),
+  new Color(214, 172, 115, 255),
+  new Color(231, 230, 218, 255),
+  new Color(78, 72, 79, 255),
+  new Color(106, 84, 181, 255),
+  new Color(109, 174, 189, 255),
+  new Color(121, 93, 181, 255),
+  new Color(225, 172, 69, 255),
+] as const;
 
 export class BoardView {
   private boardRoot: Node | null = null;
@@ -111,7 +123,7 @@ export class BoardView {
     else feedback.onMove();
 
     for (const merge of result.merges) this.finishMerge(merge);
-    if (result.merges.length > 0) await delay(GAME_CONFIG.mergeSeconds);
+    if (result.merges.length > 0 && this.boardRoot) await tweenDelay(this.boardRoot, GAME_CONFIG.mergeSeconds);
     if (!isAlive()) return;
 
     if (result.spawned) {
@@ -239,11 +251,7 @@ export class BoardView {
   private createTileNode(tile: Tile): Node {
     if (!this.tileLayer) throw new Error('Tile layer is not initialized.');
     const node = createUiNode(`Tile:${tile.id}`, CELL_SIZE, CELL_SIZE);
-    const colors = [COLORS.cream, new Color(194, 219, 226, 255), new Color(252, 209, 155, 255),
-      new Color(220, 224, 232, 255), new Color(241, 214, 174, 255), new Color(214, 172, 115, 255),
-      new Color(231, 230, 218, 255), new Color(78, 72, 79, 255), new Color(106, 84, 181, 255),
-      new Color(109, 174, 189, 255), new Color(121, 93, 181, 255), new Color(225, 172, 69, 255)];
-    drawRounded(node, CELL_SIZE, CELL_SIZE, colors[tile.level - 1], 24, { color: COLORS.ink, width: 3 });
+    drawRounded(node, CELL_SIZE, CELL_SIZE, TILE_LEVEL_COLORS[tile.level - 1], 24, { color: COLORS.ink, width: 3 });
     node.setPosition(this.positionFor(tile));
     this.tileLayer.addChild(node);
 

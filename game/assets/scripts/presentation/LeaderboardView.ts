@@ -80,34 +80,34 @@ export class LeaderboardView {
     );
 
     const headerY = model.uiHeight / 2 - model.topInset - 62;
-    const back = createIconButton('LeaderboardBack', this.art.frame(GAME_CONFIG.art.back), '\u2039', 72,
+    const back = createIconButton('LeaderboardBack', this.art.frame(GAME_CONFIG.art.back), '‹', 72,
       actions.onBack);
     back.setPosition(-model.uiWidth / 2 + 58, headerY);
     parent.addChild(back);
 
-    const title = createLabel('\u6392\u884c\u699c', 45, COLORS.coral, 300, 70, 'display');
+    const title = createLabel('排行榜', 45, COLORS.coral, 300, 70, 'display');
     title.node.setPosition(0, headerY + 8);
     parent.addChild(title.node);
 
     const meText = model.data?.me
-      ? `\u6211\u7684\u6392\u540d  ${model.data.me.rank}  \u00b7  ${model.data.me.score}`
-      : '\u5b8c\u6210\u4e00\u5c40\u540e\u52a0\u5165\u6392\u884c\u699c';
+      ? `我的排名  ${model.data.me.rank}  ·  ${model.data.me.score}`
+      : '完成一局后加入排行榜';
     const me = createLabel(meText, 22, COLORS.teal, Math.min(520, model.uiWidth - 80), 42, 'display');
     me.node.setPosition(0, headerY - 62);
     parent.addChild(me.node);
 
     if (model.status === 'loading') {
-      const loading = createLabel('\u6b63\u5728\u52a0\u8f7d\u6392\u884c\u699c...', 28, COLORS.ink, 420, 60, 'display');
+      const loading = createLabel('正在加载排行榜...', 28, COLORS.ink, 420, 60, 'display');
       loading.node.setPosition(0, 80);
       parent.addChild(loading.node);
       return;
     }
 
     if (model.status === 'error') {
-      const error = createLabel('\u6392\u884c\u699c\u6682\u65f6\u4e0d\u53ef\u7528', 28, COLORS.ink, 460, 60, 'display');
+      const error = createLabel('排行榜暂时不可用', 28, COLORS.ink, 460, 60, 'display');
       error.node.setPosition(0, 100);
       parent.addChild(error.node);
-      const retry = createButton('\u91cd\u8bd5', 250, 72, COLORS.teal, actions.onRetry, 28);
+      const retry = createButton('重试', 250, 72, COLORS.teal, actions.onRetry, 28);
       retry.setPosition(0, 8);
       parent.addChild(retry);
       return;
@@ -115,7 +115,7 @@ export class LeaderboardView {
 
     const entries = model.data?.entries ?? [];
     if (entries.length === 0) {
-      const empty = createLabel('\u6682\u65e0\u6392\u540d\uff0c\u6210\u4e3a\u7b2c\u4e00\u4e2a\u6311\u6218\u8005\u5427',
+      const empty = createLabel('暂无排名，成为第一个挑战者吧',
         26, COLORS.ink, Math.min(620, model.uiWidth - 50), 80, 'display');
       empty.node.setPosition(0, 80);
       parent.addChild(empty.node);
@@ -198,14 +198,14 @@ export class LeaderboardView {
   }
 
   private displayName(entry: LeaderboardEntry): string {
-    return entry.nickname?.trim() || `\u73a9\u5bb6-${entry.playerId.slice(-4)}`;
+    return entry.nickname?.trim() || `玩家-${entry.playerId.slice(-4)}`;
   }
 
   private initial(nickname: string | null): string {
-    return nickname?.trim().slice(0, 1) || '\u73a9';
+    return nickname?.trim().slice(0, 1) || '玩';
   }
 
   private scoreText(score: number): string {
-    return `\u6700\u9ad8\u5206  ${score}`;
+    return `最高分  ${score}`;
   }
 }

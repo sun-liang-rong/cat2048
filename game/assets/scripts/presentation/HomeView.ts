@@ -1,8 +1,8 @@
-import { Color, Node, tween, Vec3 } from 'cc';
+import { Color, Graphics, Label, Node, tween, Vec3 } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
 import { addCoverBackground } from './background';
-import { homeActionDockPositions, homeContentShift } from './layout';
+import { homeActionDockPositions, homeContentShift, spriteCropTransform } from './layout';
 import {
   COLORS,
   createButton,
@@ -15,6 +15,7 @@ import {
 
 const BOTTOM_EDGE_ICON_CROP = { x: 4, y: 0, width: 144, height: 144 } as const;
 const TOP_EDGE_ICON_CROP = { x: 4, y: 16, width: 144, height: 144 } as const;
+const SOUND_BUTTON_SIZE = 64;
 
 export interface HomeViewModel {
   highScore: number;
@@ -41,7 +42,34 @@ export interface HomeViewActions {
 }
 
 export class HomeView {
+  private soundButton: Node | null = null;
+  private soundLabel: Label | null = null;
+
   public constructor(private readonly art: ArtRepository) {}
+
+  /** 局部刷新音效按钮，避免整页重建。 */
+  public setSoundEnabled(enabled: boolean): void {
+    const button = this.soundButton;
+    const label = this.soundLabel;
+    if (!button?.isValid || !label?.isValid) return;
+    for (const child of [...button.children]) child.destroy();
+    button.getComponent(Graphics)?.destroy();
+    const frame = this.art.frame(enabled ? GAME_CONFIG.art.soundOn : GAME_CONFIG.art.soundOff);
+    if (frame) {
+      const transform = spriteCropTransform(SOUND_BUTTON_SIZE, frame.originalSize.width, frame.originalSize.height,
+        enabled ? TOP_EDGE_ICON_CROP : BOTTOM_EDGE_ICON_CROP);
+      const icon = createSpriteNode('SoundToggle:Icon', frame, transform.width, transform.height);
+      icon.setPosition(transform.x, transform.y);
+      button.addChild(icon);
+    } else {
+      drawRounded(button, SOUND_BUTTON_SIZE, SOUND_BUTTON_SIZE, new Color(255, 248, 226, 235),
+        SOUND_BUTTON_SIZE / 2, { color: COLORS.ink, width: 4 });
+      const fallback = createLabel(enabled ? '♪' : '×', SOUND_BUTTON_SIZE * 0.5, COLORS.ink,
+        SOUND_BUTTON_SIZE * 0.8, SOUND_BUTTON_SIZE * 0.8);
+      button.addChild(fallback.node);
+    }
+    label.string = enabled ? '音效开' : '音效关';
+  }
 
   public build(parent: Node, model: HomeViewModel, actions: HomeViewActions): void {
     addCoverBackground(
@@ -76,7 +104,7 @@ export class HomeView {
     drawRounded(leaderboardShadow, 516, 88, new Color(117, 63, 47, 130), 26);
     leaderboardShadow.setPosition(0, this.homeTopY(model, 842) - 8);
     parent.addChild(leaderboardShadow);
-    const leaderboard = createButton('\u6392\u884c\u699c', 500, 76, COLORS.teal,
+    const leaderboard = createButton('排行榜', 500, 76, COLORS.teal,
       () => actions.onLeaderboard(), 30);
     leaderboard.setPosition(0, this.homeTopY(model, 842));
     parent.addChild(leaderboard);
@@ -91,8 +119,8 @@ export class HomeView {
 
   private addHomeWallet(root: Node, model: HomeViewModel, actions: HomeViewActions): void {
     const text = model.canClaimDaily
-      ? `\u9886\u53d6 +${model.dailyReward}`
-      : `\u91d1\u5e01 ${model.coins}`;
+      ? `领取 +${model.dailyReward}`
+      : `金币 ${model.coins}`;
     const wallet = createButton(text, 220, 62, model.canClaimDaily ? COLORS.coral : COLORS.mustard,
       () => actions.onDailyReward(), 22, this.art.frame(GAME_CONFIG.art.coin));
     wallet.setPosition(0, this.homeTopY(model, 302));
@@ -282,11 +310,11 @@ export class HomeView {
     collectionText.node.setPosition(positions[1], -36);
     dock.addChild(collectionText.node);
 
-    const shop = createIconButton('Shop', this.art.frame(GAME_CONFIG.art.coin), '\u5546', 64,
+    const shop = createIconButton('Shop', this.art.frame(GAME_CONFIG.art.coin), '商', 64,
       () => actions.onShop());
     shop.setPosition(positions[2], 11);
     dock.addChild(shop);
-    const shopText = createLabel('\u5546\u5e97', 18, COLORS.ink, 100, 28, 'display');
+    const shopText = createLabel('商店', 18, COLORS.ink, 100, 28, 'display');
     shopText.node.setPosition(positions[2], -36);
     dock.addChild(shopText.node);
 
@@ -295,9 +323,11 @@ export class HomeView {
       () => actions.onToggleSound(), model.soundEnabled ? TOP_EDGE_ICON_CROP : BOTTOM_EDGE_ICON_CROP);
     sound.setPosition(positions[3], 11);
     dock.addChild(sound);
+    this.soundButton = sound;
     const soundText = createLabel(model.soundEnabled ? '音效开' : '音效关', 18, COLORS.ink, 110, 28, 'display');
     soundText.node.setPosition(positions[3], -36);
     dock.addChild(soundText.node);
+    this.soundLabel = soundText;
 
     const settings = createIconButton('Settings', this.art.frame(GAME_CONFIG.art.settings), '⚙', 64,
       () => actions.onSettings(), BOTTOM_EDGE_ICON_CROP);

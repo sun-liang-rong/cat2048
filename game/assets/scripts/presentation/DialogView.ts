@@ -89,7 +89,8 @@ export class DialogView {
     tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
   }
 
-  public showNotice(parent: Node, text: string): void {
+  public showNotice(parent: Node | null, text: string): void {
+    if (!parent) return;
     const { height } = this.getSize();
     const notice = createUiNode('ShareNotice', 500, 78);
     drawRounded(notice, 500, 78, COLORS.ink, 24);

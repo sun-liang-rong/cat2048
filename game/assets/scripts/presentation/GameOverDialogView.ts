@@ -45,8 +45,8 @@ export class GameOverDialogView {
     score.node.setPosition(0, panelHeight / 2 - 175);
     panel.addChild(score.node);
     const reward = createLabel(model.runRewardFailed
-      ? '\u672c\u5c40\u91d1\u5e01\u6682\u672a\u7ed3\u7b97'
-      : `+${model.runReward} \u91d1\u5e01  \u00b7  \u4f59\u989d ${model.coins}`,
+      ? '本局金币暂未结算'
+      : `+${model.runReward} 金币  ·  余额 ${model.coins}`,
       23, model.runRewardFailed ? COLORS.coral : COLORS.teal, 490, 42, 'display');
     reward.node.setPosition(0, panelHeight / 2 - 235);
     panel.addChild(reward.node);

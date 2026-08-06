@@ -49,13 +49,13 @@ export class ItemBarView {
     bar.setPosition(0, y);
     parent.addChild(bar);
 
-    const undo = this.createItemButton('undo', 'UndoItem', '\u64a4\u56de\u4e00\u6b65', '\u21b6');
+    const undo = this.createItemButton('undo', 'UndoItem', '撤回一步', '↶');
     undo.node.setPosition(-167, 0);
     bar.addChild(undo.node);
     this.undoItem = undo;
 
     const remove = this.createItemButton('remove-lowest', 'RemoveLowestItem',
-      '\u6d88\u9664\u6700\u4f4e \u00d73', '\u00d73');
+      '消除最低 ×3', '×3');
     remove.node.setPosition(167, 0);
     bar.addChild(remove.node);
     this.removeLowestItem = remove;
@@ -128,7 +128,7 @@ export class ItemBarView {
     remaining: number, refillRemaining: number): void {
     if (!view) return;
     view.count.string = String(remaining);
-    setLabelText(view.title, canRefill ? '\u5206\u4eab\u8865\u5145' : view.baseTitle, 'display');
+    setLabelText(view.title, canRefill ? '分享补充' : view.baseTitle, 'display');
     for (const child of [...view.icon.children]) child.destroy();
     const frame = canRefill
       ? this.art.frame(GAME_CONFIG.art.share)

@@ -7,6 +7,7 @@ import {
 } from 'cc';
 import type { BoardSnapshot, Direction, ItemKind, ItemState } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
+import { highestLevelOfTiles } from '../infrastructure/leaderboard';
 import type { ArtRepository } from './ArtRepository';
 import { addCoverBackground } from './background';
 import { BoardView } from './BoardView';
@@ -100,7 +101,7 @@ export class GameScreen {
     parent.addChild(bestCard.node);
     this.highScoreLabel = bestCard.value;
 
-    const highestLevel = this.highestLevel(model.board);
+    const highestLevel = highestLevelOfTiles(model.board.tiles);
     this.evolution.mount(parent, model.uiHeight / 2 - layout.evolutionPanelCenterFromTop,
       layout.evolutionPanelHeight, highestLevel, model.unlockedCount, {
         isLocked: actions.isLocked,
@@ -144,12 +145,12 @@ export class GameScreen {
   }
 
   public refreshEvolution(board: BoardSnapshot, unlockedCount: number): void {
-    this.evolution.refresh(this.highestLevel(board), unlockedCount);
+    this.evolution.refresh(highestLevelOfTiles(board.tiles), unlockedCount);
   }
 
   public updateScore(score: number, highScore: number): void {
-    this.scoreLabel = this.replaceHudValue(this.scoreLabel, String(score));
-    this.highScoreLabel = this.replaceHudValue(this.highScoreLabel, String(highScore));
+    this.setHudValue(this.scoreLabel, score);
+    this.setHudValue(this.highScoreLabel, highScore);
   }
 
   public clear(): void {
@@ -172,24 +173,14 @@ export class GameScreen {
   }
 
   private createHudValue(valueText: string): Label {
+    // NONE：固定字号、不裁剪、不缩放；超大分数完整显示（居中溢出卡片边缘）。
     const value = createLabel(valueText, HUD_VALUE_FONT_SIZE, COLORS.ink, 178, 48, 'display', 'display');
     value.enableWrapText = false;
-    value.overflow = Label.Overflow.CLAMP;
+    value.overflow = Label.Overflow.NONE;
     return value;
   }
 
-  private replaceHudValue(previous: Label | null, valueText: string): Label | null {
-    const parent = previous?.node.parent;
-    if (!previous || !parent) return previous;
-    const value = this.createHudValue(valueText);
-    value.node.setPosition(previous.node.position);
-    parent.addChild(value.node);
-    value.node.setSiblingIndex(previous.node.getSiblingIndex());
-    previous.node.destroy();
-    return value;
-  }
-
-  private highestLevel(board: BoardSnapshot): number {
-    return board.tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1);
+  private setHudValue(label: Label | null, value: number): void {
+    if (label) label.string = String(value);
   }
 }

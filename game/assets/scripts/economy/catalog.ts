@@ -46,7 +46,7 @@ const DEFAULT_ITEM_DEFINITIONS: readonly CosmeticDefinition[] = [
   {
     id: 'cat-skin.default',
     category: 'cat-skin',
-    name: '\u7ecf\u5178\u732b\u54aa',
+    name: '经典猫咪',
     price: 0,
     previewAsset: defaultCatAssets[0],
     levelAssets: defaultCatAssets,
@@ -54,7 +54,7 @@ const DEFAULT_ITEM_DEFINITIONS: readonly CosmeticDefinition[] = [
   {
     id: 'board.wood',
     category: 'board',
-    name: '\u6728\u8d28\u732b\u7a9d',
+    name: '木质猫窝',
     price: 0,
     previewAsset: 'game/backgrounds/board/wood/bg_board_wood/texture',
     boardAsset: 'game/backgrounds/board/wood/bg_board_wood/texture',
@@ -62,7 +62,7 @@ const DEFAULT_ITEM_DEFINITIONS: readonly CosmeticDefinition[] = [
   {
     id: 'effect.classic',
     category: 'effect',
-    name: '\u7ecf\u5178\u5408\u6210',
+    name: '经典合成',
     price: 0,
     previewAsset: 'game/effects/classic/merge_burst/texture',
     sparkleAsset: 'game/effects/classic/merge_sparkle/texture',
@@ -71,7 +71,7 @@ const DEFAULT_ITEM_DEFINITIONS: readonly CosmeticDefinition[] = [
   {
     id: 'button-theme.classic',
     category: 'button-theme',
-    name: '\u7ecf\u5178\u4e3b\u9898',
+    name: '经典主题',
     price: 0,
   },
 ];
@@ -92,7 +92,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'cat-skin.sunny',
     category: 'cat-skin',
-    name: '\u9633\u5149\u732b\u54aa',
+    name: '阳光猫咪',
     price: 800,
     previewAsset: skinAssets('sunny')[0],
     levelAssets: skinAssets('sunny'),
@@ -100,7 +100,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'cat-skin.aurora',
     category: 'cat-skin',
-    name: '\u6781\u5149\u732b\u54aa',
+    name: '极光猫咪',
     price: 1200,
     previewAsset: skinAssets('aurora')[0],
     levelAssets: skinAssets('aurora'),
@@ -108,7 +108,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'board.pink',
     category: 'board',
-    name: '\u7c89\u8272\u732b\u7a9d',
+    name: '粉色猫窝',
     price: 250,
     previewAsset: 'game/backgrounds/board/pink/bg_board_pink/texture',
     boardAsset: 'game/backgrounds/board/pink/bg_board_pink/texture',
@@ -116,7 +116,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'board.star',
     category: 'board',
-    name: '\u661f\u7a7a\u732b\u7a9d',
+    name: '星空猫窝',
     price: 500,
     previewAsset: 'game/backgrounds/board/star/bg_board_star/texture',
     boardAsset: 'game/backgrounds/board/star/bg_board_star/texture',
@@ -124,7 +124,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'effect.aurora',
     category: 'effect',
-    name: '\u6781\u5149\u5408\u6210',
+    name: '极光合成',
     price: 300,
     previewAsset: 'game/effects/aurora/aurora_burst/texture',
     sparkleAsset: 'game/effects/aurora/aurora_sparkle/texture',
@@ -133,7 +133,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'effect.stars',
     category: 'effect',
-    name: '\u661f\u5c51\u5408\u6210',
+    name: '星屑合成',
     price: 600,
     previewAsset: 'game/effects/stars/stars_burst/texture',
     sparkleAsset: 'game/effects/stars/stars_sparkle/texture',
@@ -142,7 +142,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'button-theme.berry',
     category: 'button-theme',
-    name: '\u6811\u8393\u4e3b\u9898',
+    name: '树莓主题',
     price: 180,
     previewAsset: 'game/ui/button-themes/berry/primary/texture',
     primaryAsset: 'game/ui/button-themes/berry/primary/texture',
@@ -153,7 +153,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'button-theme.aurora',
     category: 'button-theme',
-    name: '\u6781\u5149\u4e3b\u9898',
+    name: '极光主题',
     price: 360,
     previewAsset: 'game/ui/button-themes/aurora/primary/texture',
     primaryAsset: 'game/ui/button-themes/aurora/primary/texture',

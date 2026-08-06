@@ -58,7 +58,7 @@ export class EvolutionPanelView {
     const next = GAME_CONFIG.cats[Math.min(safeLevel, GAME_CONFIG.cats.length - 1)];
     const maxed = safeLevel === GAME_CONFIG.cats.length;
 
-    const title = createLabel('\u732b\u54aa\u8fdb\u5316\u8def\u7ebf', compact ? 21 : 24,
+    const title = createLabel('猫咪进化路线', compact ? 21 : 24,
       COLORS.ink, 250, 38, 'display');
     title.node.setPosition(-173, panelHeight / 2 - (compact ? 26 : 31));
     panel.addChild(title.node);
@@ -87,7 +87,7 @@ export class EvolutionPanelView {
     const arrowBadge = createUiNode('EvolutionArrow', compact ? 42 : 52, compact ? 42 : 52);
     drawRounded(arrowBadge, compact ? 42 : 52, compact ? 42 : 52,
       COLORS.teal, compact ? 21 : 26);
-    const arrow = createLabel('\u203a', compact ? 34 : 42, COLORS.white,
+    const arrow = createLabel('›', compact ? 34 : 42, COLORS.white,
       compact ? 36 : 44, compact ? 36 : 44, 'display');
     arrow.node.setPosition(2, 2);
     arrowBadge.addChild(arrow.node);
@@ -95,7 +95,7 @@ export class EvolutionPanelView {
     panel.addChild(arrowBadge);
 
     if (maxed) {
-      const complete = createLabel('\u5168\u56fe\u9274\u8fbe\u6210', compact ? 19 : 22,
+      const complete = createLabel('全图鉴达成', compact ? 19 : 22,
         COLORS.mustard, 200, 42, 'display');
       complete.node.setPosition(185, catY);
       panel.addChild(complete.node);
@@ -148,11 +148,11 @@ export class EvolutionPanelView {
 
   private collectionText(unlockedCount: number): string {
     return unlockedCount >= GAME_CONFIG.cats.length
-      ? '\u5168\u56fe\u9274\u8fbe\u6210'
-      : `\u56fe\u9274 ${unlockedCount}/${GAME_CONFIG.cats.length}`;
+      ? '全图鉴达成'
+      : `图鉴 ${unlockedCount}/${GAME_CONFIG.cats.length}`;
   }
 
   private compactCollectionText(unlockedCount: number): string {
-    return `\u56fe\u9274 ${unlockedCount}/${GAME_CONFIG.cats.length} \u203a`;
+    return `图鉴 ${unlockedCount}/${GAME_CONFIG.cats.length} ›`;
   }
 }
