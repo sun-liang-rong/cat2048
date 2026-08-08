@@ -36,6 +36,7 @@ export interface EconomyRepository {
   load(): Promise<EconomySnapshot>;
   claimDailyReward(): Promise<EconomyMutationResult>;
   settleRun(request: RunRewardRequest): Promise<EconomyMutationResult>;
+  grantCoins(amount: number): Promise<EconomyMutationResult>;
   purchase(itemId: string): Promise<EconomyMutationResult>;
   equip(itemId: string): Promise<EconomyMutationResult>;
 }
@@ -115,6 +116,15 @@ export class LocalEconomyRepository implements EconomyRepository {
     };
     this.saveStorage.save({ ...save, economy });
     return this.result(economy, true, awardedCoins);
+  }
+
+  public async grantCoins(amount: number): Promise<EconomyMutationResult> {
+    const save = this.saveStorage.load();
+    const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
+    if (safeAmount <= 0) return this.result(save.economy, false, 0);
+    const economy = { ...save.economy, coins: save.economy.coins + safeAmount };
+    this.saveStorage.save({ ...save, economy });
+    return this.result(economy, true, safeAmount);
   }
 
   public async purchase(itemId: string): Promise<EconomyMutationResult> {

@@ -64,6 +64,20 @@ describe('LocalEconomyRepository', () => {
     expect((await repository.load()).coins).toBe(DEFAULT_ECONOMY.coins + 20);
   });
 
+  it('grants coins for task rewards and ignores invalid amounts', async () => {
+    const repository = new LocalEconomyRepository(new MemoryStorage());
+
+    const granted = await repository.grantCoins(30);
+    expect(granted.ok).toBe(true);
+    expect(granted.awardedCoins).toBe(30);
+    expect((await repository.load()).coins).toBe(DEFAULT_ECONOMY.coins + 30);
+
+    const rejected = await repository.grantCoins(-5);
+    expect(rejected.ok).toBe(false);
+    expect(rejected.awardedCoins).toBe(0);
+    expect((await repository.load()).coins).toBe(DEFAULT_ECONOMY.coins + 30);
+  });
+
   it('does not spend coins when balance is insufficient and equips owned items', async () => {
     const repository = new LocalEconomyRepository(new MemoryStorage());
     const item = SHOP_ITEMS.find((candidate) => candidate.category === 'board');

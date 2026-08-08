@@ -47,6 +47,12 @@ function emit(type: string, event?: EventTouch): void {
   for (const handler of handlers.get(type) ?? []) handler(event);
 }
 
+// The real EventTouch constructor needs engine internals, so build the mocked
+// shape (see vi.mock above) and cast to the public type.
+function touchEvent(point: { x: number; y: number }): EventTouch {
+  return { getUILocation: () => point } as unknown as EventTouch;
+}
+
 describe('SwipeInput cancel / lock state', () => {
   it('clears gesture state on cancel and does not fire swipe later', () => {
     handlers.clear();
@@ -57,14 +63,14 @@ describe('SwipeInput cancel / lock state', () => {
     const board = new Node() as unknown as Node;
     swipe.bind(board, (x, y) => ({ x, y }));
 
-    emit(Node.EventType.TOUCH_START, new EventTouch({ x: 0, y: 0 }) as EventTouch);
+    emit(Node.EventType.TOUCH_START, touchEvent({ x: 0, y: 0 }));
     expect(onStart).toHaveBeenCalledWith(0, 0);
 
     emit(Node.EventType.TOUCH_CANCEL);
     expect(onEndOrCancel).toHaveBeenCalledTimes(1);
 
     // A subsequent end with large delta must not swipe after cancel cleared start.
-    emit(Node.EventType.TOUCH_END, new EventTouch({ x: 100, y: 0 }) as EventTouch);
+    emit(Node.EventType.TOUCH_END, touchEvent({ x: 100, y: 0 }));
     expect(onSwipe).not.toHaveBeenCalled();
   });
 
@@ -76,9 +82,9 @@ describe('SwipeInput cancel / lock state', () => {
     const swipe = new SwipeInput(() => locked, onSwipe, undefined, onEndOrCancel);
     swipe.bind(new Node() as unknown as Node, () => ({ x: 0, y: 0 }));
 
-    emit(Node.EventType.TOUCH_START, new EventTouch({ x: 0, y: 0 }) as EventTouch);
+    emit(Node.EventType.TOUCH_START, touchEvent({ x: 0, y: 0 }));
     locked = true;
-    emit(Node.EventType.TOUCH_END, new EventTouch({ x: 100, y: 0 }) as EventTouch);
+    emit(Node.EventType.TOUCH_END, touchEvent({ x: 100, y: 0 }));
 
     expect(onEndOrCancel).toHaveBeenCalledTimes(1);
     expect(onSwipe).not.toHaveBeenCalled();
@@ -91,11 +97,11 @@ describe('SwipeInput cancel / lock state', () => {
     const swipe = new SwipeInput(() => false, onSwipe, undefined, onEndOrCancel);
     swipe.bind(new Node() as unknown as Node, () => ({ x: 0, y: 0 }));
 
-    emit(Node.EventType.TOUCH_START, new EventTouch({ x: 0, y: 0 }) as EventTouch);
+    emit(Node.EventType.TOUCH_START, touchEvent({ x: 0, y: 0 }));
     swipe.unbind();
     expect(onEndOrCancel).toHaveBeenCalledTimes(1);
 
-    emit(Node.EventType.TOUCH_END, new EventTouch({ x: 120, y: 0 }) as EventTouch);
+    emit(Node.EventType.TOUCH_END, touchEvent({ x: 120, y: 0 }));
     expect(onSwipe).not.toHaveBeenCalled();
     expect(handlers.get(Node.EventType.TOUCH_END) ?? []).toHaveLength(0);
   });

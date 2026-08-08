@@ -18,6 +18,7 @@ import {
   type EconomyMutationResult,
   type EconomySnapshot,
 } from '../economy/economy';
+import { LocalDailyTaskRepository } from '../infrastructure/dailyTasks';
 import type { Direction } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import { HapticController } from '../infrastructure/HapticController';
@@ -44,6 +45,7 @@ import { LoadingView } from './LoadingView';
 import { LeaderboardView } from './LeaderboardView';
 import { CosmeticRuntime } from './CosmeticRuntime';
 import { DailyRewardView } from './DailyRewardView';
+import { TaskPanelView } from './TaskPanelView';
 import { ShopView } from './ShopView';
 import { SettingsPanel } from './SettingsPanel';
 import { settingsOrigin } from './settingsNavigation';
@@ -70,10 +72,12 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private readonly leaderboardView = new LeaderboardView(this.art);
   private readonly shopView = new ShopView(this.art, this.cosmetics);
   private readonly dailyRewardView = new DailyRewardView(this.art);
+  private readonly taskPanel = new TaskPanelView(this.art);
   private readonly loadingView = new LoadingView();
   private readonly haptics = new HapticController();
   private readonly resultShare = new ResultShareController();
   private readonly economy = new LocalEconomyRepository(sys.localStorage);
+  private readonly tasks = new LocalDailyTaskRepository(sys.localStorage);
   private readonly leaderboard = createWechatLeaderboardClient(
     GAME_CONFIG.network.leaderboardBaseUrl,
     sys.localStorage,
@@ -83,6 +87,8 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private save: SaveDataV3 = DEFAULT_SAVE;
   private screenRoot: Node | null = null;
   private dailyRewardOverlay: Node | null = null;
+  private taskOverlay: Node | null = null;
+  private taskClaimInProgress = false;
   private economySnapshot!: EconomySnapshot;
   private inputLocked = false;
   private readonly dialogs = new DialogView(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
@@ -116,6 +122,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       haptics: this.haptics,
       leaderboard: this.leaderboard,
       economy: this.economy,
+      tasks: this.tasks,
       host: this,
       actions: {
         onBack: () => this.confirmLeave(),
@@ -204,7 +211,10 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     return result.then((shared) => {
       this.shareInProgress = false;
       if (token !== this.sceneToken || this.screenRoot !== shareRoot) return null;
-      if (shared === 'shared') return shared;
+      if (shared === 'shared') {
+        this.tasks.recordEvent('share-once');
+        return shared;
+      }
       this.dialogs.showNotice(shareRoot, shared === 'unsupported'
         ? '请在微信小游戏中分享给好友或群'
         : '分享卡片生成失败，请稍后重试');
@@ -289,6 +299,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       coins: this.economySnapshot.coins,
       canClaimDaily: this.economySnapshot.canClaimDaily,
       dailyReward: this.economySnapshot.dailyReward,
+      taskClaimable: this.tasks.snapshot().canClaim,
       soundEnabled: this.save.soundEnabled,
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
@@ -301,6 +312,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       onLeaderboard: () => { if (this.assetsReady) this.showLeaderboard(); },
       onShop: () => { if (this.assetsReady) this.showShop(); },
       onDailyReward: () => { if (this.assetsReady) this.showDailyReward(); },
+      onTasks: () => { if (this.assetsReady) this.showTasks(); },
       onToggleSound: () => { if (this.assetsReady) this.toggleSound(); },
       onSettings: () => { if (this.assetsReady) this.showSettingsDialog(); },
     });
@@ -440,6 +452,49 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       this.dialogs.showNotice(this.screenRoot, '每日奖励领取失败');
     } finally {
       this.dailyClaimInProgress = false;
+    }
+  }
+
+  private showTasks(): void {
+    if (!this.screenRoot || this.taskOverlay?.isValid) return;
+    this.inputLocked = true;
+    this.taskOverlay = this.taskPanel.show(this.screenRoot, this.tasks.snapshot(),
+      this.uiWidth, this.uiHeight, {
+        onClaim: (taskId) => { void this.claimTask(taskId); },
+        onClose: () => {
+          if (this.taskClaimInProgress) return;
+          this.taskOverlay?.destroy();
+          this.taskOverlay = null;
+          this.inputLocked = false;
+        },
+      });
+  }
+
+  private async claimTask(taskId: string): Promise<void> {
+    if (this.taskClaimInProgress || !this.taskOverlay?.isValid) return;
+    this.taskClaimInProgress = true;
+    try {
+      const result = this.tasks.claim(taskId);
+      if (result.ok) {
+        await this.economy.grantCoins(result.awardedCoins);
+        this.applyEconomySnapshot(await this.economy.load());
+      } else {
+        this.dialogs.showNotice(this.screenRoot, '任务尚未完成');
+      }
+      this.taskPanel.refresh(result.snapshot, {
+        onClaim: (id) => { void this.claimTask(id); },
+        onClose: () => {
+          if (this.taskClaimInProgress) return;
+          this.taskOverlay?.destroy();
+          this.taskOverlay = null;
+          this.inputLocked = false;
+        },
+      });
+    } catch (error) {
+      console.warn('[Cat2048] Failed to claim task reward.', error);
+      this.dialogs.showNotice(this.screenRoot, '任务奖励领取失败');
+    } finally {
+      this.taskClaimInProgress = false;
     }
   }
 

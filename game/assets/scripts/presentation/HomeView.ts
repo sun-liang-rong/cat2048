@@ -23,6 +23,7 @@ export interface HomeViewModel {
   coins: number;
   canClaimDaily: boolean;
   dailyReward: number;
+  taskClaimable: boolean;
   soundEnabled: boolean;
   uiWidth: number;
   uiHeight: number;
@@ -35,6 +36,7 @@ export interface HomeViewActions {
   onInfo(): void;
   onCollection(): void;
   onLeaderboard(): void;
+  onTasks(): void;
   onShop(): void;
   onDailyReward(): void;
   onToggleSound(): void;
@@ -100,14 +102,29 @@ export class HomeView {
     play.setScale(1.02, 1.02, 1);
     tween(play).to(0.24, { scale: new Vec3(1.12, 1.12, 1) }, { easing: 'backOut' }).start();
 
-    const leaderboardShadow = createUiNode('LeaderboardButtonShadow', 516, 88);
-    drawRounded(leaderboardShadow, 516, 88, new Color(117, 63, 47, 130), 26);
-    leaderboardShadow.setPosition(0, this.homeTopY(model, 842) - 8);
-    parent.addChild(leaderboardShadow);
-    const leaderboard = createButton('排行榜', 500, 76, COLORS.teal,
+    const entryY = this.homeTopY(model, 842);
+    const entryShadow = createUiNode('LeaderboardButtonShadow', 516, 88);
+    drawRounded(entryShadow, 516, 88, new Color(117, 63, 47, 130), 26);
+    entryShadow.setPosition(0, entryY - 8);
+    parent.addChild(entryShadow);
+    const leaderboard = createButton('排行榜', 244, 76, COLORS.teal,
       () => actions.onLeaderboard(), 30);
-    leaderboard.setPosition(0, this.homeTopY(model, 842));
+    leaderboard.setPosition(-127, entryY);
     parent.addChild(leaderboard);
+    const tasks = createButton('每日任务', 244, 76, COLORS.mustard,
+      () => actions.onTasks(), 30);
+    tasks.setPosition(127, entryY);
+    parent.addChild(tasks);
+    if (model.taskClaimable) {
+      const badge = createUiNode('TaskClaimBadge', 30, 30);
+      drawRounded(badge, 30, 30, COLORS.coral, 15, { color: COLORS.white, width: 3 });
+      const badgeText = createLabel('!', 20, COLORS.white, 24, 26, 'display');
+      badge.addChild(badgeText.node);
+      badge.setPosition(127 + 104, entryY + 34);
+      parent.addChild(badge);
+      tween(badge).to(0.5, { scale: new Vec3(1.18, 1.18, 1) })
+        .to(0.5, { scale: Vec3.ONE }).union().repeatForever().start();
+    }
 
     const hint = createLabel('滑动合成  ·  轻松上手', 22, new Color(90, 72, 64, 220), 500, 50);
     hint.node.setPosition(0, this.homeTopY(model, 928));

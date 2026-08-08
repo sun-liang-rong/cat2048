@@ -80,7 +80,7 @@ describe('runtime image assets', () => {
   });
 
   it('includes PNG images in the semantic fingerprint', () => {
-    const output = execFileSync('python', ['../tools/fingerprint_runtime_assets.py'], {
+    const output = execFileSync('python3', ['../tools/fingerprint_runtime_assets.py'], {
       cwd: gameRoot,
       encoding: 'utf8',
     });

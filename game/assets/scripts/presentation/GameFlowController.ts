@@ -3,6 +3,7 @@ import { Game2048 } from '../core/Game2048';
 import type { BoardSnapshot, Direction, ItemKind, ItemState } from '../core/types';
 import type { EconomyMutationResult, EconomyRepository } from '../economy/economy';
 import type { HapticController } from '../infrastructure/HapticController';
+import type { DailyTaskRepository } from '../infrastructure/dailyTasks';
 import {
   highestLevelOfTiles,
   type LeaderboardClient,
@@ -55,6 +56,7 @@ export interface GameFlowDeps {
   readonly haptics: HapticController;
   readonly leaderboard: LeaderboardClient;
   readonly economy: EconomyRepository;
+  readonly tasks: DailyTaskRepository;
   readonly host: GameFlowHost;
   readonly actions: GameFlowActions;
 }
@@ -174,6 +176,7 @@ export class GameFlowController {
       this.gameScreen.refreshItems(this.game.items);
       return;
     }
+    this.deps.tasks.recordEvent('use-items');
     const token = this.sessionToken;
     this.deps.host.lockInput();
     this.refreshGameViews();
@@ -195,6 +198,7 @@ export class GameFlowController {
       this.gameScreen.refreshItems(this.game.items);
       return;
     }
+    this.deps.tasks.recordEvent('use-items');
     const token = this.sessionToken;
     this.deps.host.lockInput();
     this.gameScreen.refreshItems(this.game.items);
@@ -299,6 +303,10 @@ export class GameFlowController {
     } catch (error) {
       rewardFailed = true;
       console.warn('[Cat2048] Failed to settle run reward.', error);
+    }
+    this.deps.tasks.recordEvent('play-runs');
+    if (highestLevelOfTiles(this.game.board.tiles) >= 5) {
+      this.deps.tasks.recordEvent('reach-lv5');
     }
     this.gameOverSettlementInProgress = false;
     if (!this.deps.host.isOnGameScreen() || !this.gameRoot) return;
