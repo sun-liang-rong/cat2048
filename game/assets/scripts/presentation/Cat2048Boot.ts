@@ -19,6 +19,7 @@ import {
   type EconomySnapshot,
 } from '../economy/economy';
 import { LocalDailyTaskRepository } from '../infrastructure/dailyTasks';
+import { RunSessionStore } from '../infrastructure/runSession';
 import type { Direction } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import { HapticController } from '../infrastructure/HapticController';
@@ -40,7 +41,7 @@ import {
 import { DialogView } from './DialogView';
 import { CollectionView } from './CollectionView';
 import type { CollectionOrigin } from './CollectionView';
-import { HomeView } from './HomeView';
+import { HomeView, type HomeViewModel } from './HomeView';
 import { LoadingView } from './LoadingView';
 import { LeaderboardView } from './LeaderboardView';
 import { CosmeticRuntime } from './CosmeticRuntime';
@@ -78,6 +79,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private readonly resultShare = new ResultShareController();
   private readonly economy = new LocalEconomyRepository(sys.localStorage);
   private readonly tasks = new LocalDailyTaskRepository(sys.localStorage);
+  private readonly runSession = new RunSessionStore(sys.localStorage);
   private readonly leaderboard = createWechatLeaderboardClient(
     GAME_CONFIG.network.leaderboardBaseUrl,
     sys.localStorage,
@@ -101,11 +103,11 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private shareInProgress = false;
   private assetsReady = false;
   private currentScreen: ScreenName = 'loading';
+  private homeRoot: Node | null = null;
   private collectionOrigin: CollectionOrigin = 'home';
   private dailyPromptShown = false;
   private dailyClaimInProgress = false;
   private leaderboardRequestSequence = 0;
-  private leaderboardProfileSyncStarted = false;
 
   protected override onLoad(): void {
     this.setupCanvas();
@@ -123,6 +125,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       leaderboard: this.leaderboard,
       economy: this.economy,
       tasks: this.tasks,
+      runSession: this.runSession,
       host: this,
       actions: {
         onBack: () => this.confirmLeave(),
@@ -277,7 +280,15 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     else if (screenBeforeResize === 'collection') this.showCollection(this.collectionOrigin);
     else if (screenBeforeResize === 'shop') this.showShop();
     else if (screenBeforeResize === 'leaderboard') this.showLeaderboard();
-    else this.showHome();
+    else {
+      if (this.homeRoot?.isValid) {
+        this.stopTweens(this.homeRoot);
+        this.homeView.destroy();
+        this.homeRoot.destroy();
+        this.homeRoot = null;
+      }
+      this.showHome();
+    }
   };
 
   // ---- 页面导航 ----
@@ -289,11 +300,9 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.loadingView.build(root, this.uiWidth, this.uiHeight);
   }
 
-  private showHome(): void {
-    this.clearScreen();
-    this.currentScreen = 'home';
-    const root = this.makeScreen('Home');
-    this.homeView.build(root, {
+  private homeViewModel(): HomeViewModel {
+    const pending = this.runSession.load();
+    return {
       highScore: this.save.highScore,
       collectionCount: this.save.unlockedCatLevels.length,
       coins: this.economySnapshot.coins,
@@ -301,12 +310,30 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       dailyReward: this.economySnapshot.dailyReward,
       taskClaimable: this.tasks.snapshot().canClaim,
       soundEnabled: this.save.soundEnabled,
+      hasPendingRun: !!pending,
+      pendingRunScore: pending?.score ?? 0,
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
       topInset: this.topSafeInset(),
       bottomInset: this.bottomSafeInset(),
-    }, {
+    };
+  }
+
+  private showHome(): void {
+    this.clearScreen();
+    this.currentScreen = 'home';
+    if (this.homeRoot?.isValid) {
+      this.homeRoot.active = true;
+      this.screenRoot = this.homeRoot;
+      this.homeView.refresh(this.homeViewModel());
+      this.homeView.resumeAnimations();
+      return;
+    }
+    const root = this.makeScreen('Home');
+    this.homeRoot = root;
+    this.homeView.build(root, this.homeViewModel(), {
       onPlay: () => { if (this.assetsReady) this.startGame(); },
+      onRestart: () => { if (this.assetsReady) this.restartGame(); },
       onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
       onCollection: () => { if (this.assetsReady) this.showCollection('home'); },
       onLeaderboard: () => { if (this.assetsReady) this.showLeaderboard(); },
@@ -330,6 +357,17 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   }
 
   private startGame(): void {
+    const pending = this.runSession.load();
+    if (pending) {
+      this.flow.resumeRun(pending);
+      this.showGame(false);
+      return;
+    }
+    this.showGame(true);
+  }
+
+  private restartGame(): void {
+    this.runSession.clear();
     this.showGame(true);
   }
 
@@ -364,10 +402,6 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       bottomInset: this.bottomSafeInset(),
     });
     try {
-      if (!this.leaderboardProfileSyncStarted) {
-        this.leaderboardProfileSyncStarted = true;
-        await this.leaderboard.syncAuthorizedProfile();
-      }
       void this.flushPendingLeaderboardScores();
       const data = await this.leaderboard.getLeaderboard();
       if (token !== this.sceneToken
@@ -612,7 +646,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   }
 
   private confirmLeave(): void {
-    this.showDialog('返回主页？', '当前棋盘不会保存。', '继续游戏', '返回主页', () => this.showHome());
+    this.showDialog('返回主页？', '本局会自动保存，下次可继续冒险。', '继续游戏', '返回主页', () => this.showHome());
   }
 
   private showInfoDialog(): void {
@@ -680,7 +714,6 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   // ---- 屏幕容器 ----
 
   private clearScreen(): void {
-    Tween.stopAll();
     this.flow.teardown();
     this.sceneToken += 1;
     this.inputLocked = false;
@@ -688,8 +721,25 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.dailyRewardOverlay = null;
     this.shopView.clear();
     this.leaderboardView.clear();
-    this.screenRoot?.destroy();
+    if (this.screenRoot && this.screenRoot !== this.homeRoot) {
+      this.stopTweens(this.screenRoot);
+      this.screenRoot.destroy();
+    }
     this.screenRoot = null;
+    if (this.homeRoot?.isValid) {
+      this.homeView.pauseAnimations();
+      this.homeRoot.active = false;
+    }
+  }
+
+  private stopTweens(root: Node): void {
+    const queue: Node[] = [root];
+    while (queue.length > 0) {
+      const node = queue.pop();
+      if (!node?.isValid) continue;
+      Tween.stopAllByTarget(node);
+      queue.push(...node.children);
+    }
   }
 
   private makeScreen(name: string): Node {

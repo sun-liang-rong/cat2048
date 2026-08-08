@@ -1,4 +1,4 @@
-import { Color, Graphics, Label, Node, tween, Vec3 } from 'cc';
+import { Color, Graphics, Label, Node, tween, Tween, Vec3 } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
 import { addCoverBackground } from './background';
@@ -11,11 +11,22 @@ import {
   createSpriteNode,
   createUiNode,
   drawRounded,
+  renderButtonBackground,
+  setLabelText,
 } from './uiFactory';
 
 const BOTTOM_EDGE_ICON_CROP = { x: 4, y: 0, width: 144, height: 144 } as const;
 const TOP_EDGE_ICON_CROP = { x: 4, y: 16, width: 144, height: 144 } as const;
 const SOUND_BUTTON_SIZE = 64;
+const WALLET_WIDTH = 220;
+const WALLET_HEIGHT = 62;
+const MAIN_PLAY_OFFSET = 710;
+const MAIN_PLAY_WIDTH = 400;
+const MAIN_PLAY_HEIGHT = 108;
+const RESUME_PLAY_X = -128;
+const RESTART_WIDTH = 230;
+const RESTART_HEIGHT = 108;
+const RESTART_X = 213;
 
 export interface HomeViewModel {
   highScore: number;
@@ -25,6 +36,8 @@ export interface HomeViewModel {
   dailyReward: number;
   taskClaimable: boolean;
   soundEnabled: boolean;
+  hasPendingRun: boolean;
+  pendingRunScore: number;
   uiWidth: number;
   uiHeight: number;
   topInset: number;
@@ -33,6 +46,7 @@ export interface HomeViewModel {
 
 export interface HomeViewActions {
   onPlay(): void;
+  onRestart(): void;
   onInfo(): void;
   onCollection(): void;
   onLeaderboard(): void;
@@ -46,8 +60,102 @@ export interface HomeViewActions {
 export class HomeView {
   private soundButton: Node | null = null;
   private soundLabel: Label | null = null;
+  private lastSoundEnabled: boolean | null = null;
+  private walletNode: Node | null = null;
+  private walletLabel: Label | null = null;
+  private walletPulse: Tween<Node> | null = null;
+  private highScoreLabel: Label | null = null;
+  private collectionLabel: Label | null = null;
+  private taskBadge: Node | null = null;
+  private taskPulse: Tween<Node> | null = null;
+  private mainPlayButton: Node | null = null;
+  private mainPlayLabel: Label | null = null;
+  private playShadowNode: Node | null = null;
+  private playGlowNode: Node | null = null;
+  private restartButton: Node | null = null;
+  private readonly tweens: Tween<Node>[] = [];
 
   public constructor(private readonly art: ArtRepository) {}
+
+  private trackTween(t: Tween<Node>): Tween<Node> {
+    this.tweens.push(t);
+    return t;
+  }
+
+  /** 离开首页时暂停所有循环动画，避免后台空转。 */
+  public pauseAnimations(): void {
+    for (const t of this.tweens) t.pause();
+    this.walletPulse?.pause();
+    this.taskPulse?.pause();
+  }
+
+  /** 回到首页时恢复循环动画。 */
+  public resumeAnimations(): void {
+    for (const t of this.tweens) t.resume();
+    this.walletPulse?.resume();
+    this.taskPulse?.resume();
+  }
+
+  /** 释放动画（首页被销毁/重建前调用）。 */
+  public destroy(): void {
+    for (const t of this.tweens) t.stop();
+    this.tweens.length = 0;
+    this.walletPulse?.stop();
+    this.walletPulse = null;
+    this.taskPulse?.stop();
+    this.taskPulse = null;
+  }
+
+  /** 局部刷新动态数据（金币/最高分/图鉴/红点/音效/续玩状态），不重建节点树。 */
+  public refresh(model: HomeViewModel): void {
+    if (model.soundEnabled !== this.lastSoundEnabled) {
+      this.setSoundEnabled(model.soundEnabled);
+      this.lastSoundEnabled = model.soundEnabled;
+    }
+
+    if (this.walletNode && this.walletLabel) {
+      const canClaim = model.canClaimDaily;
+      setLabelText(this.walletLabel, canClaim ? `领取 +${model.dailyReward}` : `金币 ${model.coins}`);
+      renderButtonBackground(this.walletNode, WALLET_WIDTH, WALLET_HEIGHT, canClaim ? COLORS.coral : COLORS.mustard);
+      this.walletPulse?.stop();
+      this.walletPulse = null;
+      if (canClaim) {
+        this.walletPulse = tween(this.walletNode).to(0.75, { scale: new Vec3(1.06, 1.06, 1) })
+          .to(0.75, { scale: Vec3.ONE }).union().repeatForever().start();
+      }
+    }
+
+    if (this.highScoreLabel) setLabelText(this.highScoreLabel, String(model.highScore));
+    if (this.collectionLabel) {
+      setLabelText(this.collectionLabel, `图鉴 ${model.collectionCount}/${GAME_CONFIG.cats.length}`);
+    }
+
+    if (this.taskBadge) {
+      this.taskPulse?.stop();
+      this.taskPulse = null;
+      this.taskBadge.active = model.taskClaimable;
+      if (model.taskClaimable) {
+        this.taskBadge.setScale(1, 1, 1);
+        this.taskPulse = tween(this.taskBadge).to(0.5, { scale: new Vec3(1.18, 1.18, 1) })
+          .to(0.5, { scale: Vec3.ONE }).union().repeatForever().start();
+      }
+    }
+
+    if (this.mainPlayButton && this.mainPlayLabel) {
+      const resume = model.hasPendingRun;
+      const label = resume ? '继续冒险' : '开始经典模式';
+      if (this.mainPlayLabel.string !== label) setLabelText(this.mainPlayLabel, label);
+      const x = resume ? RESUME_PLAY_X : 0;
+      const y = this.homeTopY(model, MAIN_PLAY_OFFSET);
+      this.mainPlayButton.setPosition(x, y);
+      if (this.playShadowNode) this.playShadowNode.setPosition(x, y - 10);
+      if (this.playGlowNode) this.playGlowNode.setPosition(x, y);
+      if (this.restartButton) {
+        this.restartButton.active = resume;
+        this.restartButton.setPosition(RESTART_X, y);
+      }
+    }
+  }
 
   /** 局部刷新音效按钮，避免整页重建。 */
   public setSoundEnabled(enabled: boolean): void {
@@ -71,6 +179,7 @@ export class HomeView {
       button.addChild(fallback.node);
     }
     label.string = enabled ? '音效开' : '音效关';
+    this.lastSoundEnabled = enabled;
   }
 
   public build(parent: Node, model: HomeViewModel, actions: HomeViewActions): void {
@@ -87,20 +196,25 @@ export class HomeView {
     this.addHomeWallet(parent, model, actions);
     this.addHomeCatShowcase(parent, model);
 
-    const playShadow = createUiNode('PlayButtonShadow', 568, 112);
-    drawRounded(playShadow, 568, 112, new Color(117, 63, 47, 155), 32);
-    playShadow.setPosition(0, this.homeTopY(model, 710) - 10);
+    const playY = this.homeTopY(model, MAIN_PLAY_OFFSET);
+    const playShadow = createUiNode('PlayButtonShadow', 440, 112);
+    drawRounded(playShadow, 440, 112, new Color(117, 63, 47, 155), 32);
+    playShadow.setPosition(0, playY - 10);
     parent.addChild(playShadow);
-    const playGlow = createUiNode('PlayButtonGlow', 588, 130);
-    drawRounded(playGlow, 588, 130, new Color(239, 100, 83, 56), 36);
-    playGlow.setPosition(0, this.homeTopY(model, 710));
+    this.playShadowNode = playShadow;
+    const playGlow = createUiNode('PlayButtonGlow', 444, 124);
+    drawRounded(playGlow, 444, 124, new Color(239, 100, 83, 56), 36);
+    playGlow.setPosition(0, playY);
     parent.addChild(playGlow);
-    const play = createButton('开始经典模式', 500, 104, COLORS.coral, () => actions.onPlay(), 36,
-      this.art.frame(GAME_CONFIG.art.classicMode));
-    play.setPosition(0, this.homeTopY(model, 710));
+    this.playGlowNode = playGlow;
+    const play = createButton('开始经典模式', MAIN_PLAY_WIDTH, MAIN_PLAY_HEIGHT, COLORS.coral,
+      () => actions.onPlay(), 32, this.art.frame(GAME_CONFIG.art.classicMode));
+    play.setPosition(0, playY);
     parent.addChild(play);
+    this.mainPlayButton = play;
+    this.mainPlayLabel = play.getComponentInChildren(Label);
     play.setScale(1.02, 1.02, 1);
-    tween(play).to(0.24, { scale: new Vec3(1.12, 1.12, 1) }, { easing: 'backOut' }).start();
+    this.trackTween(tween(play).to(0.24, { scale: new Vec3(1.12, 1.12, 1) }, { easing: 'backOut' })).start();
 
     const entryY = this.homeTopY(model, 842);
     const entryShadow = createUiNode('LeaderboardButtonShadow', 516, 88);
@@ -115,16 +229,20 @@ export class HomeView {
       () => actions.onTasks(), 30);
     tasks.setPosition(127, entryY);
     parent.addChild(tasks);
-    if (model.taskClaimable) {
-      const badge = createUiNode('TaskClaimBadge', 30, 30);
-      drawRounded(badge, 30, 30, COLORS.coral, 15, { color: COLORS.white, width: 3 });
-      const badgeText = createLabel('!', 20, COLORS.white, 24, 26, 'display');
-      badge.addChild(badgeText.node);
-      badge.setPosition(127 + 104, entryY + 34);
-      parent.addChild(badge);
-      tween(badge).to(0.5, { scale: new Vec3(1.18, 1.18, 1) })
-        .to(0.5, { scale: Vec3.ONE }).union().repeatForever().start();
-    }
+    const badge = createUiNode('TaskClaimBadge', 30, 30);
+    drawRounded(badge, 30, 30, COLORS.coral, 15, { color: COLORS.white, width: 3 });
+    const badgeText = createLabel('!', 20, COLORS.white, 24, 26, 'display');
+    badge.addChild(badgeText.node);
+    badge.setPosition(127 + 104, entryY + 34);
+    parent.addChild(badge);
+    this.taskBadge = badge;
+
+    const restart = createButton('重新开始', RESTART_WIDTH, RESTART_HEIGHT, COLORS.teal,
+      () => actions.onRestart(), 26);
+    restart.setPosition(RESTART_X, playY);
+    restart.active = false;
+    parent.addChild(restart);
+    this.restartButton = restart;
 
     const hint = createLabel('滑动合成  ·  轻松上手', 22, new Color(90, 72, 64, 220), 500, 50);
     hint.node.setPosition(0, this.homeTopY(model, 928));
@@ -132,20 +250,20 @@ export class HomeView {
     parent.addChild(hint.node);
 
     this.addHomeActionDock(parent, model, actions);
+    this.lastSoundEnabled = model.soundEnabled;
+    this.refresh(model);
   }
 
   private addHomeWallet(root: Node, model: HomeViewModel, actions: HomeViewActions): void {
     const text = model.canClaimDaily
       ? `领取 +${model.dailyReward}`
       : `金币 ${model.coins}`;
-    const wallet = createButton(text, 220, 62, model.canClaimDaily ? COLORS.coral : COLORS.mustard,
+    const wallet = createButton(text, WALLET_WIDTH, WALLET_HEIGHT, model.canClaimDaily ? COLORS.coral : COLORS.mustard,
       () => actions.onDailyReward(), 22, this.art.frame(GAME_CONFIG.art.coin));
     wallet.setPosition(0, this.homeTopY(model, 302));
     root.addChild(wallet);
-    if (model.canClaimDaily) {
-      tween(wallet).to(0.75, { scale: new Vec3(1.06, 1.06, 1) })
-        .to(0.75, { scale: Vec3.ONE }).union().repeatForever().start();
-    }
+    this.walletNode = wallet;
+    this.walletLabel = wallet.getComponentInChildren(Label);
   }
 
   private addHomeHeader(root: Node, model: HomeViewModel): void {
@@ -228,22 +346,22 @@ export class HomeView {
       orange.setPosition(-176, 45);
       orange.setRotationFromEuler(0, 0, -4);
       card.addChild(orange);
-      tween(orange).to(1.25, { position: new Vec3(-176, 52, 0) }, { easing: 'sineInOut' })
-        .to(1.25, { position: new Vec3(-176, 45, 0) }, { easing: 'sineInOut' }).union().repeatForever().start();
+      this.trackTween(tween(orange).to(1.25, { position: new Vec3(-176, 52, 0) }, { easing: 'sineInOut' })
+        .to(1.25, { position: new Vec3(-176, 45, 0) }, { easing: 'sineInOut' }).union().repeatForever()).start();
     }
     if (haloFrame) {
       const halo = createSpriteNode('HomeGalaxyHalo', haloFrame, 240, 240);
       halo.setPosition(176, 48);
       card.addChild(halo);
-      tween(halo).by(8, { angle: 360 }).repeatForever().start();
+      this.trackTween(tween(halo).by(8, { angle: 360 }).repeatForever()).start();
     }
     if (galaxyFrame) {
       const galaxy = createSpriteNode('HomeGalaxyCat', galaxyFrame, 214, 214);
       galaxy.setPosition(176, 45);
       galaxy.setRotationFromEuler(0, 0, 4);
       card.addChild(galaxy);
-      tween(galaxy).to(1.1, { scale: new Vec3(1.04, 1.04, 1) }, { easing: 'sineInOut' })
-        .to(1.1, { scale: Vec3.ONE }, { easing: 'sineInOut' }).union().repeatForever().start();
+      this.trackTween(tween(galaxy).to(1.1, { scale: new Vec3(1.04, 1.04, 1) }, { easing: 'sineInOut' })
+        .to(1.1, { scale: Vec3.ONE }, { easing: 'sineInOut' }).union().repeatForever()).start();
     }
 
     const evolution = createUiNode('EvolutionBadge', 82, 82);
@@ -273,6 +391,7 @@ export class HomeView {
     scoreTitle.node.setPosition(-150, 0);
     scoreStrip.addChild(scoreTitle.node);
     const score = createLabel(String(model.highScore), 38, COLORS.ink, 225, 52, 'display');
+    this.highScoreLabel = score;
     score.node.setPosition(150, 0);
     scoreStrip.addChild(score.node);
     card.addChild(scoreStrip);
@@ -282,12 +401,12 @@ export class HomeView {
       const sparkle = createSpriteNode('HomeSparkle', sparkleFrame, 55, 55);
       sparkle.setPosition(58, 104);
       card.addChild(sparkle);
-      tween(sparkle).to(0.8, { scale: new Vec3(1.22, 1.22, 1) })
-        .to(0.8, { scale: new Vec3(0.75, 0.75, 1) }).union().repeatForever().start();
+      this.trackTween(tween(sparkle).to(0.8, { scale: new Vec3(1.22, 1.22, 1) })
+        .to(0.8, { scale: new Vec3(0.75, 0.75, 1) }).union().repeatForever()).start();
     }
     root.addChild(showcase);
     showcase.setScale(0.96, 0.96, 1);
-    tween(showcase).to(0.25, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
+    this.trackTween(tween(showcase).to(0.25, { scale: Vec3.ONE }, { easing: 'backOut' })).start();
   }
 
   private createHomePill(text: string, width: number, color: Color): Node {
@@ -324,6 +443,7 @@ export class HomeView {
     collection.setPosition(positions[1], 11);
     dock.addChild(collection);
     const collectionText = createLabel(`图鉴 ${model.collectionCount}/${GAME_CONFIG.cats.length}`, 17, COLORS.ink, 140, 28, 'display');
+    this.collectionLabel = collectionText;
     collectionText.node.setPosition(positions[1], -36);
     dock.addChild(collectionText.node);
 

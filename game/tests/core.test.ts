@@ -296,4 +296,28 @@ describe('Game2048', () => {
     const game = new Game2048(new FixedRandom([value]));
     expect(() => game.start()).toThrow('expected [0, 1)');
   });
+
+  it('exports and restores full run state including item usage', () => {
+    const game = new Game2048(new FixedRandom([0.95, 0, 0.95, 0]));
+    game.loadFixture([
+      [1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ], 12);
+    game.move('left');
+    game.undo();
+    const state = game.exportState();
+    expect(state.score).toBe(12);
+
+    const restored = new Game2048(new FixedRandom([0.95, 0]));
+    restored.restore(state);
+    expect(restored.board).toEqual(game.board);
+    expect(restored.score).toBe(12);
+    expect(restored.items.undoRemaining).toBe(0);
+    expect(restored.items.removeLowestRemaining).toBe(1);
+    expect(restored.reviveState.remaining).toBe(1);
+
+    const moved = restored.move('right');
+    expect(moved.changed).toBe(true);
+    const ids = restored.board.tiles.map((tile) => tile.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
 });

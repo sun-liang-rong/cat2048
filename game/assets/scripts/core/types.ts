@@ -89,6 +89,18 @@ export interface ReviveResult extends RemoveTilesResult {
   readonly revived: boolean;
 }
 
+/** 一局游戏的可持久化完整状态（不含 runId 等会话元信息）。 */
+export interface GameRunState {
+  readonly board: BoardSnapshot;
+  readonly score: number;
+  readonly nextTileId: number;
+  readonly undoRemaining: number;
+  readonly removeLowestRemaining: number;
+  readonly undoRefillRemaining: number;
+  readonly removeLowestRefillRemaining: number;
+  readonly reviveRemaining: 0 | 1;
+}
+
 export interface RandomSource {
   next(): number;
 }

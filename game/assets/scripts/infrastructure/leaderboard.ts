@@ -48,11 +48,6 @@ export interface ScoreSubmissionResponse {
   readonly rank: number | null;
 }
 
-export interface ProfilePayload {
-  readonly nickname: string;
-  readonly avatarUrl: string;
-}
-
 export interface LeaderboardHttpRequest {
   readonly method: 'GET' | 'POST' | 'PATCH';
   readonly path: string;
@@ -66,10 +61,6 @@ export interface LeaderboardHttpTransport {
 
 export interface LeaderboardLoginProvider {
   getLoginCode(): Promise<string>;
-}
-
-export interface LeaderboardProfileProvider {
-  getUserProfile(): Promise<ProfilePayload>;
 }
 
 interface ApiEnvelope<T> {
@@ -155,7 +146,6 @@ export class LeaderboardClient {
     private readonly transport: LeaderboardHttpTransport,
     private readonly loginProvider: LeaderboardLoginProvider,
     private readonly storage: StorageLike,
-    private readonly profileProvider?: LeaderboardProfileProvider,
   ) {
     this.queue = new PendingScoreQueue(this.storage);
     this.loadSession(this.storage);
@@ -197,23 +187,6 @@ export class LeaderboardClient {
     this.player = response.data.player;
     this.persistSession();
     return response.data.player;
-  }
-
-  public async syncAuthorizedProfile(): Promise<PlayerSummary | null> {
-    if (!this.profileProvider) return null;
-    try {
-      const profile = await this.profileProvider.getUserProfile();
-      const response = await this.authorizedRequest<ApiEnvelope<{ player: PlayerSummary }>>({
-        method: 'PATCH',
-        path: '/v1/players/me/profile',
-        body: profile,
-      });
-      this.player = response.data.player;
-      this.persistSession();
-      return this.player;
-    } catch {
-      return null;
-    }
   }
 
   public async submitScore(payload: ScorePayload): Promise<ScoreSubmissionResponse> {
@@ -322,16 +295,6 @@ interface WechatRuntime {
       success: (result: { code: string }) => void;
       fail: (error: unknown) => void;
     }): void;
-    getUserProfile?(options: {
-      desc: string;
-      success: (result: { userInfo: { nickName: string; avatarUrl: string } }) => void;
-      fail: (error: unknown) => void;
-    }): void;
-    getUserInfo?(options: {
-      withCredentials?: boolean;
-      success: (result: { userInfo: { nickName: string; avatarUrl: string } }) => void;
-      fail: (error: unknown) => void;
-    }): void;
   };
 }
 
@@ -377,37 +340,6 @@ class WechatLoginProvider implements LeaderboardLoginProvider {
   }
 }
 
-class WechatProfileProvider implements LeaderboardProfileProvider {
-  public constructor(private readonly runtime: WechatRuntime) {}
-
-  public getUserProfile(): Promise<ProfilePayload> {
-    const wx = this.runtime.wx;
-    const getUserProfile = wx?.getUserProfile;
-    const getUserInfo = wx?.getUserInfo;
-    if (!getUserProfile && !getUserInfo) {
-      return Promise.reject(new Error('WeChat profile authorization is unavailable'));
-    }
-    return new Promise<ProfilePayload>((resolve, reject) => {
-      const handleSuccess = ({ userInfo }: { userInfo: { nickName: string; avatarUrl: string } }) => {
-        resolve({ nickname: userInfo.nickName, avatarUrl: userInfo.avatarUrl });
-      };
-      if (getUserProfile) {
-        getUserProfile.call(wx, {
-          desc: '用于展示排行榜昵称和头像',
-          success: handleSuccess,
-          fail: reject,
-        });
-        return;
-      }
-      getUserInfo?.call(wx, {
-        withCredentials: false,
-        success: handleSuccess,
-        fail: reject,
-      });
-    });
-  }
-}
-
 export function createWechatLeaderboardClient(
   baseUrl: string,
   storage: StorageLike,
@@ -417,6 +349,5 @@ export function createWechatLeaderboardClient(
     new WechatHttpTransport(baseUrl, runtime),
     new WechatLoginProvider(runtime),
     storage,
-    new WechatProfileProvider(runtime),
   );
 }

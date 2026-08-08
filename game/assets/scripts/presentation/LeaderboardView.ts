@@ -145,8 +145,11 @@ export class LeaderboardView {
   }
 
   private renderMyRank(parent: Node, model: LeaderboardViewModel, width: number, centerY: number): void {
-    const strip = createUiNode('LeaderboardMyRank', width, 66);
-    drawRounded(strip, width, 66, new Color(255, 243, 214, 250), 24,
+    const actions = this.actions;
+    if (!actions) return;
+    const stripWidth = width;
+    const strip = createUiNode('LeaderboardMyRank', stripWidth, 66);
+    drawRounded(strip, stripWidth, 66, new Color(255, 243, 214, 250), 24,
       { color: new Color(77, 61, 54, 170), width: 2 });
     strip.setPosition(0, centerY);
     parent.addChild(strip);
@@ -158,16 +161,17 @@ export class LeaderboardView {
       const leftText = createLabel('我的排名', 20, COLORS.white, 150, 38, 'display');
       leftText.node.setScale(0.92, 0.92, 1);
       leftPill.addChild(leftText.node);
-      leftPill.setPosition(-width / 2 + 100, 0);
+      leftPill.setPosition(-stripWidth / 2 + 100, 0);
       strip.addChild(leftPill);
 
       const rightText = createLabel(
         `第 ${me.rank} 名 · 最高分 ${this.formatScore(me.score)}`,
-        22, COLORS.teal, width - 320, 40, 'display');
-      rightText.node.setPosition(width / 2 - 170, 0);
+        21, COLORS.teal, stripWidth - 100, 40, 'display');
+      rightText.node.setPosition(0, 0);
       strip.addChild(rightText.node);
     } else {
-      const hint = createLabel('完成一局后加入排行榜', 21, COLORS.teal, width - 80, 42, 'display');
+      const hint = createLabel('完成一局后加入排行榜', 21, COLORS.teal, stripWidth - 100, 42, 'display');
+      hint.node.setPosition(0, 0);
       strip.addChild(hint.node);
     }
   }

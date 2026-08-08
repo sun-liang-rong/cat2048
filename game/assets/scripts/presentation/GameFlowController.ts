@@ -4,6 +4,7 @@ import type { BoardSnapshot, Direction, ItemKind, ItemState } from '../core/type
 import type { EconomyMutationResult, EconomyRepository } from '../economy/economy';
 import type { HapticController } from '../infrastructure/HapticController';
 import type { DailyTaskRepository } from '../infrastructure/dailyTasks';
+import type { RunSessionStore, SavedRun } from '../infrastructure/runSession';
 import {
   highestLevelOfTiles,
   type LeaderboardClient,
@@ -57,6 +58,7 @@ export interface GameFlowDeps {
   readonly leaderboard: LeaderboardClient;
   readonly economy: EconomyRepository;
   readonly tasks: DailyTaskRepository;
+  readonly runSession: RunSessionStore;
   readonly host: GameFlowHost;
   readonly actions: GameFlowActions;
 }
@@ -74,7 +76,6 @@ export class GameFlowController {
   private gameRoot: Node | null = null;
   private gameOverOverlay: Node | null = null;
   private swipe: SwipeInput | null = null;
-  private swipeGuideActive = false;
   private gameOverSettlementInProgress = false;
   private runSequence = 0;
   private currentRunId = '';
@@ -100,8 +101,16 @@ export class GameFlowController {
 
   /** 开始一局新游戏并构建对局界面。 */
   public startRun(): void {
+    this.deps.runSession.clear();
     this.currentRunId = `run-${Date.now()}-${++this.runSequence}`;
     this.registerBoardCats(this.game.start());
+  }
+
+  /** 恢复一局未完成的游戏（跨启动续玩）。 */
+  public resumeRun(savedRun: SavedRun): void {
+    this.currentRunId = savedRun.runId;
+    this.game.restore(savedRun);
+    this.registerBoardCats(this.game.board);
   }
 
   public buildGameScreen(root: Node, model: GameScreenModel): void {
@@ -109,7 +118,7 @@ export class GameFlowController {
     this.uiWidth = model.uiWidth;
     this.uiHeight = model.uiHeight;
     const frame = this.gameScreen.build(root, model, {
-      isLocked: () => this.deps.host.isInputLocked() || this.swipeGuideActive,
+      isLocked: () => this.deps.host.isInputLocked(),
       onBack: () => this.deps.actions.onBack(),
       onSettings: () => this.deps.actions.onSettings(),
       onCollection: () => this.deps.actions.onCollection(),
@@ -146,6 +155,7 @@ export class GameFlowController {
       return;
     }
     this.registerBoardCats(result.board);
+    this.persistRun();
     if (!this.deps.host.getSave().tutorial.swipeGuideCompleted) this.completeSwipeGuide();
     const token = this.sessionToken;
     this.deps.host.lockInput();
@@ -177,6 +187,7 @@ export class GameFlowController {
       return;
     }
     this.deps.tasks.recordEvent('use-items');
+    this.persistRun();
     const token = this.sessionToken;
     this.deps.host.lockInput();
     this.refreshGameViews();
@@ -199,6 +210,7 @@ export class GameFlowController {
       return;
     }
     this.deps.tasks.recordEvent('use-items');
+    this.persistRun();
     const token = this.sessionToken;
     this.deps.host.lockInput();
     this.gameScreen.refreshItems(this.game.items);
@@ -221,7 +233,9 @@ export class GameFlowController {
     const purpose: SharePurpose = kind === 'undo' ? 'undo-refill' : 'remove-lowest-refill';
     const result = await this.deps.host.requestShare(purpose);
     if (!this.deps.host.isOnGameScreen() || !this.boardView.root) return;
-    if (result === 'shared') this.game.refillItem(kind);
+    if (result === 'shared') {
+      if (this.game.refillItem(kind).granted) this.persistRun();
+    }
     this.gameScreen.refreshItems(this.game.items);
     this.deps.host.unlockInput();
   }
@@ -232,6 +246,7 @@ export class GameFlowController {
     if (result !== 'shared' || !this.deps.host.isOnGameScreen() || !this.boardView.root) return;
     const revived = this.game.revive();
     if (!revived.revived || !revived.changed) return;
+    this.persistRun();
 
     this.gameOverOverlay?.destroy();
     this.gameOverOverlay = null;
@@ -256,7 +271,6 @@ export class GameFlowController {
   public teardown(): void {
     this.sessionToken += 1;
     this.tutorial.dismissSwipe();
-    this.swipeGuideActive = false;
     this.gameOverSettlementInProgress = false;
     this.swipe?.unbind();
     this.swipe = null;
@@ -269,6 +283,7 @@ export class GameFlowController {
   private showGameOver(): void {
     if (this.gameOverOverlay?.isValid || this.gameOverSettlementInProgress) return;
     this.gameOverSettlementInProgress = true;
+    this.deps.runSession.clear();
     this.deps.host.lockInput();
     this.updateScore(this.game.score);
     void this.submitCurrentScore();
@@ -327,6 +342,14 @@ export class GameFlowController {
     });
   }
 
+  private persistRun(): void {
+    this.deps.runSession.save({
+      runId: this.currentRunId,
+      ...this.game.exportState(),
+      savedAt: Date.now(),
+    });
+  }
+
   private registerBoardCats(board: BoardSnapshot): void {
     const save = this.deps.host.getSave();
     const unlocked = new Set(save.unlockedCatLevels);
@@ -356,7 +379,6 @@ export class GameFlowController {
 
   private showSwipeGuideIfNeeded(root: Node, boardY: number, boardSize: number): void {
     if (this.deps.host.getSave().tutorial.swipeGuideCompleted) return;
-    this.swipeGuideActive = true;
     this.tutorial.showSwipe(root, this.uiWidth, this.uiHeight, boardY, boardSize,
       () => this.completeSwipeGuide());
   }
@@ -368,7 +390,6 @@ export class GameFlowController {
       ...save,
       tutorial: { ...save.tutorial, swipeGuideCompleted: true },
     });
-    this.swipeGuideActive = false;
     this.tutorial.dismissSwipe();
   }
 

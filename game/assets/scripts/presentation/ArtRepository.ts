@@ -14,7 +14,12 @@ export class ArtRepository {
       complete: (error: Error | null) => void): void => {
       resources.loadDir(directory, progress, (error) => complete(error));
     };
-    await loadRuntimeResourceDirectories(loadDirectory, (ratio) => onProgress?.(ratio * 0.62));
+    // 字体是首页渲染刚需，与资源目录并行加载，避免串行等待。
+    await Promise.all([
+      loadRuntimeResourceDirectories(loadDirectory, (ratio) => onProgress?.(ratio * 0.62)),
+      this.cacheFont(GAME_CONFIG.fonts.display, TTFFont),
+    ]);
+    onProgress?.(0.62);
 
     const framePaths = Array.from(new Set([
       ...GAME_CONFIG.cats.map((cat) => cat.asset),
@@ -43,8 +48,6 @@ export class ArtRepository {
       loadedFrames += 1;
       onProgress?.(0.62 + (loadedFrames / Math.max(1, framePaths.length)) * 0.25);
     }));
-    await this.cacheFont(GAME_CONFIG.fonts.display, TTFFont);
-    onProgress?.(0.92);
 
     const audioNames = ['move', 'merge', 'game_over'];
     let loadedAudio = 0;
@@ -53,7 +56,7 @@ export class ArtRepository {
       try { this.clips.set(name, await this.loadClip(path)); }
       catch (error) { console.warn(`[Cat2048] Optional audio unavailable: ${path}`, error); }
       loadedAudio += 1;
-      onProgress?.(0.92 + (loadedAudio / audioNames.length) * 0.08);
+      onProgress?.(0.87 + (loadedAudio / audioNames.length) * 0.13);
     }));
     onProgress?.(1);
   }

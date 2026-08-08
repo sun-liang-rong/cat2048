@@ -3,6 +3,7 @@ import {
   BOARD_SIZE,
   type BoardSnapshot,
   type Direction,
+  type GameRunState,
   type GameStatus,
   type ItemKind,
   type ItemRefillResult,
@@ -173,6 +174,31 @@ export class Game2048 implements TileFactory {
       score: this.scoreValue,
       status: this.status,
     };
+  }
+
+  public exportState(): GameRunState {
+    return {
+      board: this.board,
+      score: this.scoreValue,
+      nextTileId: this.nextId,
+      undoRemaining: this.undoRemainingValue,
+      removeLowestRemaining: this.removeLowestRemainingValue,
+      undoRefillRemaining: this.undoRefillRemainingValue,
+      removeLowestRefillRemaining: this.removeLowestRefillRemainingValue,
+      reviveRemaining: this.reviveRemainingValue,
+    };
+  }
+
+  public restore(state: GameRunState): void {
+    this.boardValue = new Board(state.board);
+    this.scoreValue = state.score;
+    this.nextId = state.nextTileId;
+    this.undoSnapshot = undefined;
+    this.undoRemainingValue = state.undoRemaining;
+    this.removeLowestRemainingValue = state.removeLowestRemaining;
+    this.undoRefillRemainingValue = state.undoRefillRemaining;
+    this.removeLowestRefillRemainingValue = state.removeLowestRefillRemaining;
+    this.reviveRemainingValue = state.reviveRemaining === 0 ? 0 : 1;
   }
 
   public create(level: number, position: Position): Tile {

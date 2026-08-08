@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createWechatLeaderboardClient,
   LeaderboardClient,
   LeaderboardHttpError,
   LEADERBOARD_AUTH_KEY,
@@ -89,75 +88,6 @@ describe('LeaderboardClient', () => {
     await expect(startupAuthentication).resolves.toMatchObject({ id: 'player-1' });
     await expect(leaderboardRequest).resolves.toEqual({ entries: [], me: null });
     expect(login.getLoginCode).toHaveBeenCalledOnce();
-  });
-
-  it('syncs the WeChat game profile through getUserInfo when getUserProfile is unavailable', async () => {
-    const storage = new MemoryStorage();
-    const requests: Array<{ url: string; method: string; data: unknown }> = [];
-    const runtime = {
-      wx: {
-        login: ({ success }: { success: (result: { code: string }) => void }) => {
-          success({ code: 'code-1' });
-        },
-        getUserInfo: ({
-          success,
-        }: {
-          success: (result: { userInfo: { nickName: string; avatarUrl: string } }) => void;
-        }) => {
-          success({
-            userInfo: { nickName: '猫咪玩家', avatarUrl: 'https://example.com/avatar.png' },
-          });
-        },
-        request: (options: {
-          url: string;
-          method: string;
-          data?: unknown;
-          success: (response: { statusCode: number; data: unknown }) => void;
-        }) => {
-          requests.push({ url: options.url, method: options.method, data: options.data });
-          if (options.url.endsWith('/v1/auth/wechat')) {
-            options.success({
-              statusCode: 200,
-              data: {
-                data: {
-                  accessToken: 'token-1',
-                  expiresIn: 604800,
-                  player: { id: 'player-1', nickname: null, avatarUrl: null, highScore: 0 },
-                },
-              },
-            });
-            return;
-          }
-          options.success({
-            statusCode: 200,
-            data: {
-              data: {
-                player: {
-                  id: 'player-1',
-                  nickname: '猫咪玩家',
-                  avatarUrl: 'https://example.com/avatar.png',
-                  highScore: 0,
-                },
-              },
-            },
-          });
-        },
-      },
-    };
-    const client = createWechatLeaderboardClient('http://127.0.0.1:3000', storage, runtime);
-
-    await expect(client.syncAuthorizedProfile()).resolves.toMatchObject({
-      nickname: '猫咪玩家',
-      avatarUrl: 'https://example.com/avatar.png',
-    });
-    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      'POST http://127.0.0.1:3000/v1/auth/wechat',
-      'PATCH http://127.0.0.1:3000/v1/players/me/profile',
-    ]);
-    expect(requests[1]?.data).toEqual({
-      nickname: '猫咪玩家',
-      avatarUrl: 'https://example.com/avatar.png',
-    });
   });
 
   it('keeps a failed score for a later flush and removes it after success', async () => {

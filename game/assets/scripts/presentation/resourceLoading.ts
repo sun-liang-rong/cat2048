@@ -15,11 +15,16 @@ export const RUNTIME_RESOURCE_DIRECTORIES = [
 export async function loadRuntimeResourceDirectories(loader: ResourceDirectoryLoader,
   onProgress?: (ratio: number) => void): Promise<void> {
   const total = RUNTIME_RESOURCE_DIRECTORIES.length;
-  for (let index = 0; index < total; index += 1) {
-    await loadResourceDirectory(loader, RUNTIME_RESOURCE_DIRECTORIES[index], (ratio) => {
-      onProgress?.((index + ratio) / total);
-    });
-  }
+  let completed = 0;
+  // 目录之间无依赖，并行加载能显著缩短启动耗时。
+  await Promise.all(RUNTIME_RESOURCE_DIRECTORIES.map((directory) =>
+    loadResourceDirectory(loader, directory, (ratio) => {
+      onProgress?.((completed + ratio) / total);
+    }).then(() => {
+      completed += 1;
+    }),
+  ));
+  onProgress?.(1);
 }
 
 export function loadResourceDirectory(loader: ResourceDirectoryLoader, directory: string,
