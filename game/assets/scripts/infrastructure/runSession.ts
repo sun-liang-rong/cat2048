@@ -2,10 +2,16 @@ import { Board } from '../core/Board';
 import type { GameRunState } from '../core/types';
 import type { KeyValueStorage } from './storage';
 
+export type SavedRunMode = 'classic' | 'daily-challenge';
+
 /** 一局进行中游戏的可持久化会话（含 runId 会话元信息）。 */
 export interface SavedRun extends GameRunState {
   readonly runId: string;
   readonly savedAt: number;
+  readonly initialUndoItems?: number;
+  readonly initialRemoveLowestItems?: number;
+  readonly mode?: SavedRunMode;
+  readonly dailyChallengeCompleted?: boolean;
 }
 
 export const RUN_SESSION_SAVE_KEY = 'cat2048.run-session.v1';
@@ -41,11 +47,15 @@ export function normalizeSavedRun(value: unknown): SavedRun | null {
     score,
     nextTileId,
     savedAt,
-    undoRemaining: clampInteger(candidate.undoRemaining, 0, 1, 1),
-    removeLowestRemaining: clampInteger(candidate.removeLowestRemaining, 0, 1, 1),
+    undoRemaining: clampInteger(candidate.undoRemaining, 0, 99, 1),
+    removeLowestRemaining: clampInteger(candidate.removeLowestRemaining, 0, 99, 1),
     undoRefillRemaining: clampInteger(candidate.undoRefillRemaining, 0, 1, 1),
     removeLowestRefillRemaining: clampInteger(candidate.removeLowestRefillRemaining, 0, 1, 1),
     reviveRemaining: clampInteger(candidate.reviveRemaining, 0, 1, 1) as 0 | 1,
+    initialUndoItems: clampInteger(candidate.initialUndoItems, 0, 99, 0),
+    initialRemoveLowestItems: clampInteger(candidate.initialRemoveLowestItems, 0, 99, 0),
+    mode: candidate.mode === 'daily-challenge' ? 'daily-challenge' : 'classic',
+    dailyChallengeCompleted: candidate.dailyChallengeCompleted === true,
   };
 }
 

@@ -20,6 +20,10 @@ import {
 export interface DialogActions {
   onConfirm: () => void;
   onCancel?: () => void;
+  /** 主、次按钮可按当前操作语义交换强调层级。 */
+  cancelTone?: 'primary' | 'secondary';
+  confirmTone?: 'primary' | 'secondary';
+  showClose?: boolean;
   auxiliary?: {
     readonly text: string;
     readonly onTap: () => void;
@@ -53,7 +57,7 @@ export class DialogView {
     drawRounded(panel, 590, panelHeight, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
     overlay.addChild(panel);
     const closeFrame = this.art.frame(GAME_CONFIG.art.close);
-    if (closeFrame) {
+    if (closeFrame && actions.showClose !== false) {
       const close = createIconButton('DialogClose', closeFrame, '×', 66, () => {
         overlay.destroy();
         actions.onCancel?.();
@@ -73,13 +77,15 @@ export class DialogView {
       auxiliary.setPosition(0, -58);
       panel.addChild(auxiliary);
     }
-    const cancel = createButton(cancelText, 230, 78, COLORS.teal, () => {
+    const cancel = createButton(cancelText, 230, 78,
+      actions.cancelTone === 'primary' ? COLORS.coral : COLORS.teal, () => {
       overlay.destroy();
       actions.onCancel?.();
     }, 28);
     cancel.setPosition(-135, actions.auxiliary ? -180 : -125);
     panel.addChild(cancel);
-    const confirm = createButton(confirmText, 230, 78, COLORS.coral, () => {
+    const confirm = createButton(confirmText, 230, 78,
+      actions.confirmTone === 'secondary' ? COLORS.teal : COLORS.coral, () => {
       overlay.destroy();
       actions.onConfirm();
     }, 28);
@@ -89,14 +95,17 @@ export class DialogView {
     tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
   }
 
-  public showNotice(parent: Node | null, text: string): void {
+  public showNotice(parent: Node | null, text: string,
+    options: { readonly anchor?: 'top' | 'bottom'; readonly offset?: number } = {}): void {
     if (!parent) return;
     const { height } = this.getSize();
     const notice = createUiNode('ShareNotice', 500, 78);
     drawRounded(notice, 500, 78, COLORS.ink, 24);
     const label = createLabel(text, 24, COLORS.white, 450, 60);
     notice.addChild(label.node);
-    notice.setPosition(0, -height / 2 + 132);
+    const anchor = options.anchor ?? 'bottom';
+    const offset = options.offset ?? (anchor === 'top' ? 178 : 132);
+    notice.setPosition(0, anchor === 'top' ? height / 2 - offset : -height / 2 + offset);
     const opacity = notice.addComponent(UIOpacity);
     opacity.opacity = 0;
     parent.addChild(notice);

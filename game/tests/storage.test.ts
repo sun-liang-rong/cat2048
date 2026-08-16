@@ -54,6 +54,7 @@ describe('LocalGameStorage', () => {
       schemaVersion: 3,
       highScore: 256,
       soundEnabled: false,
+      musicEnabled: true,
       hapticsEnabled: true,
       unlockedCatLevels: [1],
       tutorial: {
@@ -84,6 +85,7 @@ describe('LocalGameStorage', () => {
       schemaVersion: 3,
       highScore: 1024,
       soundEnabled: false,
+      musicEnabled: true,
       hapticsEnabled: false,
       unlockedCatLevels: [1, 3, 5],
       tutorial: {

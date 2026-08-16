@@ -1,4 +1,4 @@
-import { BlockInputEvents, Color, Graphics, Label, Node, Vec3, tween } from 'cc';
+import { BlockInputEvents, Color, Graphics, Node, Vec3, tween } from 'cc';
 import type { DailyTaskItem, DailyTaskSnapshot, DailyTaskKind } from '../infrastructure/dailyTasks';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
@@ -100,7 +100,7 @@ export class TaskPanelView {
     const icon = createUiNode(`TaskIcon:${item.id}`, 52, 52);
     drawRounded(icon, 52, 52, new Color(255, 246, 222, 255), 26,
       { color: item.claimed ? DONE_COLOR : COLORS.teal, width: 3 });
-    const glyph = createLabel(KIND_GLYPHS[item.kind], 26, item.claimed ? DONE_COLOR : COLORS.teal,
+    const glyph = createLabel(item.claimed ? '✓' : KIND_GLYPHS[item.kind], 26, item.claimed ? DONE_COLOR : COLORS.teal,
       46, 46, 'display');
     icon.addChild(glyph.node);
     icon.setPosition(ICON_CENTER_X, 0);
@@ -111,9 +111,15 @@ export class TaskPanelView {
     name.node.setPosition(MIDDLE_LEFT + 75, 22);
     row.addChild(name.node);
 
-    const progress = createLabel(`${item.progress}/${item.target}`, 17, COLORS.teal, 60, 28, 'display');
-    progress.node.setPosition(MIDDLE_LEFT + MIDDLE_WIDTH - 30, 22);
-    row.addChild(progress.node);
+    const completed = item.progress >= item.target;
+    const progressPill = createUiNode(`TaskProgress:${item.id}`, 70, 30);
+    drawRounded(progressPill, 70, 30, item.claimed ? new Color(229, 222, 210, 255)
+      : completed ? new Color(255, 236, 190, 255) : new Color(224, 244, 238, 255), 15);
+    progressPill.setPosition(MIDDLE_LEFT + MIDDLE_WIDTH - 35, 22);
+    const progress = createLabel(`${item.progress}/${item.target}`, 19,
+      item.claimed ? DONE_COLOR : completed ? COLORS.coral : COLORS.teal, 64, 26, 'display');
+    progressPill.addChild(progress.node);
+    row.addChild(progressPill);
 
     const barWidth = MIDDLE_WIDTH;
     const bar = createUiNode(`TaskBar:${item.id}`, barWidth, 12);
@@ -123,8 +129,7 @@ export class TaskPanelView {
     const fillRatio = item.target > 0 ? Math.min(1, item.progress / item.target) : 0;
     const fillWidth = barWidth * fillRatio;
     if (fillWidth > 0) {
-      const fillColor = item.claimed ? DONE_COLOR
-        : item.progress >= item.target ? COLORS.mustard : COLORS.teal;
+      const fillColor = item.claimed ? DONE_COLOR : completed ? COLORS.mustard : COLORS.teal;
       const fill = createUiNode(`TaskBarFill:${item.id}`, fillWidth, 12);
       drawRounded(fill, fillWidth, 12, fillColor, Math.min(6, fillWidth / 2));
       fill.setPosition(-barWidth / 2 + fillWidth / 2, 0);
@@ -145,6 +150,6 @@ export class TaskPanelView {
       return createButton(`领取 +${item.rewardCoins}`, 128, 52, COLORS.coral,
         () => actions.onClaim(item.id), 19);
     }
-    return createButton('进行中', 128, 52, new Color(232, 222, 200, 255), () => undefined, 19);
+    return createButton('未完成', 128, 52, new Color(157, 148, 135, 210), () => undefined, 19);
   }
 }

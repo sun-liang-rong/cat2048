@@ -39,7 +39,7 @@ const expectedImagePaths = [
   'ui/common/tile_selected.png',
   ...[
     'back', 'check', 'classic_mode', 'close', 'coin', 'collection', 'daily', 'home', 'info',
-    'level_complete', 'level_current', 'level_locked', 'locked', 'remove_lowest',
+    'level_complete', 'level_current', 'level_locked', 'locked', 'remove_lowest', 'restart',
     'reward_video', 'settings', 'share', 'sound_off', 'sound_on', 'undo', 'weekly',
   ].map((name) => `ui/common/${name}.png`),
   ...buttonThemeImagePaths,

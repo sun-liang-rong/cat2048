@@ -60,13 +60,13 @@ export class Game2048 implements TileFactory {
     };
   }
 
-  public start(): BoardSnapshot {
+  public start(initialUndoRemaining = 1, initialRemoveLowestRemaining = 1): BoardSnapshot {
     this.boardValue = new Board();
     this.scoreValue = 0;
     this.nextId = 1;
     this.undoSnapshot = undefined;
-    this.undoRemainingValue = 1;
-    this.removeLowestRemainingValue = 1;
+    this.undoRemainingValue = initialUndoRemaining;
+    this.removeLowestRemainingValue = initialRemoveLowestRemaining;
     this.undoRefillRemainingValue = 1;
     this.removeLowestRefillRemainingValue = 1;
     this.reviveRemainingValue = 1;
@@ -116,7 +116,7 @@ export class Game2048 implements TileFactory {
     this.boardValue = new Board(snapshot.board);
     this.scoreValue = snapshot.score;
     this.undoSnapshot = undefined;
-    this.undoRemainingValue = 0;
+    this.undoRemainingValue = Math.max(0, this.undoRemainingValue - 1);
     return { changed: true, board: this.board, score: this.scoreValue, status: this.status };
   }
 
@@ -130,7 +130,7 @@ export class Game2048 implements TileFactory {
     const removed = new Set(removedTileIds);
     this.boardValue = new Board({ size: BOARD_SIZE, tiles: this.board.tiles.filter((tile) => !removed.has(tile.id)) });
     this.undoSnapshot = undefined;
-    this.removeLowestRemainingValue = 0;
+    this.removeLowestRemainingValue = Math.max(0, this.removeLowestRemainingValue - 1);
     return { changed: true, removedTileIds, board: this.board, score: this.scoreValue, status: this.status };
   }
 

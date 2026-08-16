@@ -1,4 +1,4 @@
-import { Color, Node, tween, Tween, UIOpacity, Vec3 } from 'cc';
+import { Color, Node, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
 import { COLORS, createButton, createLabel, createUiNode, drawRounded } from './uiFactory';
 
 export class TutorialView {
@@ -28,21 +28,21 @@ export class TutorialView {
     const hint = createUiNode('SwipeGuideHint', 470, 118);
     drawRounded(hint, 470, 118, COLORS.ivory, 28, { color: COLORS.ink, width: 4 });
     hint.setPosition(0, boardSize < 620 ? topEdge - 72 : Math.min(uiHeight / 2 - 120, topEdge + 78));
-    const title = createLabel('滑动棋盘，让猫咪移动', 28, COLORS.coral, 430, 46, 'display');
+    const title = createLabel('上下左右滑动猫咪', 28, COLORS.coral, 430, 46, 'display');
     title.node.setPosition(0, 20);
     hint.addChild(title.node);
-    const body = createLabel('两只相同猫咪会合并升级', 21, COLORS.ink, 420, 38);
+    const body = createLabel('相同猫咪相遇会合成升级', 21, COLORS.ink, 420, 38);
     body.node.setPosition(0, -24);
     hint.addChild(body.node);
     overlay.addChild(hint);
 
-    const arrow = createLabel('›', 82, COLORS.white, 86, 90, 'display');
-    arrow.node.setPosition(-90, boardY);
+    const arrow = createLabel('↑  ↓  ←  →', 44, COLORS.white, 340, 88, 'display');
+    arrow.node.setPosition(0, boardY);
     this.swipeArrow = arrow.node;
     overlay.addChild(arrow.node);
     tween(arrow.node)
-      .to(0.75, { position: new Vec3(90, boardY, 0) }, { easing: 'sineInOut' })
-      .to(0.01, { position: new Vec3(-90, boardY, 0) })
+      .to(0.7, { scale: new Vec3(1.12, 1.12, 1) }, { easing: 'sineInOut' })
+      .to(0.7, { scale: Vec3.ONE }, { easing: 'sineInOut' })
       .union().repeatForever().start();
 
     const skip = createButton('跳过', 150, 60, COLORS.teal, () => {
@@ -61,11 +61,17 @@ export class TutorialView {
     this.swipeArrow = null;
   }
 
-  public showItemRefillHint(parent: Node, target: Node, uiHeight: number): void {
-    const notice = createUiNode('ItemRefillGuide', 560, 76);
-    drawRounded(notice, 560, 76, COLORS.ink, 24);
-    notice.addChild(createLabel('次数用完后，可分享给好友补充 1 次', 23, COLORS.white, 520, 60).node);
-    notice.setPosition(0, -uiHeight / 2 + 190);
+  public showItemRefillHint(parent: Node, target: Node, uiWidth: number, uiHeight: number): void {
+    const noticeWidth = Math.min(440, uiWidth - 36);
+    const notice = createUiNode('ItemRefillGuide', noticeWidth, 76);
+    drawRounded(notice, noticeWidth, 76, COLORS.ink, 24);
+    notice.addChild(createLabel('次数用完后，可分享补充 1 次', 21, COLORS.white, noticeWidth - 28, 60).node);
+    const parentTransform = parent.getComponent(UITransform);
+    const targetPosition = parentTransform?.convertToNodeSpaceAR(target.getWorldPosition()) ?? target.position;
+    const maxX = Math.max(0, uiWidth / 2 - noticeWidth / 2 - 18);
+    const x = Math.max(-maxX, Math.min(maxX, targetPosition.x));
+    const y = Math.max(-uiHeight / 2 + 96, Math.min(uiHeight / 2 - 96, targetPosition.y + 90));
+    notice.setPosition(x, y);
     const opacity = notice.addComponent(UIOpacity);
     opacity.opacity = 0;
     parent.addChild(notice);

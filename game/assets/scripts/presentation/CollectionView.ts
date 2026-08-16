@@ -13,7 +13,6 @@ import type { CosmeticRuntime } from './CosmeticRuntime';
 import { addCoverBackground } from './background';
 import {
   COLORS,
-  createButton,
   createIconButton,
   createLabel,
   createSpriteNode,
@@ -81,7 +80,7 @@ export class CollectionView {
       const row = Math.floor(index / 3);
       const col = index % 3;
       const card = this.createCard(cat, unlocked.has(cat.level), cardWidth, cardHeight, () => {
-        if (unlocked.has(cat.level)) this.showDetail(parent, model, cat);
+        this.showDetail(parent, model, cat, unlocked.has(cat.level));
       });
       card.setPosition(
         -gridWidth / 2 + cardWidth / 2 + col * (cardWidth + gap),
@@ -130,27 +129,35 @@ export class CollectionView {
     return card;
   }
 
-  private showDetail(parent: Node, model: CollectionViewModel, cat: CatDefinition): void {
+  private showDetail(parent: Node, model: CollectionViewModel, cat: CatDefinition, unlocked: boolean): void {
     const overlay = this.createOverlay(parent, model.uiWidth, model.uiHeight, 'CollectionDetailOverlay');
-    const panel = createUiNode('CollectionDetailPanel', 590, 650);
-    drawRounded(panel, 590, 650, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
+    const panel = createUiNode('CollectionDetailPanel', 590, 570);
+    drawRounded(panel, 590, 570, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
     overlay.addChild(panel);
+
+    const close = createIconButton('CollectionDetailClose', this.art.frame(GAME_CONFIG.art.close), '×', 60,
+      () => overlay.destroy());
+    close.setPosition(250, 240);
+    panel.addChild(close);
 
     const frame = this.cosmetics.catFrame(cat.level);
     if (frame) {
-      const image = createSpriteNode('CollectionDetailCat', frame, 300, 300);
-      image.setPosition(0, 105);
+      const image = createSpriteNode('CollectionDetailCat', frame, 260, 260);
+      image.setPosition(0, 84);
+      if (!unlocked) image.getComponent(Sprite)!.color = new Color(70, 70, 70, 255);
       panel.addChild(image);
     }
-    const name = createLabel(`Lv.${cat.level}  ${cat.name}`, 42, COLORS.coral, 500, 68, 'display');
-    name.node.setPosition(0, -85);
+    const name = createLabel(unlocked ? `Lv.${cat.level}  ${cat.name}` : `Lv.${cat.level}  未解锁`,
+      42, unlocked ? COLORS.coral : COLORS.ink, 500, 68, 'display');
+    name.node.setPosition(0, -72);
     panel.addChild(name.node);
-    const description = createLabel(cat.description, 27, COLORS.ink, 470, 100);
-    description.node.setPosition(0, -162);
+    const unlockHint = cat.level <= 1
+      ? '开始一局游戏即可解锁首只猫咪'
+      : `合成两只 Lv.${cat.level - 1} 猫咪，即可解锁 ${cat.name}`;
+    const description = createLabel(unlocked ? cat.description : `解锁方式\n${unlockHint}`,
+      25, unlocked ? COLORS.ink : COLORS.teal, 470, 112);
+    description.node.setPosition(0, -158);
     panel.addChild(description.node);
-    const close = createButton('关闭', 270, 78, COLORS.teal, () => overlay.destroy(), 29);
-    close.setPosition(0, -260);
-    panel.addChild(close);
     panel.setScale(0.8, 0.8, 1);
     tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
   }

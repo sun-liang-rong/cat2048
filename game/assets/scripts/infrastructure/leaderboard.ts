@@ -141,6 +141,7 @@ export class LeaderboardClient {
   private accessToken: string | null = null;
   private player: PlayerSummary | null = null;
   private loginInFlight: Promise<PlayerSummary> | null = null;
+  private flushInFlight: Promise<number> | null = null;
 
   public constructor(
     private readonly transport: LeaderboardHttpTransport,
@@ -196,7 +197,16 @@ export class LeaderboardClient {
     return response;
   }
 
-  public async flushPendingScores(): Promise<number> {
+  public flushPendingScores(): Promise<number> {
+    if (this.flushInFlight) return this.flushInFlight;
+    const flush = this.drainPendingScores().finally(() => {
+      if (this.flushInFlight === flush) this.flushInFlight = null;
+    });
+    this.flushInFlight = flush;
+    return flush;
+  }
+
+  private async drainPendingScores(): Promise<number> {
     let flushed = 0;
     for (const payload of this.queue.list()) {
       try {
@@ -218,6 +228,7 @@ export class LeaderboardClient {
   }
 
   public async getLeaderboard(limit = 50): Promise<LeaderboardResponse> {
+    await this.flushPendingScores();
     const response = await this.authorizedRequest<ApiEnvelope<LeaderboardResponse>>({
       method: 'GET',
       path: `/v1/leaderboard?limit=${Math.max(1, Math.min(100, Math.floor(limit)))}`,

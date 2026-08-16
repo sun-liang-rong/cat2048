@@ -24,6 +24,8 @@ const sampleRun = (): SavedRun => ({
   removeLowestRefillRemaining: 1,
   reviveRemaining: 1,
   savedAt: 1_700_000_000_000,
+  initialUndoItems: 0,
+  initialRemoveLowestItems: 0,
 });
 
 describe('RunSessionStore', () => {
@@ -63,7 +65,7 @@ describe('normalizeSavedRun', () => {
       removeLowestRemaining: -3,
       reviveRemaining: 5,
     });
-    expect(normalized?.undoRemaining).toBe(1);
+    expect(normalized?.undoRemaining).toBe(99);
     expect(normalized?.removeLowestRemaining).toBe(0);
     expect(normalized?.reviveRemaining).toBe(1);
   });

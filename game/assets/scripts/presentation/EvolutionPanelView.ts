@@ -15,10 +15,16 @@ export interface EvolutionPanelActions {
   readonly onCollection: () => void;
 }
 
+export interface EvolutionChallenge {
+  readonly targetLevel: number;
+  readonly completed: boolean;
+}
+
 export class EvolutionPanelView {
   private panel: Node | null = null;
   private compactCollectionLabel: Label | null = null;
   private actions: EvolutionPanelActions | null = null;
+  private challenge: EvolutionChallenge | null = null;
 
   public constructor(
     private readonly art: ArtRepository,
@@ -26,10 +32,11 @@ export class EvolutionPanelView {
   ) {}
 
   public mount(parent: Node, y: number, height: number, highestLevel: number,
-    unlockedCount: number, actions: EvolutionPanelActions): void {
+    unlockedCount: number, actions: EvolutionPanelActions, challenge?: EvolutionChallenge): void {
     this.actions = actions;
     this.panel = null;
     this.compactCollectionLabel = null;
+    this.challenge = challenge ?? null;
     if (height > 0) {
       const panel = createUiNode('EvolutionPanel', 650, height);
       drawRounded(panel, 650, height, new Color(255, 248, 226, 232), 28,
@@ -43,9 +50,15 @@ export class EvolutionPanelView {
     this.refresh(highestLevel, unlockedCount);
   }
 
+  public setChallenge(challenge?: EvolutionChallenge): void {
+    this.challenge = challenge ?? null;
+  }
+
   public refresh(highestLevel: number, unlockedCount: number): void {
     if (this.compactCollectionLabel) {
-      this.compactCollectionLabel.string = this.compactCollectionText(unlockedCount);
+      this.compactCollectionLabel.string = this.challenge
+        ? this.compactChallengeText(highestLevel)
+        : this.compactCollectionText(unlockedCount);
     }
     const panel = this.panel;
     if (!panel) return;
@@ -54,20 +67,23 @@ export class EvolutionPanelView {
     const safeLevel = Math.max(1, Math.min(GAME_CONFIG.cats.length, highestLevel));
     const panelHeight = panel.getComponent(UITransform)?.height ?? 0;
     const compact = panelHeight < 190;
+    const challenge = this.challenge;
     const current = GAME_CONFIG.cats[safeLevel - 1];
     const next = GAME_CONFIG.cats[Math.min(safeLevel, GAME_CONFIG.cats.length - 1)];
     const maxed = safeLevel === GAME_CONFIG.cats.length;
 
-    const title = createLabel('猫咪进化路线', compact ? 21 : 24,
+    const title = createLabel(challenge ? '今日挑战' : '猫咪进化路线', compact ? 21 : 24,
       COLORS.ink, 250, 38, 'display');
     title.node.setPosition(-173, panelHeight / 2 - (compact ? 26 : 31));
     panel.addChild(title.node);
 
-    const collection = createLabel(this.collectionText(unlockedCount), compact ? 18 : 20,
-      COLORS.teal, 180, 36, 'display');
+    const collection = createLabel(challenge
+      ? challenge.completed ? '挑战完成' : `合成 Lv.${challenge.targetLevel}`
+      : this.collectionText(unlockedCount), compact ? 18 : 20,
+    challenge?.completed ? COLORS.mustard : COLORS.teal, 180, 36, 'display');
     collection.node.setPosition(220, panelHeight / 2 - (compact ? 26 : 31));
     collection.node.on(Node.EventType.TOUCH_END, () => {
-      if (!this.actions?.isLocked()) this.actions?.onCollection();
+      if (!challenge && !this.actions?.isLocked()) this.actions?.onCollection();
     });
     panel.addChild(collection.node);
 
@@ -118,9 +134,10 @@ export class EvolutionPanelView {
       drawRounded(track, trackWidth, 18, new Color(226, 207, 171, 255), 9);
       track.setPosition(0, -panelHeight / 2 + 31);
       panel.addChild(track);
-      const fillWidth = Math.max(18, trackWidth * safeLevel / GAME_CONFIG.cats.length);
+      const progressLimit = challenge?.targetLevel ?? GAME_CONFIG.cats.length;
+      const fillWidth = Math.max(18, trackWidth * Math.min(1, safeLevel / progressLimit));
       const fill = createUiNode('EvolutionProgressFill', fillWidth, 18);
-      drawRounded(fill, fillWidth, 18, maxed ? COLORS.mustard : COLORS.teal, 9);
+      drawRounded(fill, fillWidth, 18, challenge?.completed || maxed ? COLORS.mustard : COLORS.teal, 9);
       fill.setPosition(-trackWidth / 2 + fillWidth / 2, 0);
       track.addChild(fill);
     }
@@ -130,6 +147,7 @@ export class EvolutionPanelView {
     this.panel = null;
     this.compactCollectionLabel = null;
     this.actions = null;
+    this.challenge = null;
   }
 
   private createCompactCollectionEntry(parent: Node, y: number, unlockedCount: number): void {
@@ -137,11 +155,13 @@ export class EvolutionPanelView {
     drawRounded(entry, 250, 44, new Color(255, 248, 226, 240), 22,
       { color: COLORS.teal, width: 3 });
     entry.setPosition(0, y);
-    this.compactCollectionLabel = createLabel(this.compactCollectionText(unlockedCount),
+    this.compactCollectionLabel = createLabel(this.challenge
+      ? this.compactChallengeText(1)
+      : this.compactCollectionText(unlockedCount),
       19, COLORS.teal, 225, 38, 'display');
     entry.addChild(this.compactCollectionLabel.node);
     entry.on(Node.EventType.TOUCH_END, () => {
-      if (!this.actions?.isLocked()) this.actions?.onCollection();
+      if (!this.challenge && !this.actions?.isLocked()) this.actions?.onCollection();
     });
     parent.addChild(entry);
   }
@@ -154,5 +174,13 @@ export class EvolutionPanelView {
 
   private compactCollectionText(unlockedCount: number): string {
     return `图鉴 ${unlockedCount}/${GAME_CONFIG.cats.length} ›`;
+  }
+
+  private compactChallengeText(highestLevel: number): string {
+    const challenge = this.challenge;
+    if (!challenge) return '';
+    return challenge.completed
+      ? '今日挑战已完成'
+      : `今日挑战 Lv.${Math.min(highestLevel, challenge.targetLevel)}/${challenge.targetLevel}`;
   }
 }

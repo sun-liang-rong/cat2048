@@ -18,12 +18,12 @@ const TRACK_WIDTH = 468;
 const TRACK_HEIGHT = 20;
 const TRACK_INSET = 4;
 
-const BLACK = new Color(0, 0, 0, 255);
-const TRACK = new Color(35, 35, 35, 255);
-const TRACK_EDGE = new Color(78, 78, 78, 255);
+const BACKGROUND = new Color(55, 39, 43, 255);
+const TRACK = new Color(76, 54, 53, 255);
+const TRACK_EDGE = new Color(143, 100, 82, 255);
 const PROGRESS = new Color(239, 100, 83, 255);
-const TEXT = new Color(245, 245, 245, 255);
-const MUTED_TEXT = new Color(150, 150, 150, 255);
+const TEXT = new Color(255, 247, 225, 255);
+const MUTED_TEXT = new Color(220, 188, 163, 255);
 
 export class LoadingView {
   private fill: Node | null = null;
@@ -46,7 +46,7 @@ export class LoadingView {
     this.barHeight = Math.max(14, Math.round(TRACK_HEIGHT * this.contentScale));
 
     const background = createUiNode('LoadingBackground', width, height);
-    drawRounded(background, width, height, BLACK, 0);
+    drawRounded(background, width, height, BACKGROUND, 0);
     parent.addChild(background);
 
     const logoHost = createUiNode('LoadingLogoHost', this.logoSize, this.logoSize);
@@ -70,7 +70,7 @@ export class LoadingView {
     const innerWidth = this.barWidth - TRACK_INSET * 2;
     const innerHeight = this.barHeight - TRACK_INSET * 2;
     const innerTrack = createUiNode('LoadingTrackInner', innerWidth, innerHeight);
-    drawRounded(innerTrack, innerWidth, innerHeight, new Color(18, 18, 18, 255), innerHeight / 2);
+    drawRounded(innerTrack, innerWidth, innerHeight, new Color(48, 34, 39, 255), innerHeight / 2);
     track.addChild(innerTrack);
 
     this.fill = createUiNode('LoadingProgress', innerWidth, innerHeight);

@@ -111,8 +111,11 @@ export class ShopView {
       tabs.addChild(tab);
     });
 
-    this.content = createUiNode('ShopContent', model.uiWidth - 32, model.uiHeight - 310);
-    this.content.setPosition(0, headerY - 360 - TAB_CONTENT_GAP);
+    const contentTop = headerY - 116 - TAB_CONTENT_GAP;
+    const contentBottom = -model.uiHeight / 2 + model.bottomInset + 32;
+    const contentHeight = Math.max(280, contentTop - contentBottom);
+    this.content = createUiNode('ShopContent', model.uiWidth - 32, contentHeight);
+    this.content.setPosition(0, (contentTop + contentBottom) / 2);
     parent.addChild(this.content);
     this.refreshTabs();
     this.renderContent();
@@ -156,12 +159,14 @@ export class ShopView {
     const items = model.economy.catalog.filter((item) => item.category === this.category);
     const cardWidth = Math.min(330, (model.uiWidth - 76) / 2);
     const cardHeight = 252;
+    const rows = Math.ceil(items.length / 2);
+    const gridHeight = rows * cardHeight + Math.max(0, rows - 1) * 18;
     items.forEach((item, index) => {
       const card = this.createCard(item, model, actions, cardWidth, cardHeight);
       const col = index % 2;
       const row = Math.floor(index / 2);
       card.setPosition(-cardWidth / 2 - 10 + col * (cardWidth + 20),
-        cardHeight / 2 - row * (cardHeight + 18));
+        gridHeight / 2 - cardHeight / 2 - row * (cardHeight + 18));
       content.addChild(card);
     });
 
@@ -199,6 +204,14 @@ export class ShopView {
 
     const owned = model.economy.ownedItemIds.indexOf(item.id) >= 0;
     const equipped = this.isEquipped(item);
+    const status = createUiNode(`ShopStatus:${item.id}`, 92, 30);
+    const statusText = equipped ? '当前装备' : owned ? '已拥有' : '预览';
+    drawRounded(status, 92, 30, equipped ? COLORS.teal : owned ? COLORS.mustard
+      : new Color(232, 222, 200, 255), 15);
+    status.setPosition(width / 2 - 58, height / 2 - 20);
+    const statusLabel = createLabel(statusText, 16, owned ? COLORS.white : COLORS.ink, 84, 26, 'display');
+    status.addChild(statusLabel.node);
+    card.addChild(status);
     const actionText = equipped ? '已装备' : owned ? '装备' : `购买 ${item.price}`;
     const canBuy = owned || model.economy.coins >= item.price;
     const action = createButton(actionText, width - 38, 54,

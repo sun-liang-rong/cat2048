@@ -28,6 +28,7 @@ export type LeaderboardViewStatus = 'loading' | 'ready' | 'error';
 export interface LeaderboardViewModel {
   readonly data: LeaderboardResponse | null;
   readonly status: LeaderboardViewStatus;
+  readonly localHighScore: number;
   readonly uiWidth: number;
   readonly uiHeight: number;
   readonly topInset: number;
@@ -109,19 +110,12 @@ export class LeaderboardView {
     this.renderMyRank(parent, model, width, headerY - 70);
 
     if (model.status === 'loading') {
-      const loading = createLabel('正在加载排行榜...', 28, COLORS.ink, 420, 60, 'display');
-      loading.node.setPosition(0, this.listRegion(model).center + 26);
-      parent.addChild(loading.node);
+      this.renderLoadingState(parent, model);
       return;
     }
 
     if (model.status === 'error') {
-      const error = createLabel('排行榜暂时不可用', 28, COLORS.ink, 460, 60, 'display');
-      error.node.setPosition(0, this.listRegion(model).center + 42);
-      parent.addChild(error.node);
-      const retry = createButton('重试', 250, 72, COLORS.teal, actions.onRetry, 28);
-      retry.setPosition(0, this.listRegion(model).center - 32);
-      parent.addChild(retry);
+      this.renderOfflineState(parent, model, actions);
       return;
     }
 
@@ -145,8 +139,6 @@ export class LeaderboardView {
   }
 
   private renderMyRank(parent: Node, model: LeaderboardViewModel, width: number, centerY: number): void {
-    const actions = this.actions;
-    if (!actions) return;
     const stripWidth = width;
     const strip = createUiNode('LeaderboardMyRank', stripWidth, 66);
     drawRounded(strip, stripWidth, 66, new Color(255, 243, 214, 250), 24,
@@ -170,10 +162,68 @@ export class LeaderboardView {
       rightText.node.setPosition(0, 0);
       strip.addChild(rightText.node);
     } else {
-      const hint = createLabel('完成一局后加入排行榜', 21, COLORS.teal, stripWidth - 100, 42, 'display');
+      const hint = createLabel(model.localHighScore > 0
+        ? `本地最高分 ${this.formatScore(model.localHighScore)} · 完成同步后加入排行榜`
+        : '完成一局后加入排行榜', 20, COLORS.teal, stripWidth - 72, 42, 'display');
       hint.node.setPosition(0, 0);
       strip.addChild(hint.node);
     }
+  }
+
+  private renderLoadingState(parent: Node, model: LeaderboardViewModel): void {
+    const region = this.listRegion(model);
+    const width = Math.min(690, model.uiWidth - 36);
+    const hint = createLabel('正在同步好友成绩', 24, COLORS.teal, 420, 44, 'display');
+    hint.node.setPosition(0, region.top - 30);
+    parent.addChild(hint.node);
+    for (let index = 0; index < 4; index += 1) {
+      const row = createUiNode(`LeaderboardLoadingRow:${index}`, width - 12, ROW_HEIGHT);
+      drawRounded(row, width - 12, ROW_HEIGHT, new Color(255, 249, 230, 210), 24,
+        { color: new Color(77, 61, 54, 80), width: 2 });
+      row.setPosition(0, region.top - 92 - index * ROW_STEP);
+      const rank = createUiNode(`LeaderboardLoadingRank:${index}`, 42, 42);
+      drawRounded(rank, 42, 42, new Color(226, 214, 194, 255), 21);
+      rank.setPosition(-(width - 12) / 2 + 36, 0);
+      row.addChild(rank);
+      const name = createUiNode(`LeaderboardLoadingName:${index}`, 180, 16);
+      drawRounded(name, 180, 16, new Color(226, 214, 194, 255), 8);
+      name.setPosition(-80, 13);
+      row.addChild(name);
+      const detail = createUiNode(`LeaderboardLoadingDetail:${index}`, 112, 12);
+      drawRounded(detail, 112, 12, new Color(236, 226, 208, 255), 6);
+      detail.setPosition(-114, -18);
+      row.addChild(detail);
+      const score = createUiNode(`LeaderboardLoadingScore:${index}`, 116, 40);
+      drawRounded(score, 116, 40, new Color(244, 235, 216, 255), 20);
+      score.setPosition((width - 12) / 2 - 82, 0);
+      row.addChild(score);
+      parent.addChild(row);
+    }
+  }
+
+  private renderOfflineState(parent: Node, model: LeaderboardViewModel, actions: LeaderboardViewActions): void {
+    const region = this.listRegion(model);
+    const width = Math.min(590, model.uiWidth - 64);
+    const state = createUiNode('LeaderboardOfflineState', width, 238);
+    drawRounded(state, width, 238, new Color(255, 249, 230, 246), 30,
+      { color: new Color(77, 61, 54, 175), width: 3 });
+    state.setPosition(0, region.center);
+    parent.addChild(state);
+
+    const title = createLabel('排行榜暂时不可用', 29, COLORS.ink, width - 44, 52, 'display');
+    title.node.setPosition(0, 72);
+    state.addChild(title.node);
+    const copy = createLabel('网络恢复后可重新同步好友成绩', 21, COLORS.teal, width - 52, 40, 'display');
+    copy.node.setPosition(0, 22);
+    state.addChild(copy.node);
+    const local = createLabel(model.localHighScore > 0
+      ? `本地最高分 ${this.formatScore(model.localHighScore)} 已保留`
+      : '先完成一局，记录你的本地成绩', 20, CAPTION_COLOR, width - 52, 36);
+    local.node.setPosition(0, -20);
+    state.addChild(local.node);
+    const retry = createButton('重新连接', 250, 64, COLORS.teal, actions.onRetry, 24);
+    retry.setPosition(0, -80);
+    state.addChild(retry);
   }
 
   private renderEntries(parent: Node, model: LeaderboardViewModel, entries: readonly LeaderboardEntry[]): void {

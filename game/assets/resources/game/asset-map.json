@@ -34,6 +34,7 @@
   "info": "game/ui/common/info/texture",
   "locked": "game/ui/common/locked/texture",
   "classic_mode": "game/ui/common/classic_mode/texture",
+  "restart": "game/ui/common/restart/texture",
   "collection": "game/ui/common/collection/texture",
   "undo": "game/ui/common/undo/texture",
   "remove_lowest": "game/ui/common/remove_lowest/texture",

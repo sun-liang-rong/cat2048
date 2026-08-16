@@ -40,6 +40,7 @@ const DISPLAY_DARK_OUTLINE = new Color(74, 45, 39, 255);
 const DISPLAY_LIGHT_OUTLINE = new Color(255, 240, 202, 255);
 const DISPLAY_DARK_SHADOW = new Color(72, 36, 32, 125);
 const DISPLAY_LIGHT_SHADOW = new Color(150, 92, 54, 95);
+const MIN_TOUCH_TARGET = 88;
 
 let displayFont: Font | null = null;
 let numberFont: Font | null = null;
@@ -200,23 +201,38 @@ export function renderButtonBackground(node: Node, width: number, height: number
   background.setSiblingIndex(0);
 }
 
+/** Keeps compact controls visually small while giving touch input a stable, usable target. */
+function addExpandedTouchTarget(node: Node, width: number, height: number): void {
+  const touchWidth = Math.max(width, MIN_TOUCH_TARGET);
+  const touchHeight = Math.max(height, MIN_TOUCH_TARGET);
+  if (touchWidth === width && touchHeight === height) return;
+  const target = createUiNode(`${node.name}:TouchTarget`, touchWidth, touchHeight);
+  // The empty listeners make this transparent node a hit-test target; events still bubble to the control.
+  target.on(Node.EventType.TOUCH_START, () => undefined);
+  target.on(Node.EventType.TOUCH_CANCEL, () => undefined);
+  target.on(Node.EventType.TOUCH_END, () => undefined);
+  node.addChild(target);
+  target.setSiblingIndex(0);
+}
+
 export function createButton(text: string, width: number, height: number, color: Color,
   onTap: () => void, fontSize = 34, icon?: SpriteFrame): Node {
   const node = createUiNode(`Button:${text}`, width, height);
   renderButtonBackground(node, width, height, color);
   if (icon) {
-    const iconNode = createSpriteNode(`Button:${text}:Icon`, icon, height * 0.64, height * 0.64);
-    iconNode.setPosition(-width / 2 + height * 0.58, 0);
+    const iconNode = createSpriteNode(`Button:${text}:Icon`, icon, height * 0.56, height * 0.56);
+    iconNode.setPosition(-width / 2 + height * 0.5, 0);
     node.addChild(iconNode);
   }
   const label = createLabel(text, fontSize, COLORS.white, icon ? width - height - 24 : width - 30, height - 12, 'display');
-  if (icon) label.node.setPosition(height * 0.18, 0);
+  if (icon) label.node.setPosition(height * 0.36, 0);
   node.addChild(label.node);
   node.on(Node.EventType.TOUCH_START, () => tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start());
   node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
   node.on(Node.EventType.TOUCH_END, () => {
     tween(node).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
   });
+  addExpandedTouchTarget(node, width, height);
   return node;
 }
 
@@ -245,19 +261,22 @@ export function createToggle(name: string, enabled: boolean, onChange: (enabled:
     render(true);
     tween(node).to(0.08, { scale: Vec3.ONE }).call(() => onChange(current)).start();
   });
+  addExpandedTouchTarget(node, 110, 58);
   return node;
 }
 
 export function createIconButton(name: string, frame: SpriteFrame | undefined, fallback: string,
   size: number, onTap: () => void, crop?: SpriteCropRect): Node {
-  const node = createUiNode(name, size, size);
+  const node = createUiNode(name, Math.max(size, MIN_TOUCH_TARGET), Math.max(size, MIN_TOUCH_TARGET));
+  const visual = createUiNode(`${name}:Visual`, size, size);
+  node.addChild(visual);
   if (frame) {
     let iconWidth = size;
     let iconHeight = size;
     let iconX = 0;
     let iconY = 0;
     if (crop) {
-      node.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+      visual.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
       const sourceSize = frame.originalSize;
       const transform = spriteCropTransform(size, sourceSize.width, sourceSize.height, crop);
       iconWidth = transform.width;
@@ -267,11 +286,12 @@ export function createIconButton(name: string, frame: SpriteFrame | undefined, f
     }
     const icon = createSpriteNode(`${name}:Icon`, frame, iconWidth, iconHeight);
     icon.setPosition(iconX, iconY);
-    node.addChild(icon);
+    visual.addChild(icon);
   } else {
-    drawRounded(node, size, size, new Color(255, 248, 226, 235), size / 2, { color: COLORS.ink, width: 4 });
+    drawRounded(visual, size, size, new Color(255, 248, 226, 235), size / 2,
+      { color: COLORS.ink, width: 4 });
     const label = createLabel(fallback, size * 0.5, COLORS.ink, size * 0.8, size * 0.8);
-    node.addChild(label.node);
+    visual.addChild(label.node);
   }
   node.on(Node.EventType.TOUCH_START, () => tween(node).to(0.05, { scale: new Vec3(0.9, 0.9, 1) }).start());
   node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());

@@ -12,6 +12,7 @@ import {
   LocalGameStorage,
   type KeyValueStorage,
 } from '../infrastructure/storage';
+import type { ItemKind } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 
 export interface RunRewardRequest {
@@ -37,6 +38,8 @@ export interface EconomyRepository {
   claimDailyReward(): Promise<EconomyMutationResult>;
   settleRun(request: RunRewardRequest): Promise<EconomyMutationResult>;
   grantCoins(amount: number): Promise<EconomyMutationResult>;
+  grantItem(kind: ItemKind, amount: number): Promise<EconomyMutationResult>;
+  consumeItems(kind: ItemKind, amount: number): Promise<EconomyMutationResult>;
   purchase(itemId: string): Promise<EconomyMutationResult>;
   equip(itemId: string): Promise<EconomyMutationResult>;
 }
@@ -127,6 +130,26 @@ export class LocalEconomyRepository implements EconomyRepository {
     return this.result(economy, true, safeAmount);
   }
 
+  public async grantItem(kind: ItemKind, amount: number): Promise<EconomyMutationResult> {
+    const save = this.saveStorage.load();
+    const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
+    if (safeAmount <= 0) return this.result(save.economy, false, 0);
+    const key = this.itemKey(kind);
+    const economy = { ...save.economy, [key]: save.economy[key] + safeAmount };
+    this.saveStorage.save({ ...save, economy });
+    return this.result(economy, true, 0);
+  }
+
+  public async consumeItems(kind: ItemKind, amount: number): Promise<EconomyMutationResult> {
+    const save = this.saveStorage.load();
+    const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
+    if (safeAmount <= 0) return this.result(save.economy, false, 0);
+    const key = this.itemKey(kind);
+    const economy = { ...save.economy, [key]: Math.max(0, save.economy[key] - safeAmount) };
+    this.saveStorage.save({ ...save, economy });
+    return this.result(economy, true, 0);
+  }
+
   public async purchase(itemId: string): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId);
@@ -181,6 +204,10 @@ export class LocalEconomyRepository implements EconomyRepository {
   private result(economy: EconomySaveData, ok: boolean, awardedCoins: number,
     reason?: EconomyMutationResult['reason']): EconomyMutationResult {
     return { ...this.snapshot(economy), ok, awardedCoins, ...(reason ? { reason } : {}) };
+  }
+
+  private itemKey(kind: ItemKind): 'undoItems' | 'removeLowestItems' {
+    return kind === 'undo' ? 'undoItems' : 'removeLowestItems';
   }
 
   private equippedKey(category: CosmeticCategory): keyof EquippedCosmetics {

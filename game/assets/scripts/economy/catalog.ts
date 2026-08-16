@@ -30,6 +30,8 @@ export interface EconomySaveData {
   readonly lastDailyClaimDate: string | null;
   readonly dailyStreak: number;
   readonly settledRunIds: readonly string[];
+  readonly undoItems: number;
+  readonly removeLowestItems: number;
 }
 
 export const DEFAULT_EQUIPPED: EquippedCosmetics = {
@@ -83,6 +85,8 @@ export const DEFAULT_ECONOMY: EconomySaveData = {
   lastDailyClaimDate: null,
   dailyStreak: 0,
   settledRunIds: [],
+  undoItems: 0,
+  removeLowestItems: 0,
 };
 
 const skinAssets = (skin: string): readonly string[] => Array.from({ length: 12 }, (_, index) =>

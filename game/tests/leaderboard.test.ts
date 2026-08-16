@@ -122,6 +122,46 @@ describe('LeaderboardClient', () => {
     expect(client.pendingScores()).toEqual([]);
   });
 
+  it('flushes pending scores before reading the leaderboard', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(LEADERBOARD_AUTH_KEY, JSON.stringify({
+      accessToken: 'token-1',
+      player: { id: 'player-1', nickname: null, avatarUrl: null, highScore: 0 },
+    }));
+    storage.setItem('cat2048.leaderboard.queue.v1', JSON.stringify([
+      { runId: 'run-1', score: 2048, highestLevel: 6 },
+    ]));
+    const request = vi.fn()
+      .mockResolvedValueOnce({
+        data: {
+          runId: 'run-1',
+          accepted: true,
+          duplicate: false,
+          highScore: 2048,
+          rank: 1,
+        },
+      })
+      .mockResolvedValueOnce({ data: { entries: [], me: null } });
+    const transport: LeaderboardHttpTransport = { request };
+    const login: LeaderboardLoginProvider = {
+      getLoginCode: vi.fn(),
+    };
+    const client = new LeaderboardClient(transport, login, storage);
+
+    await expect(client.getLeaderboard()).resolves.toEqual({ entries: [], me: null });
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      method: 'POST',
+      path: '/v1/leaderboard/scores',
+      body: { runId: 'run-1', score: 2048, highestLevel: 6 },
+    });
+    expect(request.mock.calls[1]?.[0]).toMatchObject({
+      method: 'GET',
+      path: '/v1/leaderboard?limit=50',
+    });
+    expect(client.pendingScores()).toEqual([]);
+  });
+
   it('drops permanently rejected scores and continues flushing later runs', async () => {
     const storage = new MemoryStorage();
     storage.setItem(LEADERBOARD_AUTH_KEY, JSON.stringify({

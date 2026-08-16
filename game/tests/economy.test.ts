@@ -78,6 +78,25 @@ describe('LocalEconomyRepository', () => {
     expect((await repository.load()).coins).toBe(DEFAULT_ECONOMY.coins + 30);
   });
 
+  it('grants and consumes bonus items for the next runs', async () => {
+    const repository = new LocalEconomyRepository(new MemoryStorage());
+
+    const grantedUndo = await repository.grantItem('undo', 2);
+    const grantedRemove = await repository.grantItem('remove-lowest', 1);
+    expect(grantedUndo.ok).toBe(true);
+    expect(grantedRemove.ok).toBe(true);
+    expect((await repository.load()).undoItems).toBe(2);
+    expect((await repository.load()).removeLowestItems).toBe(1);
+
+    const consumedUndo = await repository.consumeItems('undo', 1);
+    expect(consumedUndo.ok).toBe(true);
+    expect((await repository.load()).undoItems).toBe(1);
+
+    const invalid = await repository.consumeItems('undo', -1);
+    expect(invalid.ok).toBe(false);
+    expect((await repository.load()).undoItems).toBe(1);
+  });
+
   it('does not spend coins when balance is insufficient and equips owned items', async () => {
     const repository = new LocalEconomyRepository(new MemoryStorage());
     const item = SHOP_ITEMS.find((candidate) => candidate.category === 'board');

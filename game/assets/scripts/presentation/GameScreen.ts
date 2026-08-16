@@ -16,7 +16,7 @@ import {
   capsuleBottomInset,
   gameLayout,
 } from './layout';
-import { EvolutionPanelView } from './EvolutionPanelView';
+import { EvolutionPanelView, type EvolutionChallenge } from './EvolutionPanelView';
 import { ItemBarView } from './ItemBarView';
 import { SwipeInput } from './SwipeInput';
 import {
@@ -52,6 +52,7 @@ export interface GameScreenModel {
   readonly board: BoardSnapshot;
   readonly items: ItemState;
   readonly unlockedCount: number;
+  readonly challenge?: EvolutionChallenge;
 }
 
 export interface GameScreenBuildResult {
@@ -106,7 +107,7 @@ export class GameScreen {
       layout.evolutionPanelHeight, highestLevel, model.unlockedCount, {
         isLocked: actions.isLocked,
         onCollection: actions.onCollection,
-      });
+      }, model.challenge);
 
     const board = this.boardView.mount(parent, BOARD_PIXELS);
     const boardY = model.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2;
@@ -144,7 +145,8 @@ export class GameScreen {
     this.itemBar.refresh(state);
   }
 
-  public refreshEvolution(board: BoardSnapshot, unlockedCount: number): void {
+  public refreshEvolution(board: BoardSnapshot, unlockedCount: number, challenge?: EvolutionChallenge): void {
+    this.evolution.setChallenge(challenge);
     this.evolution.refresh(highestLevelOfTiles(board.tiles), unlockedCount);
   }
 

@@ -22,6 +22,7 @@ interface ItemButtonView {
   readonly kind: ItemKind;
   readonly node: Node;
   readonly count: Label;
+  readonly badge: Node;
   readonly title: Label;
   readonly icon: Node;
   readonly baseTitle: string;
@@ -116,7 +117,7 @@ export class ItemBarView {
         else if (actions.canRefill(kind)) actions.onRefill(kind);
       }).start();
     });
-    return { kind, node, count, title, icon, baseTitle: titleText, baseIcon: iconText };
+    return { kind, node, count, badge, title, icon, baseTitle: titleText, baseIcon: iconText };
   }
 
   private canTap(kind: ItemKind): boolean {
@@ -127,14 +128,18 @@ export class ItemBarView {
   private setItemButtonState(view: ItemButtonView | null, canUse: boolean, canRefill: boolean,
     remaining: number, refillRemaining: number): void {
     if (!view) return;
-    view.count.string = String(remaining);
-    setLabelText(view.title, canRefill ? '分享补充' : view.baseTitle, 'display');
+    const refillAvailable = !canUse && canRefill;
+    view.count.string = refillAvailable ? '可补' : String(remaining);
+    setLabelText(view.title, canUse ? view.baseTitle : refillAvailable ? '分享补充' : '已用完', 'display');
+    drawRounded(view.badge, 54, 32, refillAvailable ? COLORS.coral
+      : canUse ? COLORS.mustard : new Color(157, 148, 135, 210), 16);
     for (const child of [...view.icon.children]) child.destroy();
-    const frame = canRefill
+    const frame = refillAvailable
       ? this.art.frame(GAME_CONFIG.art.share)
       : this.art.frame(view.kind === 'undo' ? GAME_CONFIG.art.undo : GAME_CONFIG.art.removeLowest);
     if (frame) view.icon.addChild(createSpriteNode(`${view.node.name}:IconSprite`, frame, 56, 56));
-    else view.icon.addChild(createLabel(view.baseIcon, 29, COLORS.white, 60, 58, 'display').node);
+    else view.icon.addChild(createLabel(refillAvailable ? '↗' : view.baseIcon,
+      29, COLORS.white, 60, 58, 'display').node);
     const opacity = view.node.getComponent(UIOpacity) ?? view.node.addComponent(UIOpacity);
     opacity.opacity = canUse || canRefill ? 255 : refillRemaining > 0 || remaining > 0 ? 145 : 90;
   }

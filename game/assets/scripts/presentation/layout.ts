@@ -111,7 +111,7 @@ export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, 
   const boardTop = Math.max(minimumBoardTop, Math.min(maximumBoardTop, preferredBoardTop));
   const hudBottom = hudCenterFromTop + 46;
   const panelSpace = boardTop - hudBottom - 28;
-  const evolutionPanelHeight = panelSpace >= 128 ? Math.min(236, panelSpace) : 0;
+  const evolutionPanelHeight = panelSpace >= 176 ? Math.min(236, panelSpace) : 0;
   return {
     hudCenterFromTop,
     evolutionPanelCenterFromTop: hudBottom + 14 + evolutionPanelHeight / 2,

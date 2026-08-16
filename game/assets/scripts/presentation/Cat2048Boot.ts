@@ -19,7 +19,7 @@ import {
   type EconomySnapshot,
 } from '../economy/economy';
 import { LocalDailyTaskRepository } from '../infrastructure/dailyTasks';
-import { RunSessionStore } from '../infrastructure/runSession';
+import { RunSessionStore, type SavedRunMode } from '../infrastructure/runSession';
 import type { Direction } from '../core/types';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import { HapticController } from '../infrastructure/HapticController';
@@ -38,7 +38,7 @@ import {
   capsuleBottomInset,
   safeInsetsFromRect,
 } from './layout';
-import { DialogView } from './DialogView';
+import { DialogView, type DialogActions } from './DialogView';
 import { CollectionView } from './CollectionView';
 import type { CollectionOrigin } from './CollectionView';
 import { HomeView, type HomeViewModel } from './HomeView';
@@ -94,7 +94,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private economySnapshot!: EconomySnapshot;
   private inputLocked = false;
   private readonly dialogs = new DialogView(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
-  private readonly settings = new SettingsPanel(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
+  private readonly settings = new SettingsPanel(() => ({ width: this.uiWidth, height: this.uiHeight }));
   private uiWidth: number = GAME_CONFIG.designWidth;
   private uiHeight: number = GAME_CONFIG.designHeight;
   private safeTop = 24;
@@ -116,6 +116,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     setButtonTheme(this.cosmetics.buttonTheme());
     this.audio = new AudioController(this.node, this.art);
     this.audio.enabled = this.save.soundEnabled;
+    this.audio.musicEnabled = this.save.musicEnabled;
     this.haptics.enabled = this.save.hapticsEnabled;
     this.flow = new GameFlowController({
       art: this.art,
@@ -132,7 +133,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
         onSettings: () => this.showSettingsDialog(),
         onCollection: () => this.showCollection('game'),
         onHome: () => this.showHome(),
-        onReplay: () => this.showGame(true),
+        onReplay: () => this.showGame(true, this.flow.mode),
       },
     });
     input.on(Input.EventType.KEY_DOWN, this.onKeyDown, this);
@@ -185,20 +186,30 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   }
 
   public showNotice(text: string): void {
-    this.dialogs.showNotice(this.screenRoot, text);
+    this.dialogs.showNotice(this.screenRoot, text, this.currentScreen === 'game'
+      ? { anchor: 'top', offset: this.topSafeInset() + 186 }
+      : undefined);
   }
 
-  public requestShare(purpose: SharePurpose): Promise<ShareResult | null> {
-    if (this.shareInProgress || !this.screenRoot) return Promise.resolve(null);
+  public async requestShare(purpose: SharePurpose): Promise<ShareResult | null> {
+    if (this.shareInProgress || !this.screenRoot) return null;
     const shareRoot = this.screenRoot;
     const token = this.sceneToken;
     const highestLevel = highestLevelOfTiles(this.flow.board.tiles);
     const cat = GAME_CONFIG.cats[highestLevel - 1];
-    const backgroundPath = this.art.imagePath(GAME_CONFIG.art.shareScoreBackground);
-    const catPath = this.art.imagePath(cat.asset);
+    let backgroundPath: string | undefined;
+    let catPath: string | undefined;
+    try {
+      [backgroundPath, catPath] = await Promise.all([
+        this.art.loadShareImagePath(GAME_CONFIG.art.shareScoreBackground),
+        this.art.loadShareImagePath(cat.asset),
+      ]);
+    } catch (error) {
+      console.warn('[Cat2048] Failed to load share card images.', error);
+    }
     if (!backgroundPath || !catPath) {
       this.dialogs.showNotice(this.screenRoot, '分享卡片素材暂不可用');
-      return Promise.resolve('failed');
+      return 'failed';
     }
 
     this.shareInProgress = true;
@@ -233,7 +244,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     markCocosLoadingReady();
     this.applyEconomySnapshot(await this.economy.load());
     await runStartupSequence({
-      preload: () => this.art.preload((ratio) => this.loadingView.setProgress(ratio)),
+      preload: () => this.art.preload(this.save.economy.equipped, (ratio) => this.loadingView.setProgress(ratio)),
       isActive: () => this.isValid,
       onReady: () => {
         this.assetsReady = true;
@@ -242,6 +253,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
           null,
         );
         setButtonTheme(this.cosmetics.buttonTheme());
+        this.audio.playMusic();
         this.showHome();
         void this.authenticateLeaderboard();
         void this.flushPendingLeaderboardScores();
@@ -334,6 +346,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.homeView.build(root, this.homeViewModel(), {
       onPlay: () => { if (this.assetsReady) this.startGame(); },
       onRestart: () => { if (this.assetsReady) this.restartGame(); },
+      onDailyChallenge: () => { if (this.assetsReady) this.startDailyChallenge(); },
       onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
       onCollection: () => { if (this.assetsReady) this.showCollection('home'); },
       onLeaderboard: () => { if (this.assetsReady) this.showLeaderboard(); },
@@ -363,12 +376,17 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       this.showGame(false);
       return;
     }
-    this.showGame(true);
+    this.showGame(true, 'classic');
   }
 
   private restartGame(): void {
     this.runSession.clear();
-    this.showGame(true);
+    this.showGame(true, 'classic');
+  }
+
+  private startDailyChallenge(): void {
+    this.runSession.clear();
+    this.showGame(true, 'daily-challenge');
   }
 
   private showLeaderboard(): void {
@@ -378,6 +396,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.leaderboardView.build(root, {
       data: null,
       status: 'loading',
+      localHighScore: this.save.highScore,
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
       topInset: this.topSafeInset(),
@@ -396,13 +415,13 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.leaderboardView.update({
       data: null,
       status: 'loading',
+      localHighScore: this.save.highScore,
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
       topInset: this.topSafeInset(),
       bottomInset: this.bottomSafeInset(),
     });
     try {
-      void this.flushPendingLeaderboardScores();
       const data = await this.leaderboard.getLeaderboard();
       if (token !== this.sceneToken
         || requestSequence !== this.leaderboardRequestSequence
@@ -410,6 +429,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       this.leaderboardView.update({
         data,
         status: 'ready',
+        localHighScore: this.save.highScore,
         uiWidth: this.uiWidth,
         uiHeight: this.uiHeight,
         topInset: this.topSafeInset(),
@@ -423,6 +443,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       this.leaderboardView.update({
         data: null,
         status: 'error',
+        localHighScore: this.save.highScore,
         uiWidth: this.uiWidth,
         uiHeight: this.uiHeight,
         topInset: this.topSafeInset(),
@@ -432,6 +453,21 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   }
 
   private showShop(): void {
+    void this.openShop();
+  }
+
+  private async openShop(): Promise<void> {
+    const token = this.sceneToken;
+    try {
+      await this.art.loadFrames(this.cosmeticAssetPaths());
+    } catch (error) {
+      console.warn('[Cat2048] Failed to load shop assets, showing fallbacks.', error);
+    }
+    if (token !== this.sceneToken) return;
+    this.renderShop();
+  }
+
+  private renderShop(): void {
     this.clearScreen();
     this.currentScreen = 'shop';
     const root = this.makeScreen('Shop');
@@ -475,6 +511,9 @@ export class Cat2048Boot extends Component implements GameFlowHost {
         this.dialogs.showNotice(this.screenRoot, '今日奖励已领取');
         return;
       }
+      await this.economy.grantItem('undo', 1);
+      await this.economy.grantItem('remove-lowest', 1);
+      this.applyEconomySnapshot(await this.economy.load());
       this.dailyRewardOverlay?.destroy();
       this.dailyRewardOverlay = null;
       this.inputLocked = false;
@@ -571,6 +610,21 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   }
 
   private showCollection(origin: CollectionOrigin): void {
+    void this.openCollection(origin);
+  }
+
+  private async openCollection(origin: CollectionOrigin): Promise<void> {
+    const token = this.sceneToken;
+    try {
+      await this.art.loadFrames(this.cosmeticAssetPaths());
+    } catch (error) {
+      console.warn('[Cat2048] Failed to load collection assets, showing fallbacks.', error);
+    }
+    if (token !== this.sceneToken) return;
+    this.renderCollection(origin);
+  }
+
+  private renderCollection(origin: CollectionOrigin): void {
     this.clearScreen();
     this.currentScreen = 'collection';
     this.collectionOrigin = origin;
@@ -589,10 +643,26 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     });
   }
 
-  private showGame(startNewGame: boolean): void {
+  private cosmeticAssetPaths(): string[] {
+    const paths = new Set<string>();
+    for (const item of this.economySnapshot.catalog) {
+      if (item.previewAsset) paths.add(item.previewAsset);
+      if (item.levelAssets) for (const path of item.levelAssets) paths.add(path);
+      if (item.boardAsset) paths.add(item.boardAsset);
+      if (item.sparkleAsset) paths.add(item.sparkleAsset);
+      if (item.burstAsset) paths.add(item.burstAsset);
+      if (item.primaryAsset) paths.add(item.primaryAsset);
+      if (item.secondaryAsset) paths.add(item.secondaryAsset);
+      if (item.rewardAsset) paths.add(item.rewardAsset);
+      if (item.creamAsset) paths.add(item.creamAsset);
+    }
+    return Array.from(paths);
+  }
+
+  private showGame(startNewGame: boolean, mode: SavedRunMode = this.flow.mode): void {
     this.clearScreen();
     this.currentScreen = 'game';
-    if (startNewGame) this.flow.startRun();
+    if (startNewGame) this.flow.startRun(mode);
     const root = this.makeScreen('Game');
     this.flow.buildGameScreen(root, {
       uiWidth: this.uiWidth,
@@ -633,6 +703,8 @@ export class Cat2048Boot extends Component implements GameFlowHost {
         lastDailyClaimDate: snapshot.lastDailyClaimDate,
         dailyStreak: snapshot.dailyStreak,
         settledRunIds: snapshot.settledRunIds,
+        undoItems: snapshot.undoItems,
+        removeLowestItems: snapshot.removeLowestItems,
       },
     };
     this.cosmetics.setEquipped(this.save.economy.equipped);
@@ -646,7 +718,8 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   }
 
   private confirmLeave(): void {
-    this.showDialog('返回主页？', '本局会自动保存，下次可继续冒险。', '继续游戏', '返回主页', () => this.showHome());
+    this.showDialog('返回主页？', '本局会自动保存，下次可继续冒险。', '继续游戏', '返回主页',
+      () => this.showHome(), undefined, undefined, { cancelTone: 'primary', confirmTone: 'secondary' });
   }
 
   private showInfoDialog(): void {
@@ -660,11 +733,17 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.inputLocked = true;
     this.settings.show(this.screenRoot, {
       soundEnabled: this.save.soundEnabled,
+      musicEnabled: this.save.musicEnabled,
       hapticsEnabled: this.save.hapticsEnabled,
     }, {
       onSoundChange: (enabled) => {
         this.save = { ...this.save, soundEnabled: enabled };
         this.audio.enabled = enabled;
+        runtimeStorage.save(this.save);
+      },
+      onMusicChange: (enabled) => {
+        this.save = { ...this.save, musicEnabled: enabled };
+        this.audio.setMusicEnabled(enabled);
         runtimeStorage.save(this.save);
       },
       onHapticsChange: (enabled) => {
@@ -680,7 +759,8 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   }
 
   private showDialog(titleText: string, bodyText: string, cancelText: string, confirmText: string,
-    onConfirm: () => void, onCancel?: () => void, auxiliary?: { text: string; onTap: () => void }): void {
+    onConfirm: () => void, onCancel?: () => void, auxiliary?: { text: string; onTap: () => void },
+    presentation?: Pick<DialogActions, 'cancelTone' | 'confirmTone' | 'showClose'>): void {
     if (!this.screenRoot) return;
     this.inputLocked = true;
     this.dialogs.show(this.screenRoot, titleText, bodyText, cancelText, confirmText, {
@@ -690,6 +770,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
         onCancel?.();
       },
       auxiliary,
+      ...presentation,
     });
   }
 

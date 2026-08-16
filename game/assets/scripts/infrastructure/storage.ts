@@ -34,6 +34,7 @@ export interface SaveDataV3 {
   readonly schemaVersion: 3;
   readonly highScore: number;
   readonly soundEnabled: boolean;
+  readonly musicEnabled: boolean;
   readonly hapticsEnabled: boolean;
   readonly unlockedCatLevels: readonly number[];
   readonly tutorial: TutorialProgress;
@@ -52,6 +53,7 @@ export const DEFAULT_SAVE: SaveDataV3 = {
   schemaVersion: 3,
   highScore: 0,
   soundEnabled: true,
+  musicEnabled: true,
   hapticsEnabled: true,
   unlockedCatLevels: [1],
   tutorial: {
@@ -146,6 +148,7 @@ export class LocalGameStorage {
       schemaVersion: 3,
       highScore: candidate.highScore,
       soundEnabled: candidate.soundEnabled,
+      musicEnabled: true,
       hapticsEnabled: candidate.hapticsEnabled ?? true,
       unlockedCatLevels: [1],
       tutorial: {
@@ -193,6 +196,7 @@ export class LocalGameStorage {
     return {
       highScore: candidate.highScore,
       soundEnabled: candidate.soundEnabled,
+      musicEnabled: typeof candidate.musicEnabled === 'boolean' ? candidate.musicEnabled : true,
       hapticsEnabled: candidate.hapticsEnabled,
       unlockedCatLevels: Array.from(new Set([1, ...(levels as number[])])).sort((a, b) => a - b),
       tutorial: {
@@ -232,6 +236,8 @@ export class LocalGameStorage {
       lastDailyClaimDate: candidate.lastDailyClaimDate as string | null,
       dailyStreak: candidate.dailyStreak,
       settledRunIds: Array.from(new Set(settled as string[])),
+      undoItems: this.normalizeItemCount(candidate.undoItems),
+      removeLowestItems: this.normalizeItemCount(candidate.removeLowestItems),
     };
   }
 
@@ -242,6 +248,10 @@ export class LocalGameStorage {
       equipped: { ...DEFAULT_ECONOMY.equipped },
       settledRunIds: [],
     };
+  }
+
+  private normalizeItemCount(value: unknown): number {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
   }
 
   private validEquipped(value: unknown, category: CosmeticCategory, owned: readonly string[], fallback: string): string {

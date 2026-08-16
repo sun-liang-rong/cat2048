@@ -4,7 +4,7 @@ import type { BoardSnapshot, Direction, ItemKind, ItemState } from '../core/type
 import type { EconomyMutationResult, EconomyRepository } from '../economy/economy';
 import type { HapticController } from '../infrastructure/HapticController';
 import type { DailyTaskRepository } from '../infrastructure/dailyTasks';
-import type { RunSessionStore, SavedRun } from '../infrastructure/runSession';
+import type { RunSessionStore, SavedRun, SavedRunMode } from '../infrastructure/runSession';
 import {
   highestLevelOfTiles,
   type LeaderboardClient,
@@ -17,12 +17,21 @@ import type { ArtRepository } from './ArtRepository';
 import type { AudioController } from './AudioController';
 import { BoardView } from './BoardView';
 import type { CosmeticRuntime } from './CosmeticRuntime';
-import { EvolutionPanelView } from './EvolutionPanelView';
+import { EvolutionPanelView, type EvolutionChallenge } from './EvolutionPanelView';
 import { GameOverDialogView } from './GameOverDialogView';
 import { GameScreen, type GameScreenModel } from './GameScreen';
 import { ItemBarView } from './ItemBarView';
 import type { SwipeInput } from './SwipeInput';
 import { TutorialView } from './TutorialView';
+
+const COLLECTION_REWARDS = [
+  { count: 3, coins: 200 },
+  { count: 6, coins: 400 },
+  { count: 9, coins: 600 },
+  { count: 12, coins: 800 },
+] as const;
+
+export const DAILY_CHALLENGE_TARGET_LEVEL = 5;
 
 /**
  * Cat2048Boot 提供给对局流程的宿主能力：页面导航、存档、弹窗、分享。
@@ -79,8 +88,17 @@ export class GameFlowController {
   private gameOverSettlementInProgress = false;
   private runSequence = 0;
   private currentRunId = '';
+  private runMode: SavedRunMode = 'classic';
+  private dailyChallengeCompleted = false;
   private uiWidth = 0;
   private uiHeight = 0;
+  private runInitialUndo = 1;
+  private runInitialRemoveLowest = 1;
+  private runBonusUndo = 0;
+  private runBonusRemoveLowest = 0;
+  private newRecordThisRun = false;
+  private movesCount = 0;
+  private mergesCount = 0;
 
   public constructor(private readonly deps: GameFlowDeps) {
     this.boardView = new BoardView(deps.art, deps.cosmetics);
@@ -93,6 +111,7 @@ export class GameFlowController {
   public get board(): BoardSnapshot { return this.game.board; }
   public get score(): number { return this.game.score; }
   public get items(): ItemState { return this.game.items; }
+  public get mode(): SavedRunMode { return this.runMode; }
 
   /** 当前棋盘视图是否挂载（用于设置面板来源判断和键盘输入）。 */
   public isBoardActive(): boolean {
@@ -100,16 +119,39 @@ export class GameFlowController {
   }
 
   /** 开始一局新游戏并构建对局界面。 */
-  public startRun(): void {
+  public startRun(mode: SavedRunMode = 'classic'): void {
     this.deps.runSession.clear();
     this.currentRunId = `run-${Date.now()}-${++this.runSequence}`;
-    this.registerBoardCats(this.game.start());
+    this.runMode = mode;
+    this.dailyChallengeCompleted = false;
+    const save = this.deps.host.getSave();
+    this.runBonusUndo = save.economy.undoItems;
+    this.runBonusRemoveLowest = save.economy.removeLowestItems;
+    this.runInitialUndo = 1 + this.runBonusUndo;
+    this.runInitialRemoveLowest = 1 + this.runBonusRemoveLowest;
+    this.newRecordThisRun = false;
+    this.movesCount = 0;
+    this.mergesCount = 0;
+    this.registerBoardCats(this.game.start(this.runInitialUndo, this.runInitialRemoveLowest));
   }
 
   /** 恢复一局未完成的游戏（跨启动续玩）。 */
   public resumeRun(savedRun: SavedRun): void {
     this.currentRunId = savedRun.runId;
+    this.runMode = savedRun.mode ?? 'classic';
+    this.dailyChallengeCompleted = savedRun.dailyChallengeCompleted === true;
     this.game.restore(savedRun);
+    if (this.runMode === 'daily-challenge'
+      && highestLevelOfTiles(this.game.board.tiles) >= DAILY_CHALLENGE_TARGET_LEVEL) {
+      this.dailyChallengeCompleted = true;
+    }
+    this.runBonusUndo = savedRun.initialUndoItems ?? 0;
+    this.runBonusRemoveLowest = savedRun.initialRemoveLowestItems ?? 0;
+    this.runInitialUndo = 1 + this.runBonusUndo;
+    this.runInitialRemoveLowest = 1 + this.runBonusRemoveLowest;
+    this.newRecordThisRun = this.game.score > this.deps.host.getSave().highScore;
+    this.movesCount = 0;
+    this.mergesCount = 0;
     this.registerBoardCats(this.game.board);
   }
 
@@ -117,7 +159,10 @@ export class GameFlowController {
     this.gameRoot = root;
     this.uiWidth = model.uiWidth;
     this.uiHeight = model.uiHeight;
-    const frame = this.gameScreen.build(root, model, {
+    const frame = this.gameScreen.build(root, {
+      ...model,
+      challenge: this.evolutionChallenge(),
+    }, {
       isLocked: () => this.deps.host.isInputLocked(),
       onBack: () => this.deps.actions.onBack(),
       onSettings: () => this.deps.actions.onSettings(),
@@ -155,6 +200,9 @@ export class GameFlowController {
       return;
     }
     this.registerBoardCats(result.board);
+    this.movesCount += 1;
+    this.mergesCount += result.merges.length;
+    const completedDailyChallenge = this.completeDailyChallengeIfNeeded(result.board);
     this.persistRun();
     if (!this.deps.host.getSave().tutorial.swipeGuideCompleted) this.completeSwipeGuide();
     const token = this.sessionToken;
@@ -176,6 +224,7 @@ export class GameFlowController {
     this.updateScore(result.score);
     this.refreshGameViews();
     this.deps.host.unlockInput();
+    if (completedDailyChallenge) this.deps.host.showNotice('今日挑战完成！');
     if (result.status === 'game-over') this.showGameOver();
   }
 
@@ -246,6 +295,7 @@ export class GameFlowController {
     if (result !== 'shared' || !this.deps.host.isOnGameScreen() || !this.boardView.root) return;
     const revived = this.game.revive();
     if (!revived.revived || !revived.changed) return;
+    this.gameOverSettlementInProgress = false;
     this.persistRun();
 
     this.gameOverOverlay?.destroy();
@@ -286,9 +336,70 @@ export class GameFlowController {
     this.deps.runSession.clear();
     this.deps.host.lockInput();
     this.updateScore(this.game.score);
-    void this.submitCurrentScore();
     this.deps.audio.play('game_over', 0.8);
-    void this.settleAndShowGameOver();
+    if (this.game.items.canUndo || this.game.items.canRemoveLowest) {
+      this.showRescueGameOver();
+    } else {
+      void this.settleAndShowGameOver();
+    }
+  }
+
+  private showRescueGameOver(): void {
+    if (!this.deps.host.isOnGameScreen() || !this.gameRoot) return;
+    this.gameOverOverlay = this.gameOverDialog.show(this.gameRoot, {
+      score: this.game.score,
+      bestScore: this.deps.host.getSave().highScore,
+      canRevive: this.game.reviveState.canRevive,
+      canUndoRescue: this.game.items.canUndo,
+      canRemoveLowestRescue: this.game.items.canRemoveLowest,
+      undoRescueCount: this.game.items.undoRemaining,
+      removeLowestRescueCount: this.game.items.removeLowestRemaining,
+      isNewRecord: this.newRecordThisRun,
+      runReward: 0,
+      runRewardFailed: false,
+      coins: this.deps.host.getCoins(),
+      highestLevel: highestLevelOfTiles(this.game.board.tiles),
+      moves: this.movesCount,
+      merges: this.mergesCount,
+      dailyChallenge: this.gameOverChallenge(),
+      uiWidth: this.uiWidth,
+      uiHeight: this.uiHeight,
+    }, {
+      onHome: () => { void this.finishGameOver(() => this.deps.actions.onHome()); },
+      onReplay: () => { void this.finishGameOver(() => this.deps.actions.onReplay()); },
+      onShareScore: () => { void this.finishGameOver(() => {
+        void this.shareResult().then(() => this.deps.actions.onHome());
+      }); },
+      onRevive: () => { void this.shareRevive(); },
+      onUndoRescue: () => this.rescueWithUndo(),
+      onRemoveLowestRescue: () => this.rescueWithRemoveLowest(),
+    });
+  }
+
+  private rescueWithUndo(): void {
+    if (!this.game.items.canUndo) return;
+    this.gameOverOverlay?.destroy();
+    this.gameOverOverlay = null;
+    this.gameOverSettlementInProgress = false;
+    this.deps.host.unlockInput();
+    void this.useUndoItem();
+  }
+
+  private rescueWithRemoveLowest(): void {
+    if (!this.game.items.canRemoveLowest) return;
+    this.gameOverOverlay?.destroy();
+    this.gameOverOverlay = null;
+    this.gameOverSettlementInProgress = false;
+    this.deps.host.unlockInput();
+    void this.useRemoveLowestItem();
+  }
+
+  private async finishGameOver(after: () => void): Promise<void> {
+    if (!this.gameOverSettlementInProgress) return;
+    await this.settleGameOver();
+    this.gameOverOverlay?.destroy();
+    this.gameOverOverlay = null;
+    after();
   }
 
   private async submitCurrentScore(): Promise<void> {
@@ -304,7 +415,8 @@ export class GameFlowController {
     }
   }
 
-  private async settleAndShowGameOver(): Promise<void> {
+  private async settleGameOver(): Promise<{ reward: number; rewardFailed: boolean }> {
+    await this.submitCurrentScore();
     let reward = 0;
     let rewardFailed = false;
     try {
@@ -323,15 +435,30 @@ export class GameFlowController {
     if (highestLevelOfTiles(this.game.board.tiles) >= 5) {
       this.deps.tasks.recordEvent('reach-lv5');
     }
+    await this.consumeUsedRunItems();
     this.gameOverSettlementInProgress = false;
+    return { reward, rewardFailed };
+  }
+
+  private async settleAndShowGameOver(): Promise<void> {
+    const { reward, rewardFailed } = await this.settleGameOver();
     if (!this.deps.host.isOnGameScreen() || !this.gameRoot) return;
     this.gameOverOverlay = this.gameOverDialog.show(this.gameRoot, {
       score: this.game.score,
       bestScore: this.deps.host.getSave().highScore,
       canRevive: this.game.reviveState.canRevive,
+      canUndoRescue: false,
+      canRemoveLowestRescue: false,
+      undoRescueCount: 0,
+      removeLowestRescueCount: 0,
+      isNewRecord: this.newRecordThisRun,
       runReward: reward,
       runRewardFailed: rewardFailed,
       coins: this.deps.host.getCoins(),
+      highestLevel: highestLevelOfTiles(this.game.board.tiles),
+      moves: this.movesCount,
+      merges: this.mergesCount,
+      dailyChallenge: this.gameOverChallenge(),
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
     }, {
@@ -339,7 +466,30 @@ export class GameFlowController {
       onReplay: () => this.deps.actions.onReplay(),
       onShareScore: () => { void this.shareResult(); },
       onRevive: () => { void this.shareRevive(); },
+      onUndoRescue: () => undefined,
+      onRemoveLowestRescue: () => undefined,
     });
+  }
+
+  private async consumeUsedRunItems(): Promise<void> {
+    const usedUndoBonus = Math.max(0, Math.min(
+      this.runBonusUndo,
+      this.runInitialUndo - this.game.items.undoRemaining - 1,
+    ));
+    const usedRemoveBonus = Math.max(0, Math.min(
+      this.runBonusRemoveLowest,
+      this.runInitialRemoveLowest - this.game.items.removeLowestRemaining - 1,
+    ));
+    try {
+      if (usedUndoBonus > 0) {
+        this.deps.host.applyEconomyResult(await this.deps.economy.consumeItems('undo', usedUndoBonus));
+      }
+      if (usedRemoveBonus > 0) {
+        this.deps.host.applyEconomyResult(await this.deps.economy.consumeItems('remove-lowest', usedRemoveBonus));
+      }
+    } catch (error) {
+      console.warn('[Cat2048] Failed to consume used bonus items.', error);
+    }
   }
 
   private persistRun(): void {
@@ -347,6 +497,10 @@ export class GameFlowController {
       runId: this.currentRunId,
       ...this.game.exportState(),
       savedAt: Date.now(),
+      initialUndoItems: this.runBonusUndo,
+      initialRemoveLowestItems: this.runBonusRemoveLowest,
+      mode: this.runMode,
+      dailyChallengeCompleted: this.dailyChallengeCompleted,
     });
   }
 
@@ -357,22 +511,64 @@ export class GameFlowController {
       .filter((level) => !unlocked.has(level))
       .sort((a, b) => a - b);
     if (newLevels.length === 0) return;
+    const previousCount = unlocked.size;
     for (const level of newLevels) unlocked.add(level);
+    const nextCount = unlocked.size;
     this.deps.host.commitSave({
       ...save,
       unlockedCatLevels: Array.from(unlocked).sort((a, b) => a - b),
     });
+    let rewardCoins = 0;
+    for (const reward of COLLECTION_REWARDS) {
+      if (previousCount < reward.count && nextCount >= reward.count) {
+        rewardCoins += reward.coins;
+      }
+    }
+    if (rewardCoins > 0) void this.awardCollectionReward(rewardCoins);
+  }
+
+  private async awardCollectionReward(coins: number): Promise<void> {
+    try {
+      const result = await this.deps.economy.grantCoins(coins);
+      this.deps.host.applyEconomyResult(result);
+      this.deps.host.showNotice(`图鉴奖励 +${coins} 金币`);
+    } catch (error) {
+      console.warn('[Cat2048] Failed to award collection reward.', error);
+    }
   }
 
   private refreshGameViews(): void {
-    this.gameScreen.refreshEvolution(this.game.board, this.deps.host.getSave().unlockedCatLevels.length);
+    this.gameScreen.refreshEvolution(this.game.board, this.deps.host.getSave().unlockedCatLevels.length,
+      this.evolutionChallenge());
     this.gameScreen.refreshItems(this.game.items);
+  }
+
+  private evolutionChallenge(): EvolutionChallenge | undefined {
+    if (this.runMode !== 'daily-challenge') return undefined;
+    return {
+      targetLevel: DAILY_CHALLENGE_TARGET_LEVEL,
+      completed: this.dailyChallengeCompleted,
+    };
+  }
+
+  private gameOverChallenge(): { targetLevel: number; completed: boolean } | undefined {
+    const challenge = this.evolutionChallenge();
+    return challenge ? { ...challenge } : undefined;
+  }
+
+  private completeDailyChallengeIfNeeded(board: BoardSnapshot): boolean {
+    if (this.runMode !== 'daily-challenge' || this.dailyChallengeCompleted
+      || highestLevelOfTiles(board.tiles) < DAILY_CHALLENGE_TARGET_LEVEL) return false;
+    this.dailyChallengeCompleted = true;
+    return true;
   }
 
   private updateScore(score: number): void {
     const save = this.deps.host.getSave();
     if (score > save.highScore) {
+      this.newRecordThisRun = true;
       this.deps.host.commitSave({ ...save, highScore: score });
+      this.deps.host.showNotice('新纪录！');
     }
     this.gameScreen.updateScore(score, this.deps.host.getSave().highScore);
   }
@@ -402,6 +598,6 @@ export class GameFlowController {
       ...save,
       tutorial: { ...save.tutorial, itemRefillGuideCompleted: true },
     });
-    this.tutorial.showItemRefillHint(this.gameRoot ?? item.parent ?? item, item, this.uiHeight);
+    this.tutorial.showItemRefillHint(this.gameRoot ?? item.parent ?? item, item, this.uiWidth, this.uiHeight);
   }
 }

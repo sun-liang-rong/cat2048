@@ -6,12 +6,9 @@ import {
   tween,
   Vec3,
 } from 'cc';
-import { GAME_CONFIG } from '../infrastructure/gameConfig';
-import type { ArtRepository } from './ArtRepository';
 import {
   COLORS,
   createButton,
-  createIconButton,
   createLabel,
   createToggle,
   createUiNode,
@@ -20,18 +17,19 @@ import {
 
 export interface SettingsState {
   soundEnabled: boolean;
+  musicEnabled: boolean;
   hapticsEnabled: boolean;
 }
 
 export interface SettingsHandlers {
   onSoundChange(enabled: boolean): void;
+  onMusicChange(enabled: boolean): void;
   onHapticsChange(enabled: boolean): void;
   onClose(): void;
 }
 
 export class SettingsPanel {
   public constructor(
-    private readonly art: ArtRepository,
     private readonly getSize: () => { width: number; height: number },
   ) {}
 
@@ -45,21 +43,14 @@ export class SettingsPanel {
     dim.fill();
     parent.addChild(overlay);
 
-    const panel = createUiNode('SettingsPanel', 590, 500);
-    drawRounded(panel, 590, 500, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
+    const panel = createUiNode('SettingsPanel', 590, 560);
+    drawRounded(panel, 590, 560, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
     overlay.addChild(panel);
 
     const closeSettings = (): void => {
       overlay.destroy();
       handlers.onClose();
     };
-    const closeFrame = this.art.frame(GAME_CONFIG.art.close);
-    if (closeFrame) {
-      const close = createIconButton('SettingsClose', closeFrame, '×', 66, closeSettings);
-      close.setPosition(258, 223);
-      panel.addChild(close);
-    }
-
     const title = createLabel('设置', 46, COLORS.coral, 500, 70, 'display');
     title.node.setPosition(0, 172);
     panel.addChild(title.node);
@@ -81,20 +72,23 @@ export class SettingsPanel {
       panel.addChild(toggle);
     };
 
-    addSettingRow('SoundSetting', '音效', state.soundEnabled, 70, (enabled) => {
+    addSettingRow('SoundSetting', '音效', state.soundEnabled, 110, (enabled) => {
       handlers.onSoundChange(enabled);
     });
-    addSettingRow('HapticsSetting', '震动', state.hapticsEnabled, -35, (enabled) => {
+    addSettingRow('MusicSetting', '音乐', state.musicEnabled, 10, (enabled) => {
+      handlers.onMusicChange(enabled);
+    });
+    addSettingRow('HapticsSetting', '震动', state.hapticsEnabled, -90, (enabled) => {
       handlers.onHapticsChange(enabled);
     });
 
     const divider = createUiNode('SettingsDivider', 470, 2);
     drawRounded(divider, 470, 2, new Color(77, 61, 54, 55), 1);
-    divider.setPosition(0, 18);
+    divider.setPosition(0, -40);
     panel.addChild(divider);
 
-    const close = createButton('关闭', 270, 78, COLORS.coral, closeSettings, 28);
-    close.setPosition(0, -170);
+    const close = createButton('完成', 270, 78, COLORS.coral, closeSettings, 28);
+    close.setPosition(0, -210);
     panel.addChild(close);
     panel.setScale(0.8, 0.8, 1);
     tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
