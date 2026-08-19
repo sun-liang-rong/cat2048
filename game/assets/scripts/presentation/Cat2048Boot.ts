@@ -616,7 +616,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private async openCollection(origin: CollectionOrigin): Promise<void> {
     const token = this.sceneToken;
     try {
-      await this.art.loadFrames(this.cosmeticAssetPaths());
+      await this.art.loadFrames([...this.cosmeticAssetPaths(), ...this.collectionAssetPaths()]);
     } catch (error) {
       console.warn('[Cat2048] Failed to load collection assets, showing fallbacks.', error);
     }
@@ -657,6 +657,18 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       if (item.creamAsset) paths.add(item.creamAsset);
     }
     return Array.from(paths);
+  }
+
+  private collectionAssetPaths(): string[] {
+    const art = GAME_CONFIG.art;
+    return [
+      art.collectionBackground,
+      art.collectionCardLight,
+      art.collectionCardLocked,
+      art.collectionBackPaw,
+      art.collectionLockedCat,
+      art.collectionLock,
+    ];
   }
 
   private showGame(startNewGame: boolean, mode: SavedRunMode = this.flow.mode): void {

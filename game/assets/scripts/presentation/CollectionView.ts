@@ -1,16 +1,14 @@
 import {
-  BlockInputEvents,
   Color,
-  Graphics,
+  Mask,
   Node,
-  Sprite,
-  tween,
-  Vec3,
+  ScrollView,
 } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
 import type { CosmeticRuntime } from './CosmeticRuntime';
 import { addCoverBackground } from './background';
+import { collectionLayout } from './collectionLayout';
 import {
   COLORS,
   createIconButton,
@@ -36,6 +34,11 @@ export interface CollectionActions {
 
 type CatDefinition = (typeof GAME_CONFIG.cats)[number];
 
+const TITLE_COLOR = new Color(91, 49, 31, 255);
+const LOCKED_TEXT_COLOR = new Color(244, 228, 196, 255);
+const PROGRESS_TRACK_COLOR = new Color(241, 224, 191, 245);
+const PROGRESS_BORDER_COLOR = new Color(105, 61, 40, 255);
+
 export class CollectionView {
   public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
@@ -43,133 +46,159 @@ export class CollectionView {
     addCoverBackground(
       parent,
       this.art,
-      GAME_CONFIG.art.pageBackground,
+      GAME_CONFIG.art.collectionBackground,
       model.uiWidth,
       model.uiHeight,
-      new Color(249, 235, 206, 255),
+      new Color(255, 246, 220, 255),
     );
 
-    const headerY = model.uiHeight / 2 - model.topInset - 62;
-    const back = createIconButton('CollectionBack', this.art.frame(GAME_CONFIG.art.back), '‹', 72, actions.onBack);
-    back.setPosition(-model.uiWidth / 2 + 58, headerY);
+    const layout = collectionLayout(
+      model.uiWidth,
+      model.uiHeight,
+      model.topInset,
+      model.bottomInset,
+      GAME_CONFIG.cats.length,
+    );
+
+    const back = createIconButton(
+      'CollectionBack',
+      this.art.frame(GAME_CONFIG.art.collectionBackPaw),
+      '‹',
+      78,
+      actions.onBack,
+    );
+    back.setPosition(-model.uiWidth / 2 + 60, layout.headerY);
     parent.addChild(back);
 
-    const title = createLabel('猫咪图鉴', 45, COLORS.coral, 360, 70, 'display');
-    title.node.setPosition(0, headerY + 8);
+    const title = createLabel('猫咪图鉴', 50, TITLE_COLOR, 390, 72, 'display');
+    title.node.setPosition(0, layout.headerY + 2);
     parent.addChild(title.node);
 
-    const count = model.unlockedLevels.length;
-    const progress = createUiNode('CollectionProgress', 210, 48);
-    drawRounded(progress, 210, 48, count === GAME_CONFIG.cats.length ? COLORS.mustard : COLORS.teal, 24);
-    progress.setPosition(0, headerY - 58);
-    const progressText = createLabel(count === GAME_CONFIG.cats.length
-      ? '全图鉴达成' : `已解锁 ${count}/${GAME_CONFIG.cats.length}`, 20, COLORS.white, 190, 40, 'display');
-    progress.addChild(progressText.node);
+    this.renderProgress(parent, model, layout.progressY);
+    this.renderGrid(parent, model, layout);
+  }
+
+  private renderProgress(parent: Node, model: CollectionViewModel, centerY: number): void {
+    const count = new Set(model.unlockedLevels).size;
+    const total = GAME_CONFIG.cats.length;
+    const width = Math.min(520, model.uiWidth - 150);
+    const height = 42;
+    const progress = createUiNode('CollectionProgress', width, height);
+    drawRounded(progress, width, height, PROGRESS_TRACK_COLOR, height / 2,
+      { color: PROGRESS_BORDER_COLOR, width: 4 });
+
+    const ratio = Math.max(0, Math.min(1, count / total));
+    const innerWidth = width - 8;
+    const fillWidth = Math.max(height - 8, innerWidth * ratio);
+    const fill = createUiNode('CollectionProgressFill', fillWidth, height - 8);
+    drawRounded(fill, fillWidth, height - 8, COLORS.teal, (height - 8) / 2);
+    fill.setPosition(-innerWidth / 2 + fillWidth / 2, 0);
+    progress.addChild(fill);
+
+    const label = createLabel(`已解锁 ${count}/${total}`, 20, COLORS.white, width - 28, height - 4, 'display');
+    progress.addChild(label.node);
+    progress.setPosition(0, centerY);
     parent.addChild(progress);
+  }
+
+  private renderGrid(
+    parent: Node,
+    model: CollectionViewModel,
+    layout: ReturnType<typeof collectionLayout>,
+  ): void {
+    const scroll = createUiNode('CollectionScroll', model.uiWidth, layout.viewportHeight);
+    scroll.setPosition(0, layout.viewportTop - layout.viewportHeight / 2);
+    parent.addChild(scroll);
+
+    const viewport = createUiNode('CollectionViewport', model.uiWidth, layout.viewportHeight);
+    viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+    scroll.addChild(viewport);
+
+    const content = createUiNode('CollectionContent', model.uiWidth, layout.contentHeight);
+    content.setPosition(0, (layout.viewportHeight - layout.contentHeight) / 2);
+    viewport.addChild(content);
+
+    const scrollView = scroll.addComponent(ScrollView);
+    scrollView.horizontal = false;
+    scrollView.vertical = true;
+    scrollView.inertia = true;
+    scrollView.content = content;
 
     const unlocked = new Set(model.unlockedLevels);
-    const gridTop = headerY - 105;
-    const availableHeight = Math.max(480, gridTop + model.uiHeight / 2 - model.bottomInset - 24);
-    const gap = 12;
-    const gridWidth = Math.min(660, model.uiWidth - 44);
-    const cardWidth = (gridWidth - gap * 2) / 3;
-    const rows = Math.ceil(GAME_CONFIG.cats.length / 3);
-    const cardHeight = Math.min(210, (availableHeight - gap * (rows - 1)) / rows);
-
     GAME_CONFIG.cats.forEach((cat, index) => {
-      const row = Math.floor(index / 3);
-      const col = index % 3;
-      const card = this.createCard(cat, unlocked.has(cat.level), cardWidth, cardHeight, () => {
-        this.showDetail(parent, model, cat, unlocked.has(cat.level));
-      });
+      const row = Math.floor(index / layout.columns);
+      const column = index % layout.columns;
+      const card = this.createCard(cat, unlocked.has(cat.level), layout.cardWidth, layout.cardHeight);
       card.setPosition(
-        -gridWidth / 2 + cardWidth / 2 + col * (cardWidth + gap),
-        gridTop - cardHeight / 2 - row * (cardHeight + gap),
+        -layout.gridWidth / 2 + layout.cardWidth / 2
+          + column * (layout.cardWidth + layout.columnGap),
+        layout.contentHeight / 2 - layout.contentPadding - layout.cardHeight / 2
+          - row * (layout.cardHeight + layout.rowGap),
       );
-      parent.addChild(card);
+      content.addChild(card);
     });
   }
 
-  private createCard(cat: CatDefinition, unlocked: boolean, width: number, height: number,
-    onTap: () => void): Node {
+  private createCard(cat: CatDefinition, unlocked: boolean, width: number, height: number): Node {
     const card = createUiNode(`CollectionCard:${cat.level}`, width, height);
-    drawRounded(card, width, height, unlocked ? new Color(255, 249, 230, 245) : new Color(214, 207, 194, 235),
-      22, { color: unlocked ? COLORS.ink : new Color(100, 94, 88, 210), width: 4 });
-
-    const frame = this.cosmetics.catFrame(cat.level);
-    const catSize = Math.max(72, Math.min(width - 34, height - 66));
+    const cardPath = unlocked ? GAME_CONFIG.art.collectionCardLight : GAME_CONFIG.art.collectionCardLocked;
+    const frame = this.art.frame(cardPath);
     if (frame) {
-      const image = createSpriteNode(`CollectionCat:${cat.level}`, frame, catSize, catSize);
-      image.setPosition(0, 18);
-      if (!unlocked) {
-        const sprite = image.getComponent(Sprite);
-        if (sprite) sprite.color = new Color(70, 70, 70, 255);
-      }
-      card.addChild(image);
+      card.addChild(createSpriteNode(`${card.name}:Surface`, frame, width, height));
+    } else {
+      drawRounded(
+        card,
+        width,
+        height,
+        unlocked ? new Color(255, 248, 224, 250) : new Color(125, 113, 98, 248),
+        24,
+        { color: PROGRESS_BORDER_COLOR, width: 4 },
+      );
     }
 
-    if (unlocked) {
-      const name = createLabel(`Lv.${cat.level}  ${cat.name}`, 19, COLORS.ink, width - 16, 36, 'display');
-      name.node.setPosition(0, -height / 2 + 25);
-      card.addChild(name.node);
-    } else {
-      const lockFrame = this.art.frame(GAME_CONFIG.art.locked);
-      if (lockFrame) {
-        const lock = createSpriteNode(`CollectionLock:${cat.level}`, lockFrame, 54, 54);
-        lock.setPosition(0, 18);
-        card.addChild(lock);
-      }
-      const lockedText = createLabel(`Lv.${cat.level}  未解锁`, 18, new Color(95, 90, 84, 255), width - 16, 34, 'display');
-      lockedText.node.setPosition(0, -height / 2 + 25);
-      card.addChild(lockedText.node);
-    }
-    card.on(Node.EventType.TOUCH_START, () => tween(card).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start());
-    card.on(Node.EventType.TOUCH_CANCEL, () => tween(card).to(0.08, { scale: Vec3.ONE }).start());
-    card.on(Node.EventType.TOUCH_END, () => tween(card).to(0.08, { scale: Vec3.ONE }).call(onTap).start());
+    if (unlocked) this.renderUnlockedCat(card, cat, width, height);
+    else this.renderLockedCat(card, cat, width, height);
     return card;
   }
 
-  private showDetail(parent: Node, model: CollectionViewModel, cat: CatDefinition, unlocked: boolean): void {
-    const overlay = this.createOverlay(parent, model.uiWidth, model.uiHeight, 'CollectionDetailOverlay');
-    const panel = createUiNode('CollectionDetailPanel', 590, 570);
-    drawRounded(panel, 590, 570, COLORS.ivory, 38, { color: COLORS.ink, width: 6 });
-    overlay.addChild(panel);
-
-    const close = createIconButton('CollectionDetailClose', this.art.frame(GAME_CONFIG.art.close), '×', 60,
-      () => overlay.destroy());
-    close.setPosition(250, 240);
-    panel.addChild(close);
-
-    const frame = this.cosmetics.catFrame(cat.level);
-    if (frame) {
-      const image = createSpriteNode('CollectionDetailCat', frame, 260, 260);
-      image.setPosition(0, 84);
-      if (!unlocked) image.getComponent(Sprite)!.color = new Color(70, 70, 70, 255);
-      panel.addChild(image);
+  private renderUnlockedCat(card: Node, cat: CatDefinition, width: number, height: number): void {
+    const catFrame = this.cosmetics.catFrame(cat.level);
+    if (catFrame) {
+      const size = Math.min(width - 34, height - 88);
+      const image = createSpriteNode(`CollectionCat:${cat.level}`, catFrame, size, size);
+      image.setPosition(0, 30);
+      card.addChild(image);
     }
-    const name = createLabel(unlocked ? `Lv.${cat.level}  ${cat.name}` : `Lv.${cat.level}  未解锁`,
-      42, unlocked ? COLORS.coral : COLORS.ink, 500, 68, 'display');
-    name.node.setPosition(0, -72);
-    panel.addChild(name.node);
-    const unlockHint = cat.level <= 1
-      ? '开始一局游戏即可解锁首只猫咪'
-      : `合成两只 Lv.${cat.level - 1} 猫咪，即可解锁 ${cat.name}`;
-    const description = createLabel(unlocked ? cat.description : `解锁方式\n${unlockHint}`,
-      25, unlocked ? COLORS.ink : COLORS.teal, 470, 112);
-    description.node.setPosition(0, -158);
-    panel.addChild(description.node);
-    panel.setScale(0.8, 0.8, 1);
-    tween(panel).to(0.18, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
+
+    const level = createLabel(`Lv.${cat.level}`, 18, TITLE_COLOR, width - 24, 28, 'display');
+    level.node.setPosition(0, -height / 2 + 48);
+    card.addChild(level.node);
+    const name = createLabel(cat.name, 20, TITLE_COLOR, width - 24, 32, 'display');
+    name.node.setPosition(0, -height / 2 + 22);
+    card.addChild(name.node);
   }
 
-  private createOverlay(parent: Node, width: number, height: number, name: string): Node {
-    const overlay = createUiNode(name, width, height);
-    overlay.addComponent(BlockInputEvents);
-    const dim = overlay.addComponent(Graphics);
-    dim.fillColor = COLORS.overlay;
-    dim.rect(-width / 2, -height / 2, width, height);
-    dim.fill();
-    parent.addChild(overlay);
-    return overlay;
+  private renderLockedCat(card: Node, cat: CatDefinition, width: number, height: number): void {
+    const silhouetteFrame = this.art.frame(GAME_CONFIG.art.collectionLockedCat);
+    if (silhouetteFrame) {
+      const size = Math.min(width - 46, height - 106);
+      const silhouette = createSpriteNode(`CollectionLockedCat:${cat.level}`, silhouetteFrame, size, size);
+      silhouette.setPosition(0, 31);
+      card.addChild(silhouette);
+    }
+
+    const lockFrame = this.art.frame(GAME_CONFIG.art.collectionLock);
+    if (lockFrame) {
+      const lock = createSpriteNode(`CollectionLock:${cat.level}`, lockFrame, 54, 54);
+      lock.setPosition(0, 16);
+      card.addChild(lock);
+    }
+
+    const level = createLabel(`Lv.${cat.level}`, 18, LOCKED_TEXT_COLOR, width - 24, 28, 'display');
+    level.node.setPosition(0, -height / 2 + 48);
+    card.addChild(level.node);
+    const label = createLabel('未解锁', 19, LOCKED_TEXT_COLOR, width - 24, 32, 'display');
+    label.node.setPosition(0, -height / 2 + 22);
+    card.addChild(label.node);
   }
 }

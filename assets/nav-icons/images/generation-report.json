@@ -1,0 +1,78 @@
+{
+  "manifest": "E:\\my-project\\cat2048\\assets\\nav-icons\\manifest.json",
+  "generated_at": "2026-08-19T09:30:40.377635+00:00",
+  "assets": [
+    {
+      "id": "nav_icon_collection",
+      "output": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\nav_icon_collection.png",
+      "status": "skipped_existing",
+      "warnings": []
+    },
+    {
+      "id": "nav_icon_shop",
+      "output": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\nav_icon_shop.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\responses\\nav_icon_shop.json",
+      "source_dimensions": [
+        1254,
+        1254
+      ],
+      "output_dimensions": [
+        144,
+        144
+      ],
+      "meaningful_alpha": true,
+      "transparent_pixel_ratio": 0.383154,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "8d065e6bb354bf3228677356441b54f825d750c4ecc95d38c829b7c3399d1a35",
+      "bytes": 40857,
+      "source": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\_source\\nav_icon_shop.png"
+    },
+    {
+      "id": "nav_icon_tasks",
+      "output": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\nav_icon_tasks.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\responses\\nav_icon_tasks.json",
+      "source_dimensions": [
+        1254,
+        1254
+      ],
+      "output_dimensions": [
+        144,
+        144
+      ],
+      "meaningful_alpha": true,
+      "transparent_pixel_ratio": 0.391489,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "4d5b6bbf6931d72290efcdf6ba50f40d95c6f729f6ed1f38051bc8822e12d74f",
+      "bytes": 34325,
+      "source": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\_source\\nav_icon_tasks.png"
+    },
+    {
+      "id": "nav_icon_settings",
+      "output": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\nav_icon_settings.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\responses\\nav_icon_settings.json",
+      "source_dimensions": [
+        1254,
+        1254
+      ],
+      "output_dimensions": [
+        144,
+        144
+      ],
+      "meaningful_alpha": true,
+      "transparent_pixel_ratio": 0.392001,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "2ac06f4a2d733ca6babf8d682d0364fa59f67f329388c5a2db03e80a7256e90b",
+      "bytes": 35679,
+      "source": "E:\\my-project\\cat2048\\assets\\nav-icons\\images\\_source\\nav_icon_settings.png"
+    }
+  ]
+}

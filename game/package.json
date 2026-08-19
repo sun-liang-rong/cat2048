@@ -11,7 +11,7 @@
     "prepare:assets": "python3 ../tools/prepare_runtime_assets.py",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck:core": "tsc -p tsconfig.core.json --noEmit",
+    "typecheck:core": "npx tsc -p tsconfig.core.json --noEmit",
     "customize:wechat-loading": "node ../tools/customize_wechat_loading.mjs",
     "verify:wechat-build": "node ../tools/verify_wechat_build.mjs",
     "verify": "npm run typecheck:core && npm test"

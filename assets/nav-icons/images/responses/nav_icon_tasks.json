@@ -1,0 +1,25 @@
+{
+  "created": 1787131913,
+  "data": [
+    {
+      "b64_json": "[redacted_base64]",
+      "url": "[redacted_signed_url]",
+      "revised_prompt": "Cute cat-themed game art, warm color palette with cream, orange, and brown tones. Soft cartoon illustration style with smooth shading, gentle shadows, and rounded shapes. Cozy and friendly atmosphere. Clean edges, simple but charming details.\n\nA clipboard with checkmarks and a cute cat paw stamp, orange clip at top, cream colored paper, completed checkboxes with orange checks, circular cat paw print stamp in orange. Centered composition, icon style, clean and organized look, transparent background."
+    }
+  ],
+  "usage": {
+    "input_tokens": 97,
+    "output_tokens": 1650,
+    "total_tokens": 1747,
+    "input_tokens_details": {
+      "text_tokens": 97,
+      "image_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens_details": {
+      "text_tokens": 0,
+      "image_tokens": 1650,
+      "reasoning_tokens": 0
+    }
+  }
+}
