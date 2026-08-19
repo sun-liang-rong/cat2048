@@ -1,12 +1,12 @@
-import { Color, JsonAsset, Node, Rect, Sprite, SpriteFrame, Texture2D, tween, Vec3, resources } from 'cc';
+import { Color, JsonAsset, Node, Rect, SpriteFrame, Texture2D, tween, Vec3, resources } from 'cc';
 import type { ArtRepository } from './ArtRepository';
-import { createLabel, createUiNode, drawRounded } from './uiFactory';
+import { createLabel, createSpriteNode, createUiNode, drawRounded } from './uiFactory';
 
 const DOCK_HEIGHT = 168;
 const ICON_SIZE = 92;
 // 间距根据屏幕宽度动态计算，4 个图标均匀铺开
 const MAX_ICON_SPACING = 184;
-const ICON_SIZE_UI = 56;
+const ICON_SIZE_UI = 100;
 
 interface NavItem {
   name: string;
@@ -215,9 +215,6 @@ export class ModernNavDock {
       return null;
     }
 
-    const iconNode = createUiNode(`${name}:Icon`, ICON_SIZE_UI, ICON_SIZE_UI);
-    const sprite = iconNode.addComponent(Sprite);
-    
     // 创建新的 SpriteFrame 用于裁剪
     const croppedFrame = new SpriteFrame();
     croppedFrame.texture = this.spriteTexture;
@@ -231,12 +228,8 @@ export class ModernNavDock {
       iconInfo.width,
       iconInfo.height
     );
-    
-    sprite.spriteFrame = croppedFrame;
-    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-    // Sprite 使用节点尺寸显示裁剪区域，无需额外缩放
-    
-    return iconNode;
+
+    return createSpriteNode(`${name}:Icon`, croppedFrame, ICON_SIZE_UI, ICON_SIZE_UI);
   }
 
   private createIconFromIndividualFile(name: string, iconName: string): Node | null {
@@ -247,12 +240,7 @@ export class ModernNavDock {
       return null;
     }
 
-    const iconNode = createUiNode(`${name}:Icon`, ICON_SIZE_UI, ICON_SIZE_UI);
-    const sprite = iconNode.addComponent(Sprite);
-    sprite.spriteFrame = iconFrame;
-    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-    
-    return iconNode;
+    return createSpriteNode(`${name}:Icon`, iconFrame, ICON_SIZE_UI, ICON_SIZE_UI);
   }
 
   private createBadge(): Node {

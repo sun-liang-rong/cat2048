@@ -20,6 +20,7 @@ import type { CosmeticRuntime } from './CosmeticRuntime';
 import { EvolutionPanelView, type EvolutionChallenge } from './EvolutionPanelView';
 import { GameOverDialogView } from './GameOverDialogView';
 import { GameScreen, type GameScreenModel } from './GameScreen';
+import { GameStatsBarView } from './GameStatsBarView';
 import { ItemBarView } from './ItemBarView';
 import type { SwipeInput } from './SwipeInput';
 import { TutorialView } from './TutorialView';
@@ -104,7 +105,8 @@ export class GameFlowController {
     this.boardView = new BoardView(deps.art, deps.cosmetics);
     this.itemBar = new ItemBarView(deps.art);
     this.evolution = new EvolutionPanelView(deps.art, deps.cosmetics);
-    this.gameScreen = new GameScreen(deps.art, this.boardView, this.itemBar, this.evolution);
+    this.gameScreen = new GameScreen(deps.art, this.boardView, this.itemBar, this.evolution,
+      new GameStatsBarView(deps.art));
     this.gameOverDialog = new GameOverDialogView(deps.art);
   }
 
@@ -112,6 +114,8 @@ export class GameFlowController {
   public get score(): number { return this.game.score; }
   public get items(): ItemState { return this.game.items; }
   public get mode(): SavedRunMode { return this.runMode; }
+  public get moves(): number { return this.movesCount; }
+  public get merges(): number { return this.mergesCount; }
 
   /** 当前棋盘视图是否挂载（用于设置面板来源判断和键盘输入）。 */
   public isBoardActive(): boolean {
@@ -150,8 +154,8 @@ export class GameFlowController {
     this.runInitialUndo = 1 + this.runBonusUndo;
     this.runInitialRemoveLowest = 1 + this.runBonusRemoveLowest;
     this.newRecordThisRun = this.game.score > this.deps.host.getSave().highScore;
-    this.movesCount = 0;
-    this.mergesCount = 0;
+    this.movesCount = savedRun.moves ?? 0;
+    this.mergesCount = savedRun.merges ?? 0;
     this.registerBoardCats(this.game.board);
   }
 
@@ -501,6 +505,8 @@ export class GameFlowController {
       initialRemoveLowestItems: this.runBonusRemoveLowest,
       mode: this.runMode,
       dailyChallengeCompleted: this.dailyChallengeCompleted,
+      moves: this.movesCount,
+      merges: this.mergesCount,
     });
   }
 
@@ -541,6 +547,7 @@ export class GameFlowController {
     this.gameScreen.refreshEvolution(this.game.board, this.deps.host.getSave().unlockedCatLevels.length,
       this.evolutionChallenge());
     this.gameScreen.refreshItems(this.game.items);
+    this.gameScreen.refreshStats(this.game.board, this.movesCount, this.mergesCount);
   }
 
   private evolutionChallenge(): EvolutionChallenge | undefined {

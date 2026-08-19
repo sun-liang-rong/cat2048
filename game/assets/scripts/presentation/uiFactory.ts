@@ -236,6 +236,28 @@ export function createButton(text: string, width: number, height: number, color:
   return node;
 }
 
+export interface PillButtonOptions {
+  readonly width?: number;
+  readonly height?: number;
+  readonly color?: Color;
+  readonly fontSize?: number;
+  readonly icon?: SpriteFrame;
+}
+
+/** Creates the compact capsule buttons used for actions such as continue/home. */
+export function createPillButton(text: string, onTap: () => void,
+  options: PillButtonOptions = {}): Node {
+  return createButton(
+    text,
+    options.width ?? 230,
+    options.height ?? 78,
+    options.color ?? COLORS.coral,
+    onTap,
+    options.fontSize ?? 27,
+    options.icon,
+  );
+}
+
 export function createToggle(name: string, enabled: boolean, onChange: (enabled: boolean) => void): Node {
   const node = createUiNode(`${name}:${enabled ? 'On' : 'Off'}`, 110, 58);
   const knob = createUiNode(`${name}:Knob`, 46, 46);

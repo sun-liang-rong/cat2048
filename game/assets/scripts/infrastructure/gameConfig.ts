@@ -48,6 +48,7 @@ export const GAME_CONFIG = {
     collectionLock: 'game/ui/collection/collection_lock/texture',
     pageBackground: 'game/backgrounds/common/bg_page/texture',
     boardBackground: 'game/backgrounds/board/wood/bg_board_wood/texture',
+    gameplayStatsSheet: 'game/ui/gameplay/stats_sprite_sheet/texture',
     shareScoreBackground: 'game/backgrounds/common/share_score_bg/texture',
     tileBase: 'game/ui/common/tile_empty/texture',
     tileSelected: 'game/ui/common/tile_selected/texture',

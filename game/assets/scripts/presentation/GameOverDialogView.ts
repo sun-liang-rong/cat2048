@@ -1,7 +1,14 @@
 import { BlockInputEvents, Graphics, Node, tween, Vec3 } from 'cc';
 import { GAME_CONFIG } from '../infrastructure/gameConfig';
 import type { ArtRepository } from './ArtRepository';
-import { COLORS, createButton, createLabel, createUiNode, drawRounded } from './uiFactory';
+import {
+  COLORS,
+  createButton,
+  createLabel,
+  createPillButton,
+  createUiNode,
+  drawRounded,
+} from './uiFactory';
 
 export interface GameOverDialogModel {
   readonly score: number;
@@ -119,12 +126,18 @@ export class GameOverDialogView {
     }
 
     const bottomY = -top + 68;
-    const home = createButton('返回主页', 230, 78, COLORS.teal, actions.onHome, 27,
-      this.art.frame(GAME_CONFIG.art.home));
+    const home = createPillButton('返回主页', actions.onHome, {
+      color: COLORS.teal,
+      fontSize: 27,
+      icon: this.art.frame(GAME_CONFIG.art.home),
+    });
     home.setPosition(-135, bottomY);
     panel.addChild(home);
-    const replay = createButton('再玩一局', 230, 78, COLORS.coral, actions.onReplay, 27,
-      this.art.frame(GAME_CONFIG.art.classicMode));
+    const replay = createPillButton('再玩一局', actions.onReplay, {
+      color: COLORS.coral,
+      fontSize: 27,
+      icon: this.art.frame(GAME_CONFIG.art.classicMode),
+    });
     replay.setPosition(135, bottomY);
     panel.addChild(replay);
 

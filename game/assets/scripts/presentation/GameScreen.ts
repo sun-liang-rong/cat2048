@@ -17,6 +17,7 @@ import {
   gameLayout,
 } from './layout';
 import { EvolutionPanelView, type EvolutionChallenge } from './EvolutionPanelView';
+import { GameStatsBarView } from './GameStatsBarView';
 import { ItemBarView } from './ItemBarView';
 import { SwipeInput } from './SwipeInput';
 import {
@@ -49,6 +50,8 @@ export interface GameScreenModel {
   readonly bottomInset: number;
   readonly score: number;
   readonly highScore: number;
+  readonly moves: number;
+  readonly merges: number;
   readonly board: BoardSnapshot;
   readonly items: ItemState;
   readonly unlockedCount: number;
@@ -70,6 +73,7 @@ export class GameScreen {
     private readonly boardView: BoardView,
     private readonly itemBar: ItemBarView,
     private readonly evolution: EvolutionPanelView,
+    private readonly statsBar: GameStatsBarView,
   ) {}
 
   public build(parent: Node, model: GameScreenModel, actions: GameScreenActions): GameScreenBuildResult {
@@ -108,6 +112,14 @@ export class GameScreen {
         isLocked: actions.isLocked,
         onCollection: actions.onCollection,
       }, model.challenge);
+
+    if (layout.statsBarHeight > 0) {
+      this.statsBar.mount(parent, model.uiHeight / 2 - layout.statsBarCenterFromTop, {
+        moves: model.moves,
+        merges: model.merges,
+        spaces: model.board.size * model.board.size - model.board.tiles.length,
+      });
+    }
 
     const board = this.boardView.mount(parent, BOARD_PIXELS);
     const boardY = model.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2;
@@ -150,6 +162,14 @@ export class GameScreen {
     this.evolution.refresh(highestLevelOfTiles(board.tiles), unlockedCount);
   }
 
+  public refreshStats(board: BoardSnapshot, moves: number, merges: number): void {
+    this.statsBar.refresh({
+      moves,
+      merges,
+      spaces: board.size * board.size - board.tiles.length,
+    });
+  }
+
   public updateScore(score: number, highScore: number): void {
     this.setHudValue(this.scoreLabel, score);
     this.setHudValue(this.highScoreLabel, highScore);
@@ -160,6 +180,7 @@ export class GameScreen {
     this.highScoreLabel = null;
     this.itemBar.clear();
     this.evolution.clear();
+    this.statsBar.clear();
   }
 
   private createHudCard(titleText: string, valueText: string): { node: Node; value: Label } {

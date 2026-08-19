@@ -39,6 +39,20 @@ const LOCKED_TEXT_COLOR = new Color(244, 228, 196, 255);
 const PROGRESS_TRACK_COLOR = new Color(241, 224, 191, 245);
 const PROGRESS_BORDER_COLOR = new Color(105, 61, 40, 255);
 
+// The generated card textures include transparent padding around the painted
+// frame. Keep the content inside that painted area instead of positioning it
+// against the node's full rectangular bounds.
+const CARD_IMAGE_SIZE_INSET = 54;
+// Cocos UI uses a positive-up Y axis, so lowering these values moves the cats
+// down inside the card and leaves more breathing room above them.
+const CARD_IMAGE_Y = 14;
+const CARD_LOCKED_IMAGE_Y = 32;
+const CARD_LABEL_WIDTH_INSET = 28;
+const CARD_LEVEL_Y_OFFSET = 64;
+const CARD_NAME_Y_OFFSET = 42;
+const CARD_LEVEL_HEIGHT = 22;
+const CARD_NAME_HEIGHT = 22;
+
 export class CollectionView {
   public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
@@ -164,26 +178,27 @@ export class CollectionView {
   private renderUnlockedCat(card: Node, cat: CatDefinition, width: number, height: number): void {
     const catFrame = this.cosmetics.catFrame(cat.level);
     if (catFrame) {
-      const size = Math.min(width - 34, height - 88);
+      const size = Math.min(width - CARD_IMAGE_SIZE_INSET, height - 104);
       const image = createSpriteNode(`CollectionCat:${cat.level}`, catFrame, size, size);
-      image.setPosition(0, 30);
+      image.setPosition(0, CARD_IMAGE_Y);
       card.addChild(image);
     }
 
-    const level = createLabel(`Lv.${cat.level}`, 18, TITLE_COLOR, width - 24, 28, 'display');
-    level.node.setPosition(0, -height / 2 + 48);
+    const labelWidth = Math.max(1, width - CARD_LABEL_WIDTH_INSET);
+    const level = createLabel(`Lv.${cat.level}`, 18, TITLE_COLOR, labelWidth, CARD_LEVEL_HEIGHT, 'display');
+    level.node.setPosition(0, -height / 2 + CARD_LEVEL_Y_OFFSET);
     card.addChild(level.node);
-    const name = createLabel(cat.name, 20, TITLE_COLOR, width - 24, 32, 'display');
-    name.node.setPosition(0, -height / 2 + 22);
+    const name = createLabel(cat.name, 18, TITLE_COLOR, labelWidth, CARD_NAME_HEIGHT, 'display');
+    name.node.setPosition(0, -height / 2 + CARD_NAME_Y_OFFSET);
     card.addChild(name.node);
   }
 
   private renderLockedCat(card: Node, cat: CatDefinition, width: number, height: number): void {
     const silhouetteFrame = this.art.frame(GAME_CONFIG.art.collectionLockedCat);
     if (silhouetteFrame) {
-      const size = Math.min(width - 46, height - 106);
+      const size = Math.min(width - 62, height - 118);
       const silhouette = createSpriteNode(`CollectionLockedCat:${cat.level}`, silhouetteFrame, size, size);
-      silhouette.setPosition(0, 31);
+      silhouette.setPosition(0, CARD_LOCKED_IMAGE_Y);
       card.addChild(silhouette);
     }
 
@@ -194,11 +209,12 @@ export class CollectionView {
       card.addChild(lock);
     }
 
-    const level = createLabel(`Lv.${cat.level}`, 18, LOCKED_TEXT_COLOR, width - 24, 28, 'display');
-    level.node.setPosition(0, -height / 2 + 48);
+    const labelWidth = Math.max(1, width - CARD_LABEL_WIDTH_INSET);
+    const level = createLabel(`Lv.${cat.level}`, 18, LOCKED_TEXT_COLOR, labelWidth, CARD_LEVEL_HEIGHT, 'display');
+    level.node.setPosition(0, -height / 2 + CARD_LEVEL_Y_OFFSET);
     card.addChild(level.node);
-    const label = createLabel('未解锁', 19, LOCKED_TEXT_COLOR, width - 24, 32, 'display');
-    label.node.setPosition(0, -height / 2 + 22);
+    const label = createLabel('未解锁', 18, LOCKED_TEXT_COLOR, labelWidth, CARD_NAME_HEIGHT, 'display');
+    label.node.setPosition(0, -height / 2 + CARD_NAME_Y_OFFSET);
     card.addChild(label.node);
   }
 }

@@ -12,6 +12,8 @@ export interface SavedRun extends GameRunState {
   readonly initialRemoveLowestItems?: number;
   readonly mode?: SavedRunMode;
   readonly dailyChallengeCompleted?: boolean;
+  readonly moves?: number;
+  readonly merges?: number;
 }
 
 export const RUN_SESSION_SAVE_KEY = 'cat2048.run-session.v1';
@@ -56,6 +58,8 @@ export function normalizeSavedRun(value: unknown): SavedRun | null {
     initialRemoveLowestItems: clampInteger(candidate.initialRemoveLowestItems, 0, 99, 0),
     mode: candidate.mode === 'daily-challenge' ? 'daily-challenge' : 'classic',
     dailyChallengeCompleted: candidate.dailyChallengeCompleted === true,
+    moves: clampInteger(candidate.moves, 0, Number.MAX_SAFE_INTEGER, 0),
+    merges: clampInteger(candidate.merges, 0, Number.MAX_SAFE_INTEGER, 0),
   };
 }
 

@@ -1,0 +1,27 @@
+{
+  "width": 768,
+  "height": 256,
+  "icons": [
+    {
+      "name": "steps",
+      "x": 0,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    {
+      "name": "merges",
+      "x": 256,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    {
+      "name": "spaces",
+      "x": 512,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import type { ArtRepository } from './ArtRepository';
 import {
   COLORS,
   createButton,
+  createPillButton,
   createIconButton,
   createLabel,
   createUiNode,
@@ -77,18 +78,26 @@ export class DialogView {
       auxiliary.setPosition(0, -58);
       panel.addChild(auxiliary);
     }
-    const cancel = createButton(cancelText, 230, 78,
-      actions.cancelTone === 'primary' ? COLORS.coral : COLORS.teal, () => {
+    const cancel = createPillButton(cancelText, () => {
       overlay.destroy();
       actions.onCancel?.();
-    }, 28);
+    }, {
+      width: 230,
+      height: 78,
+      color: actions.cancelTone === 'primary' ? COLORS.coral : COLORS.teal,
+      fontSize: 28,
+    });
     cancel.setPosition(-135, actions.auxiliary ? -180 : -125);
     panel.addChild(cancel);
-    const confirm = createButton(confirmText, 230, 78,
-      actions.confirmTone === 'secondary' ? COLORS.teal : COLORS.coral, () => {
+    const confirm = createPillButton(confirmText, () => {
       overlay.destroy();
       actions.onConfirm();
-    }, 28);
+    }, {
+      width: 230,
+      height: 78,
+      color: actions.confirmTone === 'secondary' ? COLORS.teal : COLORS.coral,
+      fontSize: 28,
+    });
     confirm.setPosition(135, actions.auxiliary ? -180 : -125);
     panel.addChild(confirm);
     panel.setScale(0.8, 0.8, 1);

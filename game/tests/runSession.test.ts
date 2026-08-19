@@ -26,6 +26,10 @@ const sampleRun = (): SavedRun => ({
   savedAt: 1_700_000_000_000,
   initialUndoItems: 0,
   initialRemoveLowestItems: 0,
+  mode: 'classic',
+  dailyChallengeCompleted: false,
+  moves: 12,
+  merges: 7,
 });
 
 describe('RunSessionStore', () => {
@@ -79,5 +83,12 @@ describe('normalizeSavedRun', () => {
       ...sampleRun(),
       board: { size: 4, tiles: [{ id: 'x', level: 99, row: 0, col: 0 }] },
     })).toBeNull();
+  });
+
+  it('defaults missing gameplay stats for older saves', () => {
+    const { moves: _moves, merges: _merges, ...legacy } = sampleRun();
+    const normalized = normalizeSavedRun(legacy);
+    expect(normalized?.moves).toBe(0);
+    expect(normalized?.merges).toBe(0);
   });
 });

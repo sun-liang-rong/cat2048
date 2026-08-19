@@ -31,29 +31,16 @@ const buttonThemeImagePaths = ['berry', 'aurora'].reduce<string[]>((paths, theme
 }, []);
 
 const collectionImagePaths = [
-  'card_dark.png',
-  'card_light.png',
   'collection_back_paw.png',
   'collection_background.png',
   'collection_card_light.png',
   'collection_card_locked.png',
   'collection_lock.png',
   'collection_locked_cat.png',
-  'lock.png',
-  'locked_cat_card.png',
-  'panel.png',
-  'paw.png',
-  'title.png',
 ].map((name) => `ui/collection/${name}`);
 
 const gameplayImagePaths = [
-  'board_center.png',
-  'button_broom.png',
-  'button_paw.png',
-  'grid_4x4.png',
-  'instruction_panel.png',
-  'tile_yellow.png',
-  'wood_slot_left.png',
+  'stats_sprite_sheet.png',
 ].map((name) => `ui/gameplay/${name}`);
 
 const homeV2ImagePaths = [
@@ -65,40 +52,28 @@ const homeV2ImagePaths = [
   'home_cat_room.png',
   'home_play_paw.png',
   'leaderboard_button.png',
+  'nav_sprite_sheet.png',
   'plus.png',
   'settings.png',
   'shop.png',
   'tasks.png',
 ].map((name) => `ui/home-v2/${name}`);
 
-const shopImagePaths = [
-  '01_back_button.png',
-  '02_paw_bar.png',
-  '03_white_paw.png',
-  '04_coin_paw.png',
-  '05_panel.png',
-  '06_red_paw_button.png',
-  '07_cyan_button_top.png',
-  '08_red_button_bottom.png',
-].map((name) => `ui/shop/${name}`);
-
 const expectedImagePaths = [
   ...['bg_home.png', 'bg_page.png', 'share_score_bg.png'].map((name) => `backgrounds/common/${name}`),
   ...['wood', 'pink', 'star'].map((theme) => `backgrounds/board/${theme}/bg_board_${theme}.png`),
   ...catImagePaths,
+  'home_bottom_dock_preview.png',
   'ui/common/logo.png',
   'ui/common/tile_empty.png',
   'ui/common/tile_selected.png',
   ...[
-    'back', 'check', 'classic_mode', 'close', 'coin', 'collection', 'daily', 'home', 'info',
-    'level_complete', 'level_current', 'level_locked', 'locked', 'remove_lowest', 'restart',
-    'reward_video', 'settings', 'share', 'sound_off', 'sound_on', 'undo', 'weekly',
+    'back', 'check', 'classic_mode', 'close', 'coin', 'collection', 'home', 'info',
+    'locked', 'remove_lowest', 'restart', 'settings', 'share', 'sound_off', 'sound_on', 'undo',
   ].map((name) => `ui/common/${name}.png`),
-  'ui/common/gameplay_back.png',
   ...collectionImagePaths,
   ...gameplayImagePaths,
   ...homeV2ImagePaths,
-  ...shopImagePaths,
   ...buttonThemeImagePaths,
   ...['sparkle_small', 'merge_sparkle', 'merge_burst', 'max_halo']
     .map((name) => `effects/classic/${name}.png`),

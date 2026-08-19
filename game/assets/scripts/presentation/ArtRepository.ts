@@ -136,6 +136,7 @@ export class ArtRepository {
       art.collectionLock,
       art.pageBackground,
       art.boardBackground,
+      art.gameplayStatsSheet,
       art.tileBase,
       art.tileSelected,
       art.sparkleSmall,

@@ -17,6 +17,8 @@ export interface GameLayout {
   hudCenterFromTop: number;
   evolutionPanelCenterFromTop: number;
   evolutionPanelHeight: number;
+  statsBarCenterFromTop: number;
+  statsBarHeight: number;
   boardTop: number;
   boardScale: number;
   itemBarCenterFromTop: number;
@@ -107,15 +109,26 @@ export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, 
   const displaySize = boardPixels * boardScale;
   const maximumBoardTop = uiHeight - bottomInset - bottomComfortInset
     - itemBarHeight - itemBarGap - displaySize;
-  const preferredBoardTop = minimumBoardTop + Math.max(0, maximumBoardTop - minimumBoardTop) * 0.82;
+  // On tall screens reserve the evolution route, stats bar, and their small
+  // gaps as one vertical block so the board sits directly below the stats
+  // instead of drifting toward the bottom of the available space.
+  const statsAwareBoardTop = hudCenterFromTop + 46 + 50 + 236 + 72;
+  const defaultBoardTop = minimumBoardTop + Math.max(0, maximumBoardTop - minimumBoardTop) * 0.82;
+  const preferredBoardTop = statsAwareBoardTop <= maximumBoardTop
+    ? statsAwareBoardTop
+    : defaultBoardTop;
   const boardTop = Math.max(minimumBoardTop, Math.min(maximumBoardTop, preferredBoardTop));
   const hudBottom = hudCenterFromTop + 46;
   const panelSpace = boardTop - hudBottom - 28;
   const evolutionPanelHeight = panelSpace >= 176 ? Math.min(236, panelSpace) : 0;
+  const statsBarHeight = evolutionPanelHeight > 0 && panelSpace - evolutionPanelHeight >= 90 ? 72 : 0;
+  const statsBarCenterFromTop = hudBottom + 14 + evolutionPanelHeight + 18 + statsBarHeight / 2;
   return {
     hudCenterFromTop,
     evolutionPanelCenterFromTop: hudBottom + 14 + evolutionPanelHeight / 2,
     evolutionPanelHeight,
+    statsBarCenterFromTop,
+    statsBarHeight,
     boardTop,
     boardScale,
     itemBarCenterFromTop: boardTop + displaySize + itemBarGap + itemBarHeight / 2,

@@ -683,6 +683,8 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       bottomInset: this.bottomSafeInset(),
       score: this.flow.score,
       highScore: this.save.highScore,
+      moves: this.flow.moves,
+      merges: this.flow.merges,
       board: this.flow.board,
       items: this.flow.items,
       unlockedCount: this.save.unlockedCatLevels.length,
