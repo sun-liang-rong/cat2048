@@ -18,7 +18,6 @@ import { addCoverBackground } from './background';
 import {
   COLORS,
   createButton,
-  createIconButton,
   createLabel,
   createSpriteNode,
   createUiNode,
@@ -89,18 +88,18 @@ export class ShopView {
     );
 
     const headerY = model.uiHeight / 2 - model.topInset - 62;
-    const back = createIconButton('ShopBack', this.art.frame(GAME_CONFIG.art.collectionBackPaw), '‹', 78,
-      () => actions.onBack());
-    back.setPosition(-model.uiWidth / 2 + 58, headerY);
+    const back = createButton('返回', 150, 72, new Color(249, 220, 174, 255),
+      () => actions.onBack(), 23, this.art.frame(GAME_CONFIG.art.back));
+    back.setPosition(-model.uiWidth / 2 + 82, headerY);
     parent.addChild(back);
 
     const title = createLabel('装饰商店', 50, TITLE_COLOR, 390, 72, 'display');
     title.node.setPosition(0, headerY + 2);
     parent.addChild(title.node);
 
-    this.wallet = createButton(`金币 ${model.economy.coins}`, 205, 64, COLORS.mustard,
+    this.wallet = createButton(`金币 ${model.economy.coins}`, 170, 70, COLORS.mustard,
       () => actions.onDailyReward(), 22, this.art.frame(GAME_CONFIG.art.coin));
-    this.wallet.setPosition(model.uiWidth / 2 - 130, headerY + 4);
+    this.wallet.setPosition(model.uiWidth / 2 - 104, headerY + 4);
     parent.addChild(this.wallet);
 
     const tabs = createUiNode('ShopTabs', model.uiWidth - 42, 68);
@@ -199,7 +198,7 @@ export class ShopView {
     const isButtonTheme = item.category === 'button-theme';
     const previewWidth = isButtonTheme ? Math.min(220, width - 34) : Math.min(190, width - 48);
     const previewHeight = isButtonTheme ? 72 : previewWidth;
-    const previewY = isButtonTheme ? 45 : 2;
+    const previewY = isButtonTheme ? 45 : -10;
     const previewPlate = createUiNode(`ShopPreviewPlate:${item.id}`, previewWidth + (isButtonTheme ? 12 : 18),
       previewHeight + (isButtonTheme ? 12 : 18));
     drawRounded(previewPlate, previewWidth + (isButtonTheme ? 12 : 18),
