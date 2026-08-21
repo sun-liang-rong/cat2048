@@ -34,13 +34,9 @@ import { DEFAULT_SAVE } from '../../features/storage/storage';
 import type { SaveDataV3 } from '../../features/storage/storage';
 import { ArtRepository } from '../utils/ArtRepository';
 import { AudioController } from '../components/AudioController';
-import {
-  capsuleBottomInset,
-  safeInsetsFromRect,
-} from '../styles/layout';
+import { safeInsetsFromRect } from '../styles/layout';
 import { ModalView, type DialogActions } from '../panels/ModalView';
 import { CollectionView } from './CollectionView';
-import type { CollectionOrigin } from './CollectionView';
 import { HomeView, type HomeViewModel } from './HomeView';
 import { LoadingView } from './LoadingView';
 import { LeaderboardView } from './LeaderboardView';
@@ -50,6 +46,9 @@ import { TaskPanelView } from '../panels/TaskPanelView';
 import { ShopView } from './ShopView';
 import { SettingsPanel } from '../panels/SettingsPanel';
 import { settingsOrigin } from '../utils/settingsNavigation';
+import { EconomyPanelsController, type ScreenName } from '../controllers/EconomyPanelsController';
+import { LeaderboardController } from '../controllers/LeaderboardController';
+import type { CollectionOrigin } from './CollectionView';
 import { runStartupSequence } from '../utils/startupSequence';
 import { markCocosLoadingReady } from '../utils/cocosLoadingBridge';
 import { GameFlowController } from './GameFlowController';
@@ -58,10 +57,12 @@ import {
   createUiNode,
   setRuntimeFonts,
 } from '../utils/uiFactory';
+import { economyErrorText } from '../../features/economy/errors';
+import { cosmeticAssetPaths, collectionAssetPaths } from '../utils/assetPaths';
+import { wechatCapsuleInset } from '../utils/safeInsets';
+import { stopTweens } from '../utils/tweenAsync';
 
 const { ccclass } = _decorator;
-
-type ScreenName = 'loading' | 'home' | 'game' | 'collection' | 'shop' | 'leaderboard';
 
 @ccclass('Cat2048Boot')
 export class Cat2048Boot extends Component implements GameFlowHost {
@@ -87,13 +88,40 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private audio!: AudioController;
   private save: SaveDataV3 = DEFAULT_SAVE;
   private screenRoot: Node | null = null;
-  private dailyRewardOverlay: Node | null = null;
-  private taskOverlay: Node | null = null;
-  private taskClaimInProgress = false;
   private economySnapshot!: EconomySnapshot;
   private inputLocked = false;
   private readonly dialogs = new ModalView(this.art, () => ({ width: this.uiWidth, height: this.uiHeight }));
   private readonly settings = new SettingsPanel(() => ({ width: this.uiWidth, height: this.uiHeight }), this.art);
+  private readonly economyPanels = new EconomyPanelsController({
+    art: this.art,
+    cosmetics: this.cosmetics,
+    economy: this.economy,
+    tasks: this.tasks,
+    dialogs: this.dialogs,
+    dailyRewardView: this.dailyRewardView,
+    taskPanel: this.taskPanel,
+    shopView: this.shopView,
+    collectionView: this.collectionView,
+    getScreenRoot: () => this.screenRoot,
+    getCurrentScreen: () => this.currentScreen,
+    getSceneToken: () => this.sceneToken,
+    getSave: () => this.save,
+    getEconomySnapshot: () => this.economySnapshot,
+    getSize: () => ({ width: this.uiWidth, height: this.uiHeight }),
+    topInset: () => this.topSafeInset(),
+    bottomInset: () => this.bottomSafeInset(),
+    isInputLocked: () => this.inputLocked,
+    lockInput: () => { this.inputLocked = true; },
+    unlockInput: () => { this.inputLocked = false; },
+    applyEconomyResult: (result) => this.applyEconomyResult(result),
+    applyEconomySnapshot: (snapshot) => this.applyEconomySnapshot(snapshot),
+    showNotice: (text) => this.showNotice(text),
+    showHome: () => this.showHome(),
+    showGame: (resume, mode) => this.showGame(resume, mode),
+    makeScreen: (name) => this.makeScreen(name),
+    clearScreen: () => this.clearScreen(),
+    setCurrentScreen: (name) => { this.currentScreen = name; },
+  });
   private uiWidth: number = GAME_CONFIG.designWidth;
   private uiHeight: number = GAME_CONFIG.designHeight;
   private safeTop = 24;
@@ -103,10 +131,20 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private assetsReady = false;
   private currentScreen: ScreenName = 'loading';
   private homeRoot: Node | null = null;
-  private collectionOrigin: CollectionOrigin = 'home';
-  private dailyPromptShown = false;
-  private dailyClaimInProgress = false;
-  private leaderboardRequestSequence = 0;
+  private readonly leaderboardCtrl = new LeaderboardController({
+    leaderboard: this.leaderboard,
+    leaderboardView: this.leaderboardView,
+    getSave: () => this.save,
+    getSize: () => ({ width: this.uiWidth, height: this.uiHeight }),
+    topInset: () => this.topSafeInset(),
+    bottomInset: () => this.bottomSafeInset(),
+    getCurrentScreen: () => this.currentScreen,
+    getSceneToken: () => this.sceneToken,
+    showHome: () => this.showHome(),
+    makeScreen: (name) => this.makeScreen(name),
+    clearScreen: () => this.clearScreen(),
+    setCurrentScreen: (name) => { this.currentScreen = name; },
+  });
 
   protected override onLoad(): void {
     this.setupCanvas();
@@ -129,7 +167,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       actions: {
         onBack: () => this.confirmLeave(),
         onSettings: () => this.showSettingsDialog(),
-        onCollection: () => this.showCollection('game'),
+        onCollection: () => this.economyPanels.showCollection('game'),
         onHome: () => this.showHome(),
         onReplay: () => this.showGame(true, this.flow.mode),
       },
@@ -252,8 +290,8 @@ export class Cat2048Boot extends Component implements GameFlowHost {
         );
         this.audio.playMusic();
         this.showHome();
-        void this.authenticateLeaderboard();
-        void this.flushPendingLeaderboardScores();
+        void this.leaderboardCtrl.authenticate();
+        void this.leaderboardCtrl.flushPendingScores();
       },
       onError: (error) => {
         console.error('[Cat2048] Startup asset loading failed', error);
@@ -268,7 +306,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.uiWidth = visible.width;
     this.uiHeight = visible.height;
     const safe = safeInsetsFromRect(this.uiHeight, sys.getSafeAreaRect(false));
-    this.safeTop = Math.max(safe.top, this.wechatCapsuleInset());
+    this.safeTop = Math.max(safe.top, wechatCapsuleInset(this.uiWidth));
     this.safeBottom = safe.bottom;
     (this.node.getComponent(UITransform) ?? this.node.addComponent(UITransform)).setContentSize(visible);
   }
@@ -286,12 +324,12 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       return;
     }
     if (screenBeforeResize === 'game') this.showGame(false);
-    else if (screenBeforeResize === 'collection') this.showCollection(this.collectionOrigin);
-    else if (screenBeforeResize === 'shop') this.showShop();
-    else if (screenBeforeResize === 'leaderboard') this.showLeaderboard();
+    else if (screenBeforeResize === 'collection') this.economyPanels.showCollection(this.economyPanels.lastCollectionOrigin);
+    else if (screenBeforeResize === 'shop') this.economyPanels.showShop();
+    else if (screenBeforeResize === 'leaderboard') this.leaderboardCtrl.showLeaderboard();
     else {
       if (this.homeRoot?.isValid) {
-        this.stopTweens(this.homeRoot);
+        stopTweens(this.homeRoot);
         this.homeView.destroy();
         this.homeRoot.destroy();
         this.homeRoot = null;
@@ -345,18 +383,15 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       onRestart: () => { if (this.assetsReady) this.restartGame(); },
       onDailyChallenge: () => { if (this.assetsReady) this.startDailyChallenge(); },
       onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
-      onCollection: () => { if (this.assetsReady) this.showCollection('home'); },
-      onLeaderboard: () => { if (this.assetsReady) this.showLeaderboard(); },
-      onShop: () => { if (this.assetsReady) this.showShop(); },
-      onDailyReward: () => { if (this.assetsReady) this.showDailyReward(); },
-      onTasks: () => { if (this.assetsReady) this.showTasks(); },
+      onCollection: () => { if (this.assetsReady) this.economyPanels.showCollection('home'); },
+      onLeaderboard: () => { if (this.assetsReady) this.leaderboardCtrl.showLeaderboard(); },
+      onShop: () => { if (this.assetsReady) this.economyPanels.showShop(); },
+      onDailyReward: () => { if (this.assetsReady) this.economyPanels.showDailyReward(); },
+      onTasks: () => { if (this.assetsReady) this.economyPanels.showTasks(); },
       onToggleSound: () => { if (this.assetsReady) this.toggleSound(); },
       onSettings: () => { if (this.assetsReady) this.showSettingsDialog(); },
     });
-    if (this.economySnapshot.canClaimDaily && !this.dailyPromptShown) {
-      this.dailyPromptShown = true;
-      this.showDailyReward();
-    }
+    this.economyPanels.promptDailyRewardIfDue();
   }
 
   private toggleSound(): void {
@@ -386,283 +421,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.showGame(true, 'daily-challenge');
   }
 
-  private showLeaderboard(): void {
-    this.clearScreen();
-    this.currentScreen = 'leaderboard';
-    const root = this.makeScreen('Leaderboard');
-    this.leaderboardView.build(root, {
-      data: null,
-      status: 'loading',
-      localHighScore: this.save.highScore,
-      uiWidth: this.uiWidth,
-      uiHeight: this.uiHeight,
-      topInset: this.topSafeInset(),
-      bottomInset: this.bottomSafeInset(),
-    }, {
-      onBack: () => this.showHome(),
-      onRetry: () => { void this.loadLeaderboard(); },
-    });
-    void this.loadLeaderboard();
-  }
 
-  private async loadLeaderboard(): Promise<void> {
-    if (this.currentScreen !== 'leaderboard') return;
-    const token = this.sceneToken;
-    const requestSequence = ++this.leaderboardRequestSequence;
-    this.leaderboardView.update({
-      data: null,
-      status: 'loading',
-      localHighScore: this.save.highScore,
-      uiWidth: this.uiWidth,
-      uiHeight: this.uiHeight,
-      topInset: this.topSafeInset(),
-      bottomInset: this.bottomSafeInset(),
-    });
-    try {
-      const data = await this.leaderboard.getLeaderboard();
-      if (token !== this.sceneToken
-        || requestSequence !== this.leaderboardRequestSequence
-        || this.currentScreen !== 'leaderboard') return;
-      this.leaderboardView.update({
-        data,
-        status: 'ready',
-        localHighScore: this.save.highScore,
-        uiWidth: this.uiWidth,
-        uiHeight: this.uiHeight,
-        topInset: this.topSafeInset(),
-        bottomInset: this.bottomSafeInset(),
-      });
-    } catch (error) {
-      if (token !== this.sceneToken
-        || requestSequence !== this.leaderboardRequestSequence
-        || this.currentScreen !== 'leaderboard') return;
-      console.warn('[Cat2048] Failed to load leaderboard.', error);
-      this.leaderboardView.update({
-        data: null,
-        status: 'error',
-        localHighScore: this.save.highScore,
-        uiWidth: this.uiWidth,
-        uiHeight: this.uiHeight,
-        topInset: this.topSafeInset(),
-        bottomInset: this.bottomSafeInset(),
-      });
-    }
-  }
-
-  private showShop(): void {
-    void this.openShop();
-  }
-
-  private async openShop(): Promise<void> {
-    const token = this.sceneToken;
-    try {
-      await this.art.loadFrames(this.cosmeticAssetPaths());
-    } catch (error) {
-      console.warn('[Cat2048] Failed to load shop assets, showing fallbacks.', error);
-    }
-    if (token !== this.sceneToken) return;
-    this.renderShop();
-  }
-
-  private renderShop(): void {
-    this.clearScreen();
-    this.currentScreen = 'shop';
-    const root = this.makeScreen('Shop');
-    this.shopView.build(root, {
-      economy: this.economySnapshot,
-      uiWidth: this.uiWidth,
-      uiHeight: this.uiHeight,
-      topInset: this.topSafeInset(),
-      bottomInset: this.bottomSafeInset(),
-    }, {
-      onBack: () => this.showHome(),
-      onDailyReward: () => this.showDailyReward(),
-      onPurchase: (itemId) => { void this.purchaseCosmetic(itemId); },
-      onEquip: (itemId) => { void this.equipCosmetic(itemId); },
-    });
-  }
-
-  private showDailyReward(): void {
-    if (!this.screenRoot || this.dailyRewardOverlay?.isValid) return;
-    this.inputLocked = true;
-    this.dailyRewardOverlay = this.dailyRewardView.show(this.screenRoot, this.economySnapshot,
-      this.uiWidth, this.uiHeight, {
-        onClaim: () => { void this.claimDailyReward(); },
-        onClose: () => {
-          if (this.dailyClaimInProgress) return;
-          this.dailyRewardOverlay?.destroy();
-          this.dailyRewardOverlay = null;
-          this.inputLocked = false;
-        },
-      });
-  }
-
-  private async claimDailyReward(): Promise<void> {
-    if (this.dailyClaimInProgress || !this.dailyRewardOverlay?.isValid) return;
-    this.dailyClaimInProgress = true;
-    try {
-      const result = await this.economy.claimDailyReward();
-      this.applyEconomyResult(result);
-      if (!result.ok) {
-        this.inputLocked = false;
-        this.dialogs.showNotice(this.screenRoot, '今日奖励已领取');
-        return;
-      }
-      await this.economy.grantItem('undo', 1);
-      await this.economy.grantItem('remove-lowest', 1);
-      this.applyEconomySnapshot(await this.economy.load());
-      this.dailyRewardOverlay?.destroy();
-      this.dailyRewardOverlay = null;
-      this.inputLocked = false;
-      if (this.currentScreen === 'shop') this.showShop();
-      else this.showHome();
-    } catch (error) {
-      console.warn('[Cat2048] Failed to claim daily reward.', error);
-      this.inputLocked = false;
-      this.dialogs.showNotice(this.screenRoot, '每日奖励领取失败');
-    } finally {
-      this.dailyClaimInProgress = false;
-    }
-  }
-
-  private showTasks(): void {
-    if (!this.screenRoot || this.taskOverlay?.isValid) return;
-    this.inputLocked = true;
-    this.taskOverlay = this.taskPanel.show(this.screenRoot, this.tasks.snapshot(),
-      this.uiWidth, this.uiHeight, {
-        onClaim: (taskId) => { void this.claimTask(taskId); },
-        onClose: () => {
-          if (this.taskClaimInProgress) return;
-          this.taskOverlay?.destroy();
-          this.taskOverlay = null;
-          this.inputLocked = false;
-        },
-      });
-  }
-
-  private async claimTask(taskId: string): Promise<void> {
-    if (this.taskClaimInProgress || !this.taskOverlay?.isValid) return;
-    this.taskClaimInProgress = true;
-    try {
-      const result = this.tasks.claim(taskId);
-      if (result.ok) {
-        await this.economy.grantCoins(result.awardedCoins);
-        this.applyEconomySnapshot(await this.economy.load());
-      } else {
-        this.dialogs.showNotice(this.screenRoot, '任务尚未完成');
-      }
-      this.taskPanel.refresh(result.snapshot, {
-        onClaim: (id) => { void this.claimTask(id); },
-        onClose: () => {
-          if (this.taskClaimInProgress) return;
-          this.taskOverlay?.destroy();
-          this.taskOverlay = null;
-          this.inputLocked = false;
-        },
-      });
-    } catch (error) {
-      console.warn('[Cat2048] Failed to claim task reward.', error);
-      this.dialogs.showNotice(this.screenRoot, '任务奖励领取失败');
-    } finally {
-      this.taskClaimInProgress = false;
-    }
-  }
-
-  private async purchaseCosmetic(itemId: string): Promise<void> {
-    if (this.inputLocked) return;
-    this.inputLocked = true;
-    try {
-      const result = await this.economy.purchase(itemId);
-      this.applyEconomyResult(result);
-      this.inputLocked = false;
-      if (!result.ok) {
-        this.dialogs.showNotice(this.screenRoot, this.economyErrorText(result));
-        return;
-      }
-      this.showShop();
-    } catch (error) {
-      this.inputLocked = false;
-      console.warn('[Cat2048] Failed to purchase cosmetic.', error);
-      this.dialogs.showNotice(this.screenRoot, '购买失败，请稍后重试');
-    }
-  }
-
-  private async equipCosmetic(itemId: string): Promise<void> {
-    if (this.inputLocked) return;
-    this.inputLocked = true;
-    try {
-      const result = await this.economy.equip(itemId);
-      this.applyEconomyResult(result);
-      this.inputLocked = false;
-      if (!result.ok) {
-        this.dialogs.showNotice(this.screenRoot, '该装饰尚未拥有');
-        return;
-      }
-      this.showShop();
-    } catch (error) {
-      this.inputLocked = false;
-      console.warn('[Cat2048] Failed to equip cosmetic.', error);
-      this.dialogs.showNotice(this.screenRoot, '装备失败，请稍后重试');
-    }
-  }
-
-  private showCollection(origin: CollectionOrigin): void {
-    void this.openCollection(origin);
-  }
-
-  private async openCollection(origin: CollectionOrigin): Promise<void> {
-    const token = this.sceneToken;
-    try {
-      await this.art.loadFrames([...this.cosmeticAssetPaths(), ...this.collectionAssetPaths()]);
-    } catch (error) {
-      console.warn('[Cat2048] Failed to load collection assets, showing fallbacks.', error);
-    }
-    if (token !== this.sceneToken) return;
-    this.renderCollection(origin);
-  }
-
-  private renderCollection(origin: CollectionOrigin): void {
-    this.clearScreen();
-    this.currentScreen = 'collection';
-    this.collectionOrigin = origin;
-    const root = this.makeScreen('Collection');
-    this.collectionView.build(root, {
-      unlockedLevels: this.save.unlockedCatLevels,
-      uiWidth: this.uiWidth,
-      uiHeight: this.uiHeight,
-      topInset: this.topSafeInset(),
-      bottomInset: this.bottomSafeInset(),
-    }, {
-      onBack: () => {
-        if (origin === 'game') this.showGame(false);
-        else this.showHome();
-      },
-    });
-  }
-
-  private cosmeticAssetPaths(): string[] {
-    const paths = new Set<string>();
-    for (const item of this.economySnapshot.catalog) {
-      if (item.previewAsset) paths.add(item.previewAsset);
-      if (item.levelAssets) for (const path of item.levelAssets) paths.add(path);
-      if (item.boardAsset) paths.add(item.boardAsset);
-      if (item.sparkleAsset) paths.add(item.sparkleAsset);
-      if (item.burstAsset) paths.add(item.burstAsset);
-    }
-    return Array.from(paths);
-  }
-
-  private collectionAssetPaths(): string[] {
-    const art = GAME_CONFIG.art;
-    return [
-      art.collectionBackground,
-      art.collectionCardLight,
-      art.collectionCardLocked,
-      art.collectionBackPaw,
-      art.collectionLockedCat,
-      art.collectionLock,
-    ];
-  }
 
   private showGame(startNewGame: boolean, mode: SavedRunMode = this.flow.mode): void {
     this.clearScreen();
@@ -715,12 +474,6 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       },
     };
     this.cosmetics.setEquipped(this.save.economy.equipped);
-  }
-
-  private economyErrorText(result: EconomyMutationResult): string {
-    if (result.reason === 'insufficient-coins') return '金币不足';
-    if (result.reason === 'already-owned') return '该装饰已拥有';
-    return '装饰操作失败';
   }
 
   private confirmLeave(): void {
@@ -780,24 +533,6 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     });
   }
 
-  // ---- 排行榜后台任务 ----
-
-  private async flushPendingLeaderboardScores(): Promise<void> {
-    try {
-      await this.leaderboard.flushPendingScores();
-    } catch (error) {
-      console.warn('[Cat2048] Failed to flush pending leaderboard scores.', error);
-    }
-  }
-
-  private async authenticateLeaderboard(): Promise<void> {
-    try {
-      await this.leaderboard.ensureAuthenticated();
-    } catch (error) {
-      console.warn('[Cat2048] Leaderboard authentication unavailable.', error);
-    }
-  }
-
   // ---- 屏幕容器 ----
 
   private clearScreen(): void {
@@ -805,27 +540,17 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.sceneToken += 1;
     this.inputLocked = false;
     this.shareInProgress = false;
-    this.dailyRewardOverlay = null;
+    this.economyPanels.resetOverlays();
     this.shopView.clear();
     this.leaderboardView.clear();
     if (this.screenRoot && this.screenRoot !== this.homeRoot) {
-      this.stopTweens(this.screenRoot);
+      stopTweens(this.screenRoot);
       this.screenRoot.destroy();
     }
     this.screenRoot = null;
     if (this.homeRoot?.isValid) {
       this.homeView.pauseAnimations();
       this.homeRoot.active = false;
-    }
-  }
-
-  private stopTweens(root: Node): void {
-    const queue: Node[] = [root];
-    while (queue.length > 0) {
-      const node = queue.pop();
-      if (!node?.isValid) continue;
-      Tween.stopAllByTarget(node);
-      queue.push(...node.children);
     }
   }
 
@@ -844,19 +569,4 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     return this.safeBottom;
   }
 
-  private wechatCapsuleInset(): number {
-    const runtime = globalThis as unknown as {
-      wx?: {
-        getSystemInfoSync?: () => { windowWidth?: number };
-        getMenuButtonBoundingClientRect?: () => { bottom?: number };
-      };
-    };
-    try {
-      return capsuleBottomInset(this.uiWidth, runtime.wx?.getSystemInfoSync?.(),
-        runtime.wx?.getMenuButtonBoundingClientRect?.());
-    } catch (error) {
-      console.warn('[Cat2048] Unable to read the WeChat menu capsule bounds.', error);
-      return 0;
-    }
-  }
 }

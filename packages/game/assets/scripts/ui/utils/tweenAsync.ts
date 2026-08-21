@@ -1,4 +1,15 @@
-import { Node, tween, UIOpacity, Vec3 } from 'cc';
+import { Node, tween, Tween, UIOpacity, Vec3 } from 'cc';
+
+/** 停止节点及其所有子节点的动画。 */
+export function stopTweens(root: Node): void {
+  const queue: Node[] = [root];
+  while (queue.length > 0) {
+    const node = queue.pop();
+    if (!node?.isValid) continue;
+    Tween.stopAllByTarget(node);
+    queue.push(...node.children);
+  }
+}
 
 export function tweenPosition(node: Node, position: Vec3, seconds: number): Promise<void> {
   return new Promise((resolve) => {
