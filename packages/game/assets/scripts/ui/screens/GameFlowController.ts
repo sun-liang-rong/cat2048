@@ -10,6 +10,9 @@ import {
   type LeaderboardClient,
   type ScorePayload,
 } from '../../features/leaderboard/leaderboard';
+import { shouldCompleteDailyChallenge, evolutionChallengeFor } from '../../features/gameplay/dailyChallenge';
+import { calculateCollectionProgress } from '../../features/gameplay/collectionProgress';
+import { usedBonusItems } from '../../features/gameplay/runItems';
 import type { SharePurpose, ShareResult } from '../../infrastructure/ResultShareController';
 import { RuntimeRandomSource } from '../../features/storage/runtime';
 import type { SaveDataV3 } from '../../features/storage/storage';
@@ -24,15 +27,6 @@ import { GameStatsBarView } from '../components/GameStatsBarView';
 import { ItemBarView } from '../components/ItemBarView';
 import type { SwipeInput } from '../components/SwipeInput';
 import { TutorialView } from '../components/TutorialView';
-
-const COLLECTION_REWARDS = [
-  { count: 3, coins: 200 },
-  { count: 6, coins: 400 },
-  { count: 9, coins: 600 },
-  { count: 12, coins: 800 },
-] as const;
-
-export const DAILY_CHALLENGE_TARGET_LEVEL = 5;
 
 /**
  * Cat2048Boot 提供给对局流程的宿主能力：页面导航、存档、弹窗、分享。
@@ -145,8 +139,7 @@ export class GameFlowController {
     this.runMode = savedRun.mode ?? 'classic';
     this.dailyChallengeCompleted = savedRun.dailyChallengeCompleted === true;
     this.game.restore(savedRun);
-    if (this.runMode === 'daily-challenge'
-      && highestLevelOfTiles(this.game.board.tiles) >= DAILY_CHALLENGE_TARGET_LEVEL) {
+    if (shouldCompleteDailyChallenge(this.runMode, false, highestLevelOfTiles(this.game.board.tiles))) {
       this.dailyChallengeCompleted = true;
     }
     this.runBonusUndo = savedRun.initialUndoItems ?? 0;
@@ -476,14 +469,16 @@ export class GameFlowController {
   }
 
   private async consumeUsedRunItems(): Promise<void> {
-    const usedUndoBonus = Math.max(0, Math.min(
+    const usedUndoBonus = usedBonusItems(
       this.runBonusUndo,
-      this.runInitialUndo - this.game.items.undoRemaining - 1,
-    ));
-    const usedRemoveBonus = Math.max(0, Math.min(
+      this.runInitialUndo,
+      this.game.items.undoRemaining,
+    );
+    const usedRemoveBonus = usedBonusItems(
       this.runBonusRemoveLowest,
-      this.runInitialRemoveLowest - this.game.items.removeLowestRemaining - 1,
-    ));
+      this.runInitialRemoveLowest,
+      this.game.items.removeLowestRemaining,
+    );
     try {
       if (usedUndoBonus > 0) {
         this.deps.host.applyEconomyResult(await this.deps.economy.consumeItems('undo', usedUndoBonus));
@@ -512,25 +507,18 @@ export class GameFlowController {
 
   private registerBoardCats(board: BoardSnapshot): void {
     const save = this.deps.host.getSave();
+    const progress = calculateCollectionProgress(
+      board.tiles.map((tile) => tile.level),
+      save.unlockedCatLevels,
+    );
+    if (progress.newLevels.length === 0) return;
     const unlocked = new Set(save.unlockedCatLevels);
-    const newLevels = Array.from(new Set(board.tiles.map((tile) => tile.level)))
-      .filter((level) => !unlocked.has(level))
-      .sort((a, b) => a - b);
-    if (newLevels.length === 0) return;
-    const previousCount = unlocked.size;
-    for (const level of newLevels) unlocked.add(level);
-    const nextCount = unlocked.size;
+    for (const level of progress.newLevels) unlocked.add(level);
     this.deps.host.commitSave({
       ...save,
       unlockedCatLevels: Array.from(unlocked).sort((a, b) => a - b),
     });
-    let rewardCoins = 0;
-    for (const reward of COLLECTION_REWARDS) {
-      if (previousCount < reward.count && nextCount >= reward.count) {
-        rewardCoins += reward.coins;
-      }
-    }
-    if (rewardCoins > 0) void this.awardCollectionReward(rewardCoins);
+    if (progress.rewardCoins > 0) void this.awardCollectionReward(progress.rewardCoins);
   }
 
   private async awardCollectionReward(coins: number): Promise<void> {
@@ -551,11 +539,7 @@ export class GameFlowController {
   }
 
   private evolutionChallenge(): EvolutionChallenge | undefined {
-    if (this.runMode !== 'daily-challenge') return undefined;
-    return {
-      targetLevel: DAILY_CHALLENGE_TARGET_LEVEL,
-      completed: this.dailyChallengeCompleted,
-    };
+    return evolutionChallengeFor(this.runMode, this.dailyChallengeCompleted);
   }
 
   private gameOverChallenge(): { targetLevel: number; completed: boolean } | undefined {
@@ -564,8 +548,8 @@ export class GameFlowController {
   }
 
   private completeDailyChallengeIfNeeded(board: BoardSnapshot): boolean {
-    if (this.runMode !== 'daily-challenge' || this.dailyChallengeCompleted
-      || highestLevelOfTiles(board.tiles) < DAILY_CHALLENGE_TARGET_LEVEL) return false;
+    if (!shouldCompleteDailyChallenge(this.runMode, this.dailyChallengeCompleted,
+      highestLevelOfTiles(board.tiles))) return false;
     this.dailyChallengeCompleted = true;
     return true;
   }
