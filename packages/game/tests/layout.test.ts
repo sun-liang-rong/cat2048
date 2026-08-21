@@ -43,17 +43,28 @@ describe('portrait layout', () => {
     expect(tall.itemBarCenterFromTop - 48).toBeGreaterThan(tall.boardTop + 690);
     expect(tall.itemBarCenterFromTop + 48).toBeLessThan(1600 - 28);
 
+    // 中等屏幕：进化面板需要收缩，但 stats bar 必须保留。
     const short = gameLayout(750, 1100, 128, 28, 690);
     expect(short.boardScale).toBeLessThan(1);
     const shortBoardBottom = short.boardTop + 690 * short.boardScale;
-    expect(short.statsBarHeight).toBe(0);
+    expect(short.statsBarHeight).toBe(62);
+    expect(short.statsBarCenterFromTop + short.statsBarHeight / 2)
+      .toBeLessThanOrEqual(short.boardTop);
+    expect(short.statsBarCenterFromTop - short.statsBarHeight / 2)
+      .toBeGreaterThanOrEqual(short.hudCenterFromTop + 46 + 14);
     expect(short.itemBarCenterFromTop - 48).toBeGreaterThan(shortBoardBottom);
     expect(short.itemBarCenterFromTop + 48).toBeLessThan(1100 - 28);
 
+    // 紧凑屏幕：进化面板彻底收起，棋盘缩到最小，但 stats bar 仍贴 board 上方。
     const compact = gameLayout(750, 900, 128, 28, 690);
     expect(compact.boardScale).toBeLessThan(0.72);
     expect(compact.evolutionPanelHeight).toBe(0);
-    expect(compact.statsBarHeight).toBe(0);
+    expect(compact.statsBarHeight).toBe(62);
+    expect(compact.statsBarCenterFromTop + compact.statsBarHeight / 2)
+      .toBeLessThanOrEqual(compact.boardTop);
+    expect(compact.statsBarCenterFromTop - compact.statsBarHeight / 2)
+      .toBeGreaterThanOrEqual(compact.hudCenterFromTop + 46 + 14);
+    expect(compact.boardTop - (compact.statsBarCenterFromTop + compact.statsBarHeight / 2)).toBe(18);
     expect(compact.boardTop).toBeGreaterThanOrEqual(compact.hudCenterFromTop + 46 + 58);
     expect(compact.itemBarCenterFromTop - 48)
       .toBeGreaterThan(compact.boardTop + 690 * compact.boardScale);

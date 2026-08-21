@@ -3,7 +3,7 @@ export const MAX_LEVEL = 12;
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type GameStatus = 'running' | 'game-over';
-export type ItemKind = 'undo' | 'remove-lowest';
+export type ItemKind = 'undo' | 'spawn' | 'shuffle' | 'erase';
 
 export interface Position {
   readonly row: number;
@@ -54,19 +54,12 @@ export interface MoveResult extends BoardMoveResult {
 }
 
 export interface ItemState {
-  readonly undoRemaining: number;
-  readonly removeLowestRemaining: number;
-  readonly undoRefillRemaining: number;
-  readonly removeLowestRefillRemaining: number;
-  readonly canUndo: boolean;
-  readonly canRemoveLowest: boolean;
-  readonly canRequestUndoRefill: boolean;
-  readonly canRequestRemoveLowestRefill: boolean;
-}
-
-export interface ItemRefillResult {
-  readonly granted: boolean;
-  readonly items: ItemState;
+  /** 本局已使用的道具种类 */
+  readonly usedKinds: readonly ItemKind[];
+  /** 本局是否还能使用更多道具（总数未达上限） */
+  readonly canUseMore: boolean;
+  /** 检查指定道具本局是否可用 */
+  canUse(kind: ItemKind): boolean;
 }
 
 export interface ReviveState {
@@ -85,6 +78,29 @@ export interface RemoveTilesResult extends UndoResult {
   readonly removedTileIds: readonly string[];
 }
 
+export interface SpawnResult {
+  readonly changed: boolean;
+  readonly board: BoardSnapshot;
+  readonly score: number;
+  readonly status: GameStatus;
+  readonly spawned?: SpawnRecord;
+}
+
+export interface ShuffleResult {
+  readonly changed: boolean;
+  readonly board: BoardSnapshot;
+  readonly score: number;
+  readonly status: GameStatus;
+}
+
+export interface EraseResult {
+  readonly changed: boolean;
+  readonly removedTileId: string | undefined;
+  readonly board: BoardSnapshot;
+  readonly score: number;
+  readonly status: GameStatus;
+}
+
 export interface ReviveResult extends RemoveTilesResult {
   readonly revived: boolean;
 }
@@ -94,10 +110,8 @@ export interface GameRunState {
   readonly board: BoardSnapshot;
   readonly score: number;
   readonly nextTileId: number;
-  readonly undoRemaining: number;
-  readonly removeLowestRemaining: number;
-  readonly undoRefillRemaining: number;
-  readonly removeLowestRefillRemaining: number;
+  /** 本局已使用的道具种类 */
+  readonly usedItemKinds: readonly ItemKind[];
   readonly reviveRemaining: 0 | 1;
 }
 

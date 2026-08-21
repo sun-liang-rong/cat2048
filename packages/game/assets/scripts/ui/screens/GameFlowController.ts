@@ -12,7 +12,6 @@ import {
 } from '../../features/leaderboard/leaderboard';
 import { shouldCompleteDailyChallenge, evolutionChallengeFor } from '../../features/gameplay/dailyChallenge';
 import { calculateCollectionProgress } from '../../features/gameplay/collectionProgress';
-import { usedBonusItems } from '../../features/gameplay/runItems';
 import type { SharePurpose, ShareResult } from '../../infrastructure/ResultShareController';
 import { RuntimeRandomSource } from '../../features/storage/runtime';
 import type { SaveDataV3 } from '../../features/storage/storage';
@@ -87,10 +86,6 @@ export class GameFlowController {
   private dailyChallengeCompleted = false;
   private uiWidth = 0;
   private uiHeight = 0;
-  private runInitialUndo = 1;
-  private runInitialRemoveLowest = 1;
-  private runBonusUndo = 0;
-  private runBonusRemoveLowest = 0;
   private newRecordThisRun = false;
   private movesCount = 0;
   private mergesCount = 0;
@@ -122,15 +117,10 @@ export class GameFlowController {
     this.currentRunId = `run-${Date.now()}-${++this.runSequence}`;
     this.runMode = mode;
     this.dailyChallengeCompleted = false;
-    const save = this.deps.host.getSave();
-    this.runBonusUndo = save.economy.undoItems;
-    this.runBonusRemoveLowest = save.economy.removeLowestItems;
-    this.runInitialUndo = 1 + this.runBonusUndo;
-    this.runInitialRemoveLowest = 1 + this.runBonusRemoveLowest;
     this.newRecordThisRun = false;
     this.movesCount = 0;
     this.mergesCount = 0;
-    this.registerBoardCats(this.game.start(this.runInitialUndo, this.runInitialRemoveLowest));
+    this.registerBoardCats(this.game.start());
   }
 
   /** 恢复一局未完成的游戏（跨启动续玩）。 */
@@ -142,10 +132,6 @@ export class GameFlowController {
     if (shouldCompleteDailyChallenge(this.runMode, false, highestLevelOfTiles(this.game.board.tiles))) {
       this.dailyChallengeCompleted = true;
     }
-    this.runBonusUndo = savedRun.initialUndoItems ?? 0;
-    this.runBonusRemoveLowest = savedRun.initialRemoveLowestItems ?? 0;
-    this.runInitialUndo = 1 + this.runBonusUndo;
-    this.runInitialRemoveLowest = 1 + this.runBonusRemoveLowest;
     this.newRecordThisRun = this.game.score > this.deps.host.getSave().highScore;
     this.movesCount = savedRun.moves ?? 0;
     this.mergesCount = savedRun.merges ?? 0;
@@ -165,13 +151,9 @@ export class GameFlowController {
       onSettings: () => this.deps.actions.onSettings(),
       onCollection: () => this.deps.actions.onCollection(),
       onSwipe: (direction) => { void this.performMove(direction); },
-      onUseItem: (kind) => {
-        if (kind === 'undo') void this.useUndoItem();
-        else void this.useRemoveLowestItem();
-      },
-      onRefillItem: (kind) => { void this.shareItemRefill(kind); },
+      onUseItem: (kind) => { void this.useItem(kind); },
       canUseItem: (kind) => this.canUseItem(kind),
-      canRefillItem: (kind) => this.canRequestItemRefill(kind),
+      inventoryCount: (kind) => this.inventoryCount(kind),
     });
     this.swipe = frame.swipe;
     this.showSwipeGuideIfNeeded(root, frame.boardY, frame.boardSize);
@@ -180,13 +162,11 @@ export class GameFlowController {
   }
 
   public canUseItem(kind: ItemKind): boolean {
-    return kind === 'undo' ? this.game.items.canUndo : this.game.items.canRemoveLowest;
+    return this.game.items.canUse(kind) && this.deps.economy.hasItem(kind);
   }
 
-  public canRequestItemRefill(kind: ItemKind): boolean {
-    return kind === 'undo'
-      ? this.game.items.canRequestUndoRefill
-      : this.game.items.canRequestRemoveLowestRefill;
+  public inventoryCount(kind: ItemKind): number {
+    return this.deps.economy.getItemCount(kind);
   }
 
   public async performMove(direction: Direction): Promise<void> {
@@ -225,13 +205,25 @@ export class GameFlowController {
     if (result.status === 'game-over') this.showGameOver();
   }
 
-  public async useUndoItem(): Promise<void> {
-    if (this.deps.host.isInputLocked() || !this.game.items.canUndo || !this.boardView.root) return;
+  /** 统一道具使用入口 */
+  public async useItem(kind: ItemKind): Promise<void> {
+    if (this.deps.host.isInputLocked() || !this.canUseItem(kind) || !this.boardView.root) return;
+
+    switch (kind) {
+      case 'undo': await this.useUndoItem(); break;
+      case 'spawn': await this.useSpawnItem(); break;
+      case 'shuffle': await this.useShuffleItem(); break;
+      case 'erase': await this.useEraseItem(); break;
+    }
+  }
+
+  private async useUndoItem(): Promise<void> {
     const result = this.game.undo();
     if (!result.changed) {
-      this.gameScreen.refreshItems(this.game.items);
+      this.refreshItemViews();
       return;
     }
+    await this.consumeItemFromInventory('undo');
     this.deps.tasks.recordEvent('use-items');
     this.persistRun();
     const token = this.sessionToken;
@@ -245,44 +237,85 @@ export class GameFlowController {
     this.updateScore(result.score);
     this.refreshGameViews();
     this.deps.host.unlockInput();
-    this.showItemRefillGuideIfNeeded('undo');
   }
 
-  public async useRemoveLowestItem(): Promise<void> {
-    if (this.deps.host.isInputLocked() || !this.game.items.canRemoveLowest || !this.boardView.root) return;
-    const result = this.game.removeLowestTiles(3);
+  private async useSpawnItem(): Promise<void> {
+    const result = this.game.spawn();
     if (!result.changed) {
-      this.gameScreen.refreshItems(this.game.items);
+      this.refreshItemViews();
       return;
     }
+    await this.consumeItemFromInventory('spawn');
     this.deps.tasks.recordEvent('use-items');
     this.persistRun();
     const token = this.sessionToken;
     this.deps.host.lockInput();
-    this.gameScreen.refreshItems(this.game.items);
+    this.refreshGameViews();
+    if (result.spawned) {
+      this.deps.haptics.light();
+      this.deps.audio.play('merge', 0.55);
+    }
+    await this.boardView.fadeRebuild(
+      result.board,
+      () => token === this.sessionToken && this.boardView.root !== null,
+    );
+    if (token !== this.sessionToken || !this.boardView.root) return;
+    this.refreshGameViews();
+    this.deps.host.unlockInput();
+  }
+
+  private async useShuffleItem(): Promise<void> {
+    const result = this.game.shuffle();
+    if (!result.changed) {
+      this.refreshItemViews();
+      return;
+    }
+    await this.consumeItemFromInventory('shuffle');
+    this.deps.tasks.recordEvent('use-items');
+    this.persistRun();
+    const token = this.sessionToken;
+    this.deps.host.lockInput();
+    this.refreshGameViews();
+    this.deps.haptics.light();
+    this.deps.audio.play('merge', 0.55);
+    await this.boardView.fadeRebuild(
+      result.board,
+      () => token === this.sessionToken && this.boardView.root !== null,
+    );
+    if (token !== this.sessionToken || !this.boardView.root) return;
+    this.refreshGameViews();
+    this.deps.host.unlockInput();
+  }
+
+  private async useEraseItem(): Promise<void> {
+    // 消除需要选择目标，暂用随机选择最低等级猫咪
+    const tiles = [...this.game.board.tiles];
+    if (tiles.length === 0) {
+      this.refreshItemViews();
+      return;
+    }
+    tiles.sort((a, b) => a.level - b.level);
+    const target = tiles[0];
+    const result = this.game.erase({ row: target.row, col: target.col });
+    if (!result.changed) {
+      this.refreshItemViews();
+      return;
+    }
+    await this.consumeItemFromInventory('erase');
+    this.deps.tasks.recordEvent('use-items');
+    this.persistRun();
+    const token = this.sessionToken;
+    this.deps.host.lockInput();
+    this.refreshGameViews();
     this.deps.haptics.light();
     this.deps.audio.play('merge', 0.55);
     await this.boardView.animateRemove(
-      result.removedTileIds,
+      [result.removedTileId!],
       () => token === this.sessionToken && this.boardView.root !== null,
     );
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.boardView.rebuild(result.board, false);
     this.refreshGameViews();
-    this.deps.host.unlockInput();
-    this.showItemRefillGuideIfNeeded('remove-lowest');
-  }
-
-  public async shareItemRefill(kind: ItemKind): Promise<void> {
-    if (this.deps.host.isInputLocked() || !this.canRequestItemRefill(kind)) return;
-    this.deps.host.lockInput();
-    const purpose: SharePurpose = kind === 'undo' ? 'undo-refill' : 'remove-lowest-refill';
-    const result = await this.deps.host.requestShare(purpose);
-    if (!this.deps.host.isOnGameScreen() || !this.boardView.root) return;
-    if (result === 'shared') {
-      if (this.game.refillItem(kind).granted) this.persistRun();
-    }
-    this.gameScreen.refreshItems(this.game.items);
     this.deps.host.unlockInput();
   }
 
@@ -334,7 +367,9 @@ export class GameFlowController {
     this.deps.host.lockInput();
     this.updateScore(this.game.score);
     this.deps.audio.play('game_over', 0.8);
-    if (this.game.items.canUndo || this.game.items.canRemoveLowest) {
+    const hasRescueItem = this.game.items.canUseMore
+      && (['undo', 'spawn', 'shuffle', 'erase'] as ItemKind[]).some((k) => this.canUseItem(k));
+    if (hasRescueItem) {
       this.showRescueGameOver();
     } else {
       void this.settleAndShowGameOver();
@@ -347,10 +382,10 @@ export class GameFlowController {
       score: this.game.score,
       bestScore: this.deps.host.getSave().highScore,
       canRevive: this.game.reviveState.canRevive,
-      canUndoRescue: this.game.items.canUndo,
-      canRemoveLowestRescue: this.game.items.canRemoveLowest,
-      undoRescueCount: this.game.items.undoRemaining,
-      removeLowestRescueCount: this.game.items.removeLowestRemaining,
+      canUndoRescue: this.canUseItem('undo'),
+      canRemoveLowestRescue: this.canUseItem('erase'),
+      undoRescueCount: this.inventoryCount('undo'),
+      removeLowestRescueCount: this.inventoryCount('erase'),
       isNewRecord: this.newRecordThisRun,
       runReward: 0,
       runRewardFailed: false,
@@ -368,27 +403,18 @@ export class GameFlowController {
         void this.shareResult().then(() => this.deps.actions.onHome());
       }); },
       onRevive: () => { void this.shareRevive(); },
-      onUndoRescue: () => this.rescueWithUndo(),
-      onRemoveLowestRescue: () => this.rescueWithRemoveLowest(),
+      onUndoRescue: () => this.rescueWithItem('undo'),
+      onRemoveLowestRescue: () => this.rescueWithItem('erase'),
     });
   }
 
-  private rescueWithUndo(): void {
-    if (!this.game.items.canUndo) return;
+  private rescueWithItem(kind: ItemKind): void {
+    if (!this.canUseItem(kind)) return;
     this.gameOverOverlay?.destroy();
     this.gameOverOverlay = null;
     this.gameOverSettlementInProgress = false;
     this.deps.host.unlockInput();
-    void this.useUndoItem();
-  }
-
-  private rescueWithRemoveLowest(): void {
-    if (!this.game.items.canRemoveLowest) return;
-    this.gameOverOverlay?.destroy();
-    this.gameOverOverlay = null;
-    this.gameOverSettlementInProgress = false;
-    this.deps.host.unlockInput();
-    void this.useRemoveLowestItem();
+    void this.useItem(kind);
   }
 
   private async finishGameOver(after: () => void): Promise<void> {
@@ -432,7 +458,6 @@ export class GameFlowController {
     if (highestLevelOfTiles(this.game.board.tiles) >= 5) {
       this.deps.tasks.recordEvent('reach-lv5');
     }
-    await this.consumeUsedRunItems();
     this.gameOverSettlementInProgress = false;
     return { reward, rewardFailed };
   }
@@ -468,26 +493,12 @@ export class GameFlowController {
     });
   }
 
-  private async consumeUsedRunItems(): Promise<void> {
-    const usedUndoBonus = usedBonusItems(
-      this.runBonusUndo,
-      this.runInitialUndo,
-      this.game.items.undoRemaining,
-    );
-    const usedRemoveBonus = usedBonusItems(
-      this.runBonusRemoveLowest,
-      this.runInitialRemoveLowest,
-      this.game.items.removeLowestRemaining,
-    );
+  private async consumeItemFromInventory(kind: ItemKind): Promise<void> {
     try {
-      if (usedUndoBonus > 0) {
-        this.deps.host.applyEconomyResult(await this.deps.economy.consumeItems('undo', usedUndoBonus));
-      }
-      if (usedRemoveBonus > 0) {
-        this.deps.host.applyEconomyResult(await this.deps.economy.consumeItems('remove-lowest', usedRemoveBonus));
-      }
+      const result = await this.deps.economy.consumeItems(kind, 1);
+      this.deps.host.applyEconomyResult(result);
     } catch (error) {
-      console.warn('[Cat2048] Failed to consume used bonus items.', error);
+      console.warn(`[Cat2048] Failed to consume ${kind} item.`, error);
     }
   }
 
@@ -496,8 +507,6 @@ export class GameFlowController {
       runId: this.currentRunId,
       ...this.game.exportState(),
       savedAt: Date.now(),
-      initialUndoItems: this.runBonusUndo,
-      initialRemoveLowestItems: this.runBonusRemoveLowest,
       mode: this.runMode,
       dailyChallengeCompleted: this.dailyChallengeCompleted,
       moves: this.movesCount,
@@ -534,8 +543,18 @@ export class GameFlowController {
   private refreshGameViews(): void {
     this.gameScreen.refreshEvolution(this.game.board, this.deps.host.getSave().unlockedCatLevels.length,
       this.evolutionChallenge());
-    this.gameScreen.refreshItems(this.game.items);
+    this.refreshItemViews();
     this.gameScreen.refreshStats(this.game.board, this.movesCount, this.mergesCount);
+  }
+
+  private refreshItemViews(): void {
+    const inventoryCounts: Record<ItemKind, number> = {
+      undo: this.inventoryCount('undo'),
+      spawn: this.inventoryCount('spawn'),
+      shuffle: this.inventoryCount('shuffle'),
+      erase: this.inventoryCount('erase'),
+    };
+    this.gameScreen.refreshItems(this.game.items, inventoryCounts);
   }
 
   private evolutionChallenge(): EvolutionChallenge | undefined {
@@ -580,15 +599,5 @@ export class GameFlowController {
     this.tutorial.dismissSwipe();
   }
 
-  private showItemRefillGuideIfNeeded(kind: ItemKind): void {
-    const save = this.deps.host.getSave();
-    if (save.tutorial.itemRefillGuideCompleted || !this.deps.host.isOnGameScreen()) return;
-    const item = this.itemBar.nodeFor(kind);
-    if (!item) return;
-    this.deps.host.commitSave({
-      ...save,
-      tutorial: { ...save.tutorial, itemRefillGuideCompleted: true },
-    });
-    this.tutorial.showItemRefillHint(this.gameRoot ?? item.parent ?? item, item, this.uiWidth, this.uiHeight);
-  }
+
 }

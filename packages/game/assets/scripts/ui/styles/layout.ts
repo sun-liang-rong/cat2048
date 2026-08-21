@@ -101,10 +101,20 @@ const GAME_STATS_BAR_HEIGHT = 62;
 export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, bottomInset: number,
   boardPixels: number): GameLayout {
   const hudCenterFromTop = topInset + 70;
-  const minimumBoardTop = hudCenterFromTop + 46 + 58;
+  const hudBottom = hudCenterFromTop + 46;
   const itemBarHeight = 96;
   const itemBarGap = 18;
   const bottomComfortInset = 24;
+  // 步数 / 合成 / 空位（stats bar）是玩家最关心的进度信息，无论机型大
+  // 小都常驻显示；紧凑屏幕由进化面板负责收缩兜底，而不是把 stats bar
+  // 整条隐藏。
+  const statsBarHeight = GAME_STATS_BAR_HEIGHT;
+  const hudToStatsGap = 14;
+  const evolutionToStatsGap = 18;
+  const statsToBoardGap = 18;
+  // 任何机型都要保证 stats bar 顶部不撞 HUD、底部不撞棋盘。
+  const statsRequiredBoardTop = hudBottom + hudToStatsGap + statsBarHeight + statsToBoardGap;
+  const minimumBoardTop = Math.max(hudCenterFromTop + 46 + 58, statsRequiredBoardTop);
   const availableBoardHeight = Math.max(0,
     uiHeight - bottomInset - bottomComfortInset - itemBarHeight - itemBarGap - minimumBoardTop);
   const widthScale = Math.max(0, (uiWidth - 32) / boardPixels);
@@ -112,29 +122,28 @@ export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, 
   const displaySize = boardPixels * boardScale;
   const maximumBoardTop = uiHeight - bottomInset - bottomComfortInset
     - itemBarHeight - itemBarGap - displaySize;
-  // On tall screens reserve the evolution route, stats bar, and their small
-  // gaps as one vertical block so the board sits directly below the stats
-  // instead of drifting toward the bottom of the available space.
-  const statsAwareBoardTop = hudCenterFromTop + 96
-    + GAME_EVOLUTION_PANEL_HEIGHT + GAME_STATS_BAR_HEIGHT;
-  const defaultBoardTop = minimumBoardTop + Math.max(0, maximumBoardTop - minimumBoardTop) * 0.82;
-  const preferredBoardTop = statsAwareBoardTop <= maximumBoardTop
-    ? statsAwareBoardTop
-    : defaultBoardTop;
+  // 优先保留完整布局（进化面板 + stats bar + 棋盘），空间不足时让 board
+  // 贴向最大允许位置，从而保证 stats bar 的位置稳定可见。
+  const fullLayoutBoardTop = hudBottom + hudToStatsGap
+    + GAME_EVOLUTION_PANEL_HEIGHT + evolutionToStatsGap + statsBarHeight + statsToBoardGap;
+  const preferredBoardTop = fullLayoutBoardTop <= maximumBoardTop
+    ? fullLayoutBoardTop
+    : maximumBoardTop;
   const boardTop = Math.max(minimumBoardTop, Math.min(maximumBoardTop, preferredBoardTop));
-  const hudBottom = hudCenterFromTop + 46;
-  const panelSpace = boardTop - hudBottom - 28;
-  const evolutionPanelHeight = panelSpace >= 176
-    ? Math.min(GAME_EVOLUTION_PANEL_HEIGHT, panelSpace)
+  // stats bar 固定贴 board 上方 statsToBoardGap，腾出的中间空间给进化
+  // 面板；面板够大就显示，否则隐藏并把 stats bar 自然上移。
+  const statsBarTopFromTop = boardTop - statsToBoardGap - statsBarHeight;
+  const evolutionRegionTop = hudBottom + hudToStatsGap;
+  const evolutionRegionBottom = statsBarTopFromTop - evolutionToStatsGap;
+  const evolutionAvailable = Math.max(0, evolutionRegionBottom - evolutionRegionTop);
+  const EVOLUTION_MIN_HEIGHT = 80;
+  const evolutionPanelHeight = evolutionAvailable >= EVOLUTION_MIN_HEIGHT
+    ? Math.min(GAME_EVOLUTION_PANEL_HEIGHT, evolutionAvailable)
     : 0;
-  const statsBarHeight = evolutionPanelHeight > 0
-    && panelSpace - evolutionPanelHeight >= GAME_STATS_BAR_HEIGHT + 22
-    ? GAME_STATS_BAR_HEIGHT
-    : 0;
-  const statsBarCenterFromTop = hudBottom + 14 + evolutionPanelHeight + 18 + statsBarHeight / 2;
+  const statsBarCenterFromTop = statsBarTopFromTop + statsBarHeight / 2;
   return {
     hudCenterFromTop,
-    evolutionPanelCenterFromTop: hudBottom + 14 + evolutionPanelHeight / 2,
+    evolutionPanelCenterFromTop: evolutionRegionTop + evolutionPanelHeight / 2,
     evolutionPanelHeight,
     statsBarCenterFromTop,
     statsBarHeight,

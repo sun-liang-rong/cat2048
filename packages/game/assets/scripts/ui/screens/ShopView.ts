@@ -90,7 +90,7 @@ export class ShopView {
     back.setPosition(-model.uiWidth / 2 + 60, headerY);
     parent.addChild(back);
 
-    const title = createLabel('装饰商店', 50, TITLE_COLOR, 390, 72, 'display', 'display');
+    const title = createLabel('装饰商店', 50, TITLE_COLOR, 390, 72, 'display');
     title.node.setPosition(0, headerY + 2);
     parent.addChild(title.node);
 

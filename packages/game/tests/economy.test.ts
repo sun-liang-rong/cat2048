@@ -82,11 +82,11 @@ describe('LocalEconomyRepository', () => {
     const repository = new LocalEconomyRepository(new MemoryStorage());
 
     const grantedUndo = await repository.grantItem('undo', 2);
-    const grantedRemove = await repository.grantItem('remove-lowest', 1);
+    const grantedErase = await repository.grantItem('erase', 1);
     expect(grantedUndo.ok).toBe(true);
-    expect(grantedRemove.ok).toBe(true);
+    expect(grantedErase.ok).toBe(true);
     expect((await repository.load()).undoItems).toBe(2);
-    expect((await repository.load()).removeLowestItems).toBe(1);
+    expect((await repository.load()).eraseItems).toBe(1);
 
     const consumedUndo = await repository.consumeItems('undo', 1);
     expect(consumedUndo.ok).toBe(true);

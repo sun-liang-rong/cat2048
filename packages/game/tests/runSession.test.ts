@@ -18,14 +18,9 @@ const sampleRun = (): SavedRun => ({
   board: { size: 4, tiles: [{ id: 'tile-1', level: 2, row: 0, col: 0 }] },
   score: 42,
   nextTileId: 3,
-  undoRemaining: 1,
-  removeLowestRemaining: 0,
-  undoRefillRemaining: 1,
-  removeLowestRefillRemaining: 1,
+  usedItemKinds: ['undo'],
   reviveRemaining: 1,
   savedAt: 1_700_000_000_000,
-  initialUndoItems: 0,
-  initialRemoveLowestItems: 0,
   mode: 'classic',
   dailyChallengeCompleted: false,
   moves: 12,
@@ -62,15 +57,13 @@ describe('RunSessionStore', () => {
 });
 
 describe('normalizeSavedRun', () => {
-  it('clamps item counts and revive usage', () => {
+  it('clamps revive usage and validates item kinds', () => {
     const normalized = normalizeSavedRun({
       ...sampleRun(),
-      undoRemaining: 99,
-      removeLowestRemaining: -3,
+      usedItemKinds: ['undo', 'invalid', 'spawn'],
       reviveRemaining: 5,
     });
-    expect(normalized?.undoRemaining).toBe(99);
-    expect(normalized?.removeLowestRemaining).toBe(0);
+    expect(normalized?.usedItemKinds).toEqual(['undo', 'spawn']);
     expect(normalized?.reviveRemaining).toBe(1);
   });
 

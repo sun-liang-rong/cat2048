@@ -32,14 +32,13 @@ interface ItemButtonView {
 export interface ItemBarActions {
   readonly isLocked: () => boolean;
   readonly canUse: (kind: ItemKind) => boolean;
-  readonly canRefill: (kind: ItemKind) => boolean;
+  readonly inventoryCount: (kind: ItemKind) => number;
   readonly onUse: (kind: ItemKind) => void;
-  readonly onRefill: (kind: ItemKind) => void;
 }
 
 export class ItemBarView {
   private undoItem: ItemButtonView | null = null;
-  private removeLowestItem: ItemButtonView | null = null;
+  private eraseItem: ItemButtonView | null = null;
   private actions: ItemBarActions | null = null;
 
   public constructor(private readonly art: ArtRepository) {}
@@ -55,27 +54,24 @@ export class ItemBarView {
     bar.addChild(undo.node);
     this.undoItem = undo;
 
-    const remove = this.createItemButton('remove-lowest', 'RemoveLowestItem',
-      '移除最低3只', '×3');
-    remove.node.setPosition(163, 0);
-    bar.addChild(remove.node);
-    this.removeLowestItem = remove;
+    const erase = this.createItemButton('erase', 'EraseItem', '消除猫咪', '×');
+    erase.node.setPosition(163, 0);
+    bar.addChild(erase.node);
+    this.eraseItem = erase;
   }
 
-  public refresh(state: ItemState): void {
-    this.setItemButtonState(this.undoItem, state.canUndo, state.canRequestUndoRefill,
-      state.undoRemaining, state.undoRefillRemaining);
-    this.setItemButtonState(this.removeLowestItem, state.canRemoveLowest,
-      state.canRequestRemoveLowestRefill, state.removeLowestRemaining, state.removeLowestRefillRemaining);
+  public refresh(state: ItemState, inventoryCounts: Record<ItemKind, number>): void {
+    this.setItemButtonState(this.undoItem, state.canUse('undo'), inventoryCounts['undo'] ?? 0);
+    this.setItemButtonState(this.eraseItem, state.canUse('erase'), inventoryCounts['erase'] ?? 0);
   }
 
   public nodeFor(kind: ItemKind): Node | null {
-    return kind === 'undo' ? this.undoItem?.node ?? null : this.removeLowestItem?.node ?? null;
+    return kind === 'undo' ? this.undoItem?.node ?? null : this.eraseItem?.node ?? null;
   }
 
   public clear(): void {
     this.undoItem = null;
-    this.removeLowestItem = null;
+    this.eraseItem = null;
     this.actions = null;
   }
 
@@ -99,8 +95,8 @@ export class ItemBarView {
 
     const badge = createUiNode(`${name}:CountBadge`, 58, 28);
     drawRounded(badge, 58, 28, COLORS.mustard, 14);
-    badge.setPosition(117, -24);
-    const count = createLabel('×1', 17, COLORS.white, 52, 24, 'display');
+    badge.setPosition(155, 44);
+    const count = createLabel('×0', 17, COLORS.white, 52, 24, 'display');
     badge.addChild(count.node);
     node.addChild(badge);
 
@@ -115,7 +111,6 @@ export class ItemBarView {
         const actions = this.actions;
         if (!actions || actions.isLocked()) return;
         if (actions.canUse(kind)) actions.onUse(kind);
-        else if (actions.canRefill(kind)) actions.onRefill(kind);
       }).start();
     });
     return { kind, node, count, badge, title, icon, baseTitle: titleText, baseIcon: iconText };
@@ -123,25 +118,23 @@ export class ItemBarView {
 
   private canTap(kind: ItemKind): boolean {
     const actions = this.actions;
-    return Boolean(actions && !actions.isLocked() && (actions.canUse(kind) || actions.canRefill(kind)));
+    return Boolean(actions && !actions.isLocked() && actions.canUse(kind));
   }
 
-  private setItemButtonState(view: ItemButtonView | null, canUse: boolean, canRefill: boolean,
-    remaining: number, _refillRemaining: number): void {
+  private setItemButtonState(view: ItemButtonView | null, canUse: boolean, inventoryCount: number): void {
     if (!view) return;
-    const refillAvailable = !canUse && canRefill;
-    view.count.string = refillAvailable ? '补充' : `×${Math.max(0, remaining)}`;
-    setLabelText(view.title, refillAvailable ? '分享补充' : view.baseTitle, 'display', 22);
-    drawRounded(view.badge, 58, 28, refillAvailable ? COLORS.coral
-      : canUse ? COLORS.mustard : new Color(157, 148, 135, 190), 14);
+    view.count.string = `×${Math.max(0, inventoryCount)}`;
+    setLabelText(view.title, view.baseTitle, 'display', 22);
+    const depleted = inventoryCount <= 0;
+    drawRounded(view.badge, 58, 28,
+      canUse ? COLORS.mustard : depleted ? new Color(157, 148, 135, 190) : COLORS.coral,
+      14);
+    // 图标刷新
     for (const child of [...view.icon.children]) child.destroy();
-    const frame = refillAvailable
-      ? this.art.frame(GAME_CONFIG.art.share)
-      : this.art.frame(view.kind === 'undo' ? GAME_CONFIG.art.undo : GAME_CONFIG.art.removeLowest);
+    const frame = this.art.frame(view.kind === 'undo' ? GAME_CONFIG.art.undo : GAME_CONFIG.art.removeLowest);
     if (frame) view.icon.addChild(createSpriteNode(`${view.node.name}:IconSprite`, frame, 52, 52));
-    else view.icon.addChild(createLabel(refillAvailable ? '↗' : view.baseIcon,
-      27, COLORS.teal, 54, 52, 'display').node);
+    else view.icon.addChild(createLabel(view.baseIcon, 27, COLORS.teal, 54, 52, 'display').node);
     const opacity = view.node.getComponent(UIOpacity) ?? view.node.addComponent(UIOpacity);
-    opacity.opacity = canUse || canRefill ? 255 : 105;
+    opacity.opacity = canUse ? 255 : 105;
   }
 }

@@ -161,31 +161,15 @@ describe('Game2048', () => {
 
     const moved = game.move('left');
     expect(moved.changed).toBe(true);
-    expect(game.items).toEqual({
-      undoRemaining: 1,
-      removeLowestRemaining: 1,
-      undoRefillRemaining: 1,
-      removeLowestRefillRemaining: 1,
-      canUndo: true,
-      canRemoveLowest: true,
-      canRequestUndoRefill: false,
-      canRequestRemoveLowestRefill: false,
-    });
+    expect(game.items.canUse('undo')).toBe(true);
+    expect(game.items.canUseMore).toBe(true);
 
     const undone = game.undo();
     expect(undone.changed).toBe(true);
     expect(undone.board).toEqual(before);
     expect(undone.score).toBe(12);
-    expect(game.items).toEqual({
-      undoRemaining: 0,
-      removeLowestRemaining: 1,
-      undoRefillRemaining: 1,
-      removeLowestRefillRemaining: 1,
-      canUndo: false,
-      canRemoveLowest: true,
-      canRequestUndoRefill: true,
-      canRequestRemoveLowestRefill: false,
-    });
+    expect(game.items.canUse('undo')).toBe(false);
+    expect(game.items.canUseMore).toBe(true);
     expect(game.undo().changed).toBe(false);
   });
 
@@ -212,84 +196,83 @@ describe('Game2048', () => {
     expect(game.undo().board).toEqual(beforeSecondMove);
   });
 
-  it('removes up to three lowest cats in stable row and column order', () => {
+  it('erases a single tile at a specified position', () => {
     const game = new Game2048(new FixedRandom([]));
     game.loadFixture([
       [2, 1, 0, 1], [1, 0, 2, 0], [0, 0, 0, 0], [0, 0, 0, 0],
     ], 24);
-    const expectedIds = game.board.tiles
-      .filter((tile) => tile.level === 1)
-      .map((tile) => tile.id);
+    const target = game.board.tiles.find((tile) => tile.level === 1)!;
 
-    const result = game.removeLowestTiles(3);
+    const result = game.erase({ row: target.row, col: target.col });
     expect(result.changed).toBe(true);
-    expect(result.removedTileIds).toEqual(expectedIds);
-    expect(result.board.tiles.map((tile) => tile.level)).toEqual([2, 2]);
+    expect(result.removedTileId).toBe(target.id);
+    expect(result.board.tiles).toHaveLength(4);
     expect(result.score).toBe(24);
-    expect(game.items).toEqual({
-      undoRemaining: 1,
-      removeLowestRemaining: 0,
-      undoRefillRemaining: 1,
-      removeLowestRefillRemaining: 1,
-      canUndo: false,
-      canRemoveLowest: false,
-      canRequestUndoRefill: false,
-      canRequestRemoveLowestRefill: true,
-    });
+    expect(game.items.canUse('erase')).toBe(false);
+    expect(game.items.canUseMore).toBe(true);
   });
 
-  it('does not consume removal on an empty board and removes all when fewer than three exist', () => {
+  it('does not erase on an empty board', () => {
     const game = new Game2048(new FixedRandom([]));
     game.loadFixture([
       [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
     ]);
-    expect(game.removeLowestTiles(3).changed).toBe(false);
-    expect(game.items.removeLowestRemaining).toBe(1);
-
-    game.loadFixture([
-      [1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0], [0, 0, 0, 0],
-    ]);
-    const result = game.removeLowestTiles(3);
-    expect(result.removedTileIds).toHaveLength(2);
-    expect(result.board.tiles).toEqual([]);
-    expect(result.status).toBe('running');
+    expect(game.erase({ row: 0, col: 0 }).changed).toBe(false);
+    expect(game.items.canUse('erase')).toBe(true);
   });
 
-  it('returns a full game-over board to running after removing cats', () => {
-    const game = new Game2048(new FixedRandom([]));
+  it('spawns a new cat on a random empty cell', () => {
+    const game = new Game2048(new FixedRandom([0.5, 0.9]));
     game.loadFixture([
-      [1, 2, 1, 2], [2, 1, 2, 1], [1, 2, 1, 2], [2, 1, 2, 1],
+      [1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
     ]);
-    expect(game.status).toBe('game-over');
-
-    const result = game.removeLowestTiles(3);
+    const result = game.spawn();
     expect(result.changed).toBe(true);
-    expect(result.board.tiles).toHaveLength(13);
-    expect(result.status).toBe('running');
+    expect(result.board.tiles).toHaveLength(2);
+    expect(result.spawned).toBeDefined();
+    expect(game.items.canUse('spawn')).toBe(false);
   });
 
-  it('clears undo history after removal and resets both items on a new game', () => {
+  it('shuffles all tiles randomly', () => {
+    const game = new Game2048(new FixedRandom([0.1, 0.2, 0.3]));
+    game.loadFixture([
+      [1, 2, 0, 0], [3, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ]);
+    const levelsBefore = game.board.tiles.map((tile) => tile.level).sort();
+    const result = game.shuffle();
+    expect(result.changed).toBe(true);
+    const levelsAfter = result.board.tiles.map((tile) => tile.level).sort();
+    expect(levelsAfter).toEqual(levelsBefore);
+    expect(game.items.canUse('shuffle')).toBe(false);
+  });
+
+  it('limits total items per game to max 2', () => {
+    const game = new Game2048(new FixedRandom([0.5, 0.9, 0.5, 0.9]));
+    game.loadFixture([
+      [1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ]);
+    game.move('left');
+    expect(game.undo().changed).toBe(true);
+    expect(game.items.canUseMore).toBe(true);
+    expect(game.spawn().changed).toBe(true);
+    expect(game.items.canUseMore).toBe(false);
+    expect(game.items.canUse('shuffle')).toBe(false);
+    expect(game.items.canUse('erase')).toBe(false);
+  });
+
+  it('resets items on a new game', () => {
     const game = new Game2048(new FixedRandom([0, 0, 0, 0, 0, 0]));
     game.loadFixture([
       [0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
     ]);
     game.move('left');
-    expect(game.items.canUndo).toBe(true);
-    game.removeLowestTiles(3);
-    expect(game.items.canUndo).toBe(false);
-    expect(game.undo().changed).toBe(false);
+    game.undo();
+    expect(game.items.canUse('undo')).toBe(false);
 
     game.start();
-    expect(game.items).toEqual({
-      undoRemaining: 1,
-      removeLowestRemaining: 1,
-      undoRefillRemaining: 1,
-      removeLowestRefillRemaining: 1,
-      canUndo: false,
-      canRemoveLowest: true,
-      canRequestUndoRefill: false,
-      canRequestRemoveLowestRefill: false,
-    });
+    expect(game.items.canUse('undo')).toBe(true);
+    expect(game.items.canUseMore).toBe(true);
+    expect(game.items.usedKinds).toEqual([]);
   });
 
   it.each([[-0.1], [1], [Number.NaN]])('rejects an invalid level random value: %s', (value) => {
@@ -306,13 +289,13 @@ describe('Game2048', () => {
     game.undo();
     const state = game.exportState();
     expect(state.score).toBe(12);
+    expect(state.usedItemKinds).toEqual(['undo']);
 
     const restored = new Game2048(new FixedRandom([0.95, 0]));
     restored.restore(state);
     expect(restored.board).toEqual(game.board);
     expect(restored.score).toBe(12);
-    expect(restored.items.undoRemaining).toBe(0);
-    expect(restored.items.removeLowestRemaining).toBe(1);
+    expect(restored.items.canUse('undo')).toBe(false);
     expect(restored.reviveState.remaining).toBe(1);
 
     const moved = restored.move('right');

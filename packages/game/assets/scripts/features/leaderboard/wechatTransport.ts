@@ -6,9 +6,7 @@ import {
   type LeaderboardHttpRequest,
   type LeaderboardHttpTransport,
   type LeaderboardLoginProvider,
-  type StorageLike,
 } from './types';
-import { LeaderboardClient } from './leaderboard';
 
 interface WechatRequestOptions {
   readonly url: string;
@@ -69,17 +67,4 @@ export class WechatLoginProvider implements LeaderboardLoginProvider {
       wx.login({ success: (result) => resolve(result.code), fail: reject });
     });
   }
-}
-
-/** 创建使用微信运行时能力的排行榜客户端。 */
-export function createWechatLeaderboardClient(
-  baseUrl: string,
-  storage: StorageLike,
-  runtime: WechatRuntime = globalThis as unknown as WechatRuntime,
-): LeaderboardClient {
-  return new LeaderboardClient(
-    new WechatHttpTransport(baseUrl, runtime),
-    new WechatLoginProvider(runtime),
-    storage,
-  );
 }

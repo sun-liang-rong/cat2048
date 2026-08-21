@@ -115,7 +115,15 @@ function normalizeEconomy(value: unknown): EconomySaveData | null {
     dailyStreak: candidate.dailyStreak,
     settledRunIds: Array.from(new Set(settled as string[])),
     undoItems: normalizeItemCount(candidate.undoItems),
-    removeLowestItems: normalizeItemCount(candidate.removeLowestItems),
+    spawnItems: normalizeItemCount(candidate.spawnItems),
+    shuffleItems: normalizeItemCount(candidate.shuffleItems),
+    eraseItems: normalizeItemCount(candidate.eraseItems),
+    dailyAdUndo: normalizeItemCount(candidate.dailyAdUndo),
+    dailyAdSpawn: normalizeItemCount(candidate.dailyAdSpawn),
+    dailyAdShuffle: normalizeItemCount(candidate.dailyAdShuffle),
+    dailyAdErase: normalizeItemCount(candidate.dailyAdErase),
+    dailyLoginClaimed: typeof candidate.dailyLoginClaimed === 'boolean' ? candidate.dailyLoginClaimed : false,
+    dailyShareUndo: normalizeItemCount(candidate.dailyShareUndo),
   };
 }
 

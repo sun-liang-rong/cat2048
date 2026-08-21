@@ -8,7 +8,7 @@ import {
   COLLECTION_REWARDS,
   calculateCollectionProgress,
 } from '../assets/scripts/features/gameplay/collectionProgress';
-import { usedBonusItems } from '../assets/scripts/features/gameplay/runItems';
+import { canUseItemInRun, usedItemKindsList } from '../assets/scripts/features/gameplay/runItems';
 
 describe('dailyChallenge', () => {
   it('marks completion only in daily-challenge mode at target level', () => {
@@ -58,15 +58,30 @@ describe('calculateCollectionProgress', () => {
   });
 });
 
-describe('usedBonusItems', () => {
-  it('computes consumed bonus items within bounds', () => {
-    // bonus 3, initial 4 (1 base + 3 bonus), remaining 2 → 用了 4-2-1=1 个 bonus
-    expect(usedBonusItems(3, 4, 2)).toBe(1);
-    // bonus 全用：remaining 1 → 4-1-1=2
-    expect(usedBonusItems(3, 4, 1)).toBe(2);
-    // 未使用 bonus
-    expect(usedBonusItems(3, 4, 4)).toBe(0);
-    // 不会超过 bonus 上限
-    expect(usedBonusItems(1, 2, 0)).toBe(1);
+describe('canUseItemInRun', () => {
+  const maxPerKind = { undo: 1, spawn: 1, shuffle: 1, erase: 1 };
+
+  it('allows unused items when under total limit', () => {
+    expect(canUseItemInRun('undo', [], 2, maxPerKind)).toBe(true);
+    expect(canUseItemInRun('spawn', ['undo'], 2, maxPerKind)).toBe(true);
+  });
+
+  it('rejects already used items', () => {
+    expect(canUseItemInRun('undo', ['undo'], 2, maxPerKind)).toBe(false);
+  });
+
+  it('rejects when total limit reached', () => {
+    expect(canUseItemInRun('shuffle', ['undo', 'spawn'], 2, maxPerKind)).toBe(false);
+  });
+
+  it('rejects when per-kind limit reached', () => {
+    expect(canUseItemInRun('undo', ['undo', 'spawn'], 2, maxPerKind)).toBe(false);
+  });
+});
+
+describe('usedItemKindsList', () => {
+  it('returns a copy of used item kinds', () => {
+    const list = usedItemKindsList(['undo', 'spawn']);
+    expect(list).toEqual(['undo', 'spawn']);
   });
 });

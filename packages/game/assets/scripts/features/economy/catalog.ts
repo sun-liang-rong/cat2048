@@ -25,8 +25,20 @@ export interface EconomySaveData {
   readonly lastDailyClaimDate: string | null;
   readonly dailyStreak: number;
   readonly settledRunIds: readonly string[];
+  /** 道具全局库存 */
   readonly undoItems: number;
-  readonly removeLowestItems: number;
+  readonly spawnItems: number;
+  readonly shuffleItems: number;
+  readonly eraseItems: number;
+  /** 每日广告获取计数（每日0点重置） */
+  readonly dailyAdUndo: number;
+  readonly dailyAdSpawn: number;
+  readonly dailyAdShuffle: number;
+  readonly dailyAdErase: number;
+  /** 每日登录奖励是否已领取 */
+  readonly dailyLoginClaimed: boolean;
+  /** 每日分享获取撤回次数 */
+  readonly dailyShareUndo: number;
 }
 
 export const DEFAULT_EQUIPPED: EquippedCosmetics = {
@@ -74,7 +86,15 @@ export const DEFAULT_ECONOMY: EconomySaveData = {
   dailyStreak: 0,
   settledRunIds: [],
   undoItems: 0,
-  removeLowestItems: 0,
+  spawnItems: 0,
+  shuffleItems: 0,
+  eraseItems: 0,
+  dailyAdUndo: 0,
+  dailyAdSpawn: 0,
+  dailyAdShuffle: 0,
+  dailyAdErase: 0,
+  dailyLoginClaimed: false,
+  dailyShareUndo: 0,
 };
 
 const skinAssets = (skin: string): readonly string[] => Array.from({ length: 12 }, (_, index) =>
@@ -84,7 +104,7 @@ export const SHOP_ITEMS: readonly CosmeticDefinition[] = [
   {
     id: 'cat-skin.sunny',
     category: 'cat-skin',
-    name: '阳光猫咪',
+    name: '装扮猫咪',
     price: 800,
     previewAsset: skinAssets('sunny')[0],
     levelAssets: skinAssets('sunny'),

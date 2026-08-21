@@ -13,6 +13,7 @@ import type { LocalDailyTaskRepository } from '../../features/tasks/dailyTasks';
 import type { ModalView } from '../panels/ModalView';
 import type { DailyRewardView } from '../panels/DailyRewardView';
 import type { TaskPanelView } from '../panels/TaskPanelView';
+import type { CatDetailModal } from '../panels/CatDetailModal';
 import type { ShopView } from '../screens/ShopView';
 import type { CollectionView } from '../screens/CollectionView';
 import type { SaveDataV3 } from '../../features/storage/saveTypes';
@@ -32,6 +33,7 @@ export interface EconomyPanelsDeps {
   readonly taskPanel: TaskPanelView;
   readonly shopView: ShopView;
   readonly collectionView: CollectionView;
+  readonly catDetailModal: CatDetailModal;
   readonly getScreenRoot: () => Node | null;
   readonly getCurrentScreen: () => ScreenName;
   readonly getSceneToken: () => number;
@@ -62,6 +64,7 @@ export class EconomyPanelsController {
   private dailyClaimInProgress = false;
   private dailyPromptShown = false;
   private collectionOrigin: CollectionOrigin = 'home';
+  private catDetailOverlay: Node | null = null;
 
   public constructor(private readonly deps: EconomyPanelsDeps) {}
 
@@ -69,6 +72,7 @@ export class EconomyPanelsController {
   public resetOverlays(): void {
     this.dailyRewardOverlay = null;
     this.taskOverlay = null;
+    this.catDetailOverlay = null;
     this.taskClaimInProgress = false;
     this.dailyClaimInProgress = false;
   }
@@ -109,8 +113,8 @@ export class EconomyPanelsController {
         this.deps.showNotice('今日奖励已领取');
         return;
       }
-      await this.deps.economy.grantItem('undo', 1);
-      await this.deps.economy.grantItem('remove-lowest', 1);
+      await this.deps.economy.grantItem('undo', 2);
+      await this.deps.economy.grantItem('erase', 1);
       this.deps.applyEconomySnapshot(await this.deps.economy.load());
       this.dailyRewardOverlay?.destroy();
       this.dailyRewardOverlay = null;
@@ -281,6 +285,26 @@ export class EconomyPanelsController {
       onBack: () => {
         if (origin === 'game') this.deps.showGame(false);
         else this.deps.showHome();
+      },
+      onCardTap: (cat, unlocked) => this.showCatDetail(cat, unlocked),
+    });
+  }
+
+  /**
+   * 打开猫咪详情弹窗。同屏只会存在一个详详情弹窗，避免多层遮罩堆叠。
+   * `lockInput` / `unlockInput` 由弹窗生命周期控制。
+   */
+  public showCatDetail(cat: { readonly level: number; readonly name: string; readonly description: string },
+    unlocked: boolean): void {
+    const screenRoot = this.deps.getScreenRoot();
+    if (!screenRoot || this.catDetailOverlay?.isValid) return;
+    this.deps.lockInput();
+    const { width, height } = this.deps.getSize();
+    this.catDetailOverlay = this.deps.catDetailModal.show(screenRoot, cat, unlocked, width, height, {
+      onClose: () => {
+        this.catDetailOverlay?.destroy();
+        this.catDetailOverlay = null;
+        this.deps.unlockInput();
       },
     });
   }

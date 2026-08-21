@@ -1,8 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+const { existsSync, readFileSync, writeFileSync } = require('node:fs');
+const { dirname, join, resolve } = require('node:path');
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolve(__dirname, '..');
 const generatedBuild = join(root, 'packages', 'game', 'build', 'wechatgame');
 const marker = 'CAT2048_COCOS_LOADING_BRIDGE';
 const themeMarker = 'CAT2048_COCOS_LOADING_THEME';
@@ -59,7 +58,7 @@ const themeFirstScreen = (original) => {
       'let bgColor = [255 / 255, 244 / 255, 222 / 255, 1];');
 };
 
-export const patchWeChatBootstrap = (buildDirectory = generatedBuild) => {
+const patchWeChatBootstrap = (buildDirectory = generatedBuild) => {
   const gamePath = join(buildDirectory, 'game.js');
   const firstScreenPath = join(buildDirectory, 'first-screen.js');
 
@@ -99,7 +98,9 @@ export const patchWeChatBootstrap = (buildDirectory = generatedBuild) => {
   return gameChanged || firstScreenChanged;
 };
 
-const isCli = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+module.exports = { patchWeChatBootstrap };
+
+const isCli = process.argv[1] && resolve(process.argv[1]) === __filename;
 if (isCli) {
   try {
     const buildDirectory = process.argv[2] ? resolve(process.argv[2]) : generatedBuild;

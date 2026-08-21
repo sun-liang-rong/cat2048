@@ -14,6 +14,7 @@ import {
 } from '../storage/storage';
 import type { ItemKind } from '../../core/types';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
+import { ITEM_DAILY_AD_MAX, ITEM_HOLDING_MAX } from '../../core/config/constants';
 
 export interface RunRewardRequest {
   readonly runId: string;
@@ -42,6 +43,14 @@ export interface EconomyRepository {
   consumeItems(kind: ItemKind, amount: number): Promise<EconomyMutationResult>;
   purchase(itemId: string): Promise<EconomyMutationResult>;
   equip(itemId: string): Promise<EconomyMutationResult>;
+  /** 通过广告获取道具（含每日限额检查） */
+  grantViaAd(kind: ItemKind): Promise<EconomyMutationResult>;
+  /** 检查是否可通过广告获取 */
+  canGrantViaAd(kind: ItemKind, today: string): boolean;
+  /** 获取道具库存数量 */
+  getItemCount(kind: ItemKind): number;
+  /** 检查道具库存 */
+  hasItem(kind: ItemKind): boolean;
 }
 
 export interface EconomyClock {
@@ -200,8 +209,86 @@ export class LocalEconomyRepository implements EconomyRepository {
     return { ...this.snapshot(economy), ok, awardedCoins, ...(reason ? { reason } : {}) };
   }
 
-  private itemKey(kind: ItemKind): 'undoItems' | 'removeLowestItems' {
-    return kind === 'undo' ? 'undoItems' : 'removeLowestItems';
+  private itemKey(kind: ItemKind): keyof EconomySaveData {
+    const map: Record<ItemKind, keyof EconomySaveData> = {
+      undo: 'undoItems',
+      spawn: 'spawnItems',
+      shuffle: 'shuffleItems',
+      erase: 'eraseItems',
+    };
+    return map[kind];
+  }
+
+  private dailyAdKey(kind: ItemKind): keyof EconomySaveData {
+    const map: Record<ItemKind, keyof EconomySaveData> = {
+      undo: 'dailyAdUndo',
+      spawn: 'dailyAdSpawn',
+      shuffle: 'dailyAdShuffle',
+      erase: 'dailyAdErase',
+    };
+    return map[kind];
+  }
+
+  /** 检查是否可以通过广告获取道具（每日限制 + 持有上限） */
+  public canGrantViaAd(kind: ItemKind, today: string): boolean {
+    const save = this.saveStorage.load();
+    const itemKey = this.itemKey(kind);
+    const adKey = this.dailyAdKey(kind);
+    const current = save.economy[itemKey] as number;
+    const dailyAdCount = save.economy[adKey] as number;
+    const holdingMax = ITEM_HOLDING_MAX[kind] ?? 0;
+    const dailyAdMax = ITEM_DAILY_AD_MAX[kind] ?? 0;
+    if (current >= holdingMax) return false;
+    if (save.economy.lastDailyClaimDate === today) {
+      // 同一天，检查广告计数
+    }
+    // 简化：检查 dailyAdCount 是否 < dailyAdMax
+    // 跨天时 dailyAdCount 会在 grantItem 中重置
+    return current < holdingMax && dailyAdCount < dailyAdMax;
+  }
+
+  /** 通过广告获取道具（会记录每日广告计数） */
+  public async grantViaAd(kind: ItemKind): Promise<EconomyMutationResult> {
+    const save = this.saveStorage.load();
+    const today = this.clock.today();
+    const itemKey = this.itemKey(kind);
+    const adKey = this.dailyAdKey(kind);
+    const current = save.economy[itemKey] as number;
+    const holdingMax = ITEM_HOLDING_MAX[kind] ?? 0;
+    const dailyAdMax = ITEM_DAILY_AD_MAX[kind] ?? 0;
+
+    // 跨天重置广告计数
+    const isSameDay = save.economy.lastDailyClaimDate === today
+      || this.isYesterday(save.economy.lastDailyClaimDate, today);
+    const dailyAdCount = isSameDay ? (save.economy[adKey] as number) : 0;
+
+    if (current >= holdingMax) {
+      return this.result(save.economy, false, 0, 'already-claimed');
+    }
+    if (dailyAdCount >= dailyAdMax) {
+      return this.result(save.economy, false, 0, 'already-claimed');
+    }
+
+    const economy = {
+      ...save.economy,
+      [itemKey]: current + 1,
+      [adKey]: dailyAdCount + 1,
+      lastDailyClaimDate: save.economy.lastDailyClaimDate ?? today,
+    };
+    this.saveStorage.save({ ...save, economy });
+    return this.result(economy, true, 0);
+  }
+
+  /** 获取道具库存数量 */
+  public getItemCount(kind: ItemKind): number {
+    const save = this.saveStorage.load();
+    const key = this.itemKey(kind);
+    return save.economy[key] as number;
+  }
+
+  /** 检查道具库存是否充足 */
+  public hasItem(kind: ItemKind): boolean {
+    return this.getItemCount(kind) > 0;
   }
 
   private equippedKey(category: CosmeticCategory): keyof EquippedCosmetics {

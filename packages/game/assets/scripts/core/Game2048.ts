@@ -1,5 +1,7 @@
 import { Board } from './Board';
 import {
+  ITEM_PER_GAME_LIMIT,
+  ITEM_PER_GAME_MAX,
   REVIVE_REMOVE_COUNT,
   rollSpawnLevel,
 } from './config';
@@ -7,10 +9,10 @@ import {
   BOARD_SIZE,
   type BoardSnapshot,
   type Direction,
+  type EraseResult,
   type GameRunState,
   type GameStatus,
   type ItemKind,
-  type ItemRefillResult,
   type ItemState,
   type MoveResult,
   type Position,
@@ -18,6 +20,8 @@ import {
   type RemoveTilesResult,
   type ReviveResult,
   type ReviveState,
+  type ShuffleResult,
+  type SpawnResult,
   type Tile,
   type TileFactory,
   type UndoResult,
@@ -33,10 +37,7 @@ export class Game2048 implements TileFactory {
   private scoreValue = 0;
   private nextId = 1;
   private undoSnapshot: UndoSnapshot | undefined;
-  private undoRemainingValue = 1;
-  private removeLowestRemainingValue = 1;
-  private undoRefillRemainingValue = 1;
-  private removeLowestRefillRemainingValue = 1;
+  private usedItemKindsValue = new Set<ItemKind>();
   private reviveRemainingValue: 0 | 1 = 1;
 
   public constructor(private readonly random: RandomSource) {}
@@ -45,16 +46,11 @@ export class Game2048 implements TileFactory {
   public get score(): number { return this.scoreValue; }
   public get status(): GameStatus { return this.boardValue.hasLegalMove() ? 'running' : 'game-over'; }
   public get items(): ItemState {
+    const usedKinds = [...this.usedItemKindsValue];
     return {
-      undoRemaining: this.undoRemainingValue,
-      removeLowestRemaining: this.removeLowestRemainingValue,
-      undoRefillRemaining: this.undoRefillRemainingValue,
-      removeLowestRefillRemaining: this.removeLowestRefillRemainingValue,
-      canUndo: this.undoRemainingValue > 0 && this.undoSnapshot !== undefined,
-      canRemoveLowest: this.removeLowestRemainingValue > 0 && this.boardValue.snapshot().tiles.length > 0,
-      canRequestUndoRefill: this.undoRemainingValue === 0 && this.undoRefillRemainingValue > 0,
-      canRequestRemoveLowestRefill: this.removeLowestRemainingValue === 0
-        && this.removeLowestRefillRemainingValue > 0,
+      usedKinds,
+      canUseMore: this.usedItemKindsValue.size < ITEM_PER_GAME_MAX,
+      canUse: (kind: ItemKind) => this.canUseItem(kind),
     };
   }
   public get reviveState(): ReviveState {
@@ -64,15 +60,21 @@ export class Game2048 implements TileFactory {
     };
   }
 
-  public start(initialUndoRemaining = 1, initialRemoveLowestRemaining = 1): BoardSnapshot {
+  /** 检查指定道具本局是否可用（不检查库存，仅检查局内限制） */
+  public canUseItem(kind: ItemKind): boolean {
+    // 已经使用过这种道具
+    if (this.usedItemKindsValue.has(kind)) return false;
+    // 总使用次数已达上限
+    if (this.usedItemKindsValue.size >= ITEM_PER_GAME_MAX) return false;
+    return true;
+  }
+
+  public start(): BoardSnapshot {
     this.boardValue = new Board();
     this.scoreValue = 0;
     this.nextId = 1;
     this.undoSnapshot = undefined;
-    this.undoRemainingValue = initialUndoRemaining;
-    this.removeLowestRemainingValue = initialRemoveLowestRemaining;
-    this.undoRefillRemainingValue = 1;
-    this.removeLowestRefillRemainingValue = 1;
+    this.usedItemKindsValue = new Set();
     this.reviveRemainingValue = 1;
     this.spawnRandomTile();
     this.spawnRandomTile();
@@ -103,52 +105,96 @@ export class Game2048 implements TileFactory {
     this.nextId = 1;
     this.scoreValue = score;
     this.undoSnapshot = undefined;
-    this.undoRemainingValue = 1;
-    this.removeLowestRemainingValue = 1;
-    this.undoRefillRemainingValue = 1;
-    this.removeLowestRefillRemainingValue = 1;
+    this.usedItemKindsValue = new Set();
     this.reviveRemainingValue = 1;
     this.boardValue = Board.fromLevels(levels, this);
     return this.board;
   }
 
   public undo(): UndoResult {
-    if (this.undoRemainingValue === 0 || !this.undoSnapshot) {
+    if (!this.canUseItem('undo') || !this.undoSnapshot) {
       return { changed: false, board: this.board, score: this.scoreValue, status: this.status };
     }
     const snapshot = this.undoSnapshot;
     this.boardValue = new Board(snapshot.board);
     this.scoreValue = snapshot.score;
     this.undoSnapshot = undefined;
-    this.undoRemainingValue = Math.max(0, this.undoRemainingValue - 1);
+    this.usedItemKindsValue.add('undo');
     return { changed: true, board: this.board, score: this.scoreValue, status: this.status };
   }
 
-  public removeLowestTiles(count: number): RemoveTilesResult {
-    if (!Number.isInteger(count) || count < 1) throw new Error(`Invalid removal count: ${count}`);
-    const tiles = [...this.board.tiles];
-    if (this.removeLowestRemainingValue === 0 || tiles.length === 0) {
-      return { changed: false, removedTileIds: [], board: this.board, score: this.scoreValue, status: this.status };
+  /** 使用刷新道具：在随机空格生成 Lv1 或 Lv2 猫咪 */
+  public spawn(): SpawnResult {
+    if (!this.canUseItem('spawn')) {
+      return { changed: false, board: this.board, score: this.scoreValue, status: this.status };
     }
-    const removedTileIds = this.lowestTileIds(tiles, count);
-    const removed = new Set(removedTileIds);
-    this.boardValue = new Board({ size: BOARD_SIZE, tiles: this.board.tiles.filter((tile) => !removed.has(tile.id)) });
+    if (this.boardValue.emptyCells().length === 0) {
+      return { changed: false, board: this.board, score: this.scoreValue, status: this.status };
+    }
+    const levelRoll = this.random.next();
+    if (!Number.isFinite(levelRoll) || levelRoll < 0 || levelRoll >= 1) {
+      throw new Error(`Random source returned ${levelRoll}; expected [0, 1).`);
+    }
+    const level = rollSpawnLevel(levelRoll);
+    const spawned = this.boardValue.spawn(level, this.random, this);
+    if (!spawned) {
+      return { changed: false, board: this.board, score: this.scoreValue, status: this.status };
+    }
+    this.boardValue = spawned.board;
     this.undoSnapshot = undefined;
-    this.removeLowestRemainingValue = Math.max(0, this.removeLowestRemainingValue - 1);
-    return { changed: true, removedTileIds, board: this.board, score: this.scoreValue, status: this.status };
+    this.usedItemKindsValue.add('spawn');
+    return {
+      changed: true,
+      board: this.board,
+      score: this.scoreValue,
+      status: this.status,
+      spawned: { tile: spawned.tile },
+    };
   }
 
-  public refillItem(kind: ItemKind): ItemRefillResult {
-    if (kind === 'undo') {
-      if (!this.items.canRequestUndoRefill) return { granted: false, items: this.items };
-      this.undoRemainingValue = 1;
-      this.undoRefillRemainingValue = 0;
-      return { granted: true, items: this.items };
+  /** 使用洗牌道具：随机打乱棋盘上所有猫咪的位置 */
+  public shuffle(): ShuffleResult {
+    if (!this.canUseItem('shuffle')) {
+      return { changed: false, board: this.board, score: this.scoreValue, status: this.status };
     }
-    if (!this.items.canRequestRemoveLowestRefill) return { granted: false, items: this.items };
-    this.removeLowestRemainingValue = 1;
-    this.removeLowestRefillRemainingValue = 0;
-    return { granted: true, items: this.items };
+    const tiles = [...this.board.tiles];
+    if (tiles.length <= 1) {
+      return { changed: false, board: this.board, score: this.scoreValue, status: this.status };
+    }
+    // Fisher-Yates 洗牌
+    const positions = tiles.map((tile) => ({ row: tile.row, col: tile.col }));
+    for (let i = positions.length - 1; i > 0; i -= 1) {
+      const roll = this.random.next();
+      const j = Math.min(i, Math.floor(roll * (i + 1)));
+      [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+    const shuffledTiles: Tile[] = tiles.map((tile, index) => ({
+      ...tile,
+      row: positions[index].row,
+      col: positions[index].col,
+    }));
+    this.boardValue = new Board({ size: BOARD_SIZE, tiles: shuffledTiles });
+    this.undoSnapshot = undefined;
+    this.usedItemKindsValue.add('shuffle');
+    return { changed: true, board: this.board, score: this.scoreValue, status: this.status };
+  }
+
+  /** 使用消除道具：移除指定位置的猫咪 */
+  public erase(position: Position): EraseResult {
+    if (!this.canUseItem('erase')) {
+      return { changed: false, removedTileId: undefined, board: this.board, score: this.scoreValue, status: this.status };
+    }
+    const tile = this.boardValue.tileAt(position);
+    if (!tile) {
+      return { changed: false, removedTileId: undefined, board: this.board, score: this.scoreValue, status: this.status };
+    }
+    this.boardValue = new Board({
+      size: BOARD_SIZE,
+      tiles: this.board.tiles.filter((t) => t.id !== tile.id),
+    });
+    this.undoSnapshot = undefined;
+    this.usedItemKindsValue.add('erase');
+    return { changed: true, removedTileId: tile.id, board: this.board, score: this.scoreValue, status: this.status };
   }
 
   public revive(): ReviveResult {
@@ -185,10 +231,7 @@ export class Game2048 implements TileFactory {
       board: this.board,
       score: this.scoreValue,
       nextTileId: this.nextId,
-      undoRemaining: this.undoRemainingValue,
-      removeLowestRemaining: this.removeLowestRemainingValue,
-      undoRefillRemaining: this.undoRefillRemainingValue,
-      removeLowestRefillRemaining: this.removeLowestRefillRemainingValue,
+      usedItemKinds: [...this.usedItemKindsValue],
       reviveRemaining: this.reviveRemainingValue,
     };
   }
@@ -198,10 +241,7 @@ export class Game2048 implements TileFactory {
     this.scoreValue = state.score;
     this.nextId = state.nextTileId;
     this.undoSnapshot = undefined;
-    this.undoRemainingValue = state.undoRemaining;
-    this.removeLowestRemainingValue = state.removeLowestRemaining;
-    this.undoRefillRemainingValue = state.undoRefillRemaining;
-    this.removeLowestRefillRemainingValue = state.removeLowestRefillRemaining;
+    this.usedItemKindsValue = new Set(state.usedItemKinds ?? []);
     this.reviveRemainingValue = state.reviveRemaining === 0 ? 0 : 1;
   }
 
@@ -225,6 +265,11 @@ export class Game2048 implements TileFactory {
   private lowestTileIds(tiles: Tile[], count: number): string[] {
     tiles.sort((a, b) => a.level - b.level || a.row - b.row || a.col - b.col);
     return tiles.slice(0, count).map((tile) => tile.id);
+  }
+
+  /** 标记道具已使用（供外部在库存扣减成功后调用，用于复活等不经过 useXxx 方法的场景） */
+  public markItemUsed(kind: ItemKind): void {
+    this.usedItemKindsValue.add(kind);
   }
 }
 

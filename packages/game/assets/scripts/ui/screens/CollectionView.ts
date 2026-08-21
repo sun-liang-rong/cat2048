@@ -3,6 +3,8 @@ import {
   Mask,
   Node,
   ScrollView,
+  tween,
+  Vec3,
 } from 'cc';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
@@ -30,6 +32,8 @@ export interface CollectionViewModel {
 
 export interface CollectionActions {
   readonly onBack: () => void;
+  /** 用户点击某张猫咪卡片时回调；用于弹出详情弹窗。 */
+  readonly onCardTap: (cat: CatDefinition, unlocked: boolean) => void;
 }
 
 type CatDefinition = (typeof GAME_CONFIG.cats)[number];
@@ -89,7 +93,7 @@ export class CollectionView {
     parent.addChild(title.node);
 
     this.renderProgress(parent, model, layout.progressY);
-    this.renderGrid(parent, model, layout);
+    this.renderGrid(parent, model, layout, actions);
   }
 
   private renderProgress(parent: Node, model: CollectionViewModel, centerY: number): void {
@@ -119,6 +123,7 @@ export class CollectionView {
     parent: Node,
     model: CollectionViewModel,
     layout: ReturnType<typeof collectionLayout>,
+    actions: CollectionActions,
   ): void {
     const scroll = createUiNode('CollectionScroll', model.uiWidth, layout.viewportHeight);
     scroll.setPosition(0, layout.viewportTop - layout.viewportHeight / 2);
@@ -142,13 +147,17 @@ export class CollectionView {
     GAME_CONFIG.cats.forEach((cat, index) => {
       const row = Math.floor(index / layout.columns);
       const column = index % layout.columns;
-      const card = this.createCard(cat, unlocked.has(cat.level), layout.cardWidth, layout.cardHeight);
+      const cardUnlocked = unlocked.has(cat.level);
+      const card = this.createCard(cat, cardUnlocked, layout.cardWidth, layout.cardHeight);
       card.setPosition(
         -layout.gridWidth / 2 + layout.cardWidth / 2
           + column * (layout.cardWidth + layout.columnGap),
         layout.contentHeight / 2 - layout.contentPadding - layout.cardHeight / 2
           - row * (layout.cardHeight + layout.rowGap),
       );
+      // 卡片整体可点击：点击回调交给上层（弹窗控制器）决定展示什么。
+      // 未解锁也允许点击，方便玩家提前看到解锁条件。
+      this.attachTapFeedback(card, () => actions.onCardTap(cat, cardUnlocked));
       content.addChild(card);
     });
   }
@@ -173,6 +182,17 @@ export class CollectionView {
     if (unlocked) this.renderUnlockedCat(card, cat, width, height);
     else this.renderLockedCat(card, cat, width, height);
     return card;
+  }
+
+  /** 为卡片附加点击缩放反馈，与 `createIconButton` 风格保持一致。 */
+  private attachTapFeedback(card: Node, onTap: () => void): void {
+    card.on(Node.EventType.TOUCH_START, () =>
+      tween(card).to(0.05, { scale: new Vec3(0.94, 0.94, 1) }).start());
+    card.on(Node.EventType.TOUCH_CANCEL, () =>
+      tween(card).to(0.08, { scale: Vec3.ONE }).start());
+    card.on(Node.EventType.TOUCH_END, () => {
+      tween(card).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
+    });
   }
 
   private renderUnlockedCat(card: Node, cat: CatDefinition, width: number, height: number): void {

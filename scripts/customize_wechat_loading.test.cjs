@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import test from 'node:test';
+const assert = require('node:assert/strict');
+const { mkdtempSync, readFileSync, writeFileSync } = require('node:fs');
+const { tmpdir } = require('node:os');
+const { join } = require('node:path');
+const test = require('node:test');
 
-import { patchWeChatBootstrap } from './customize_wechat_loading.mjs';
+const { patchWeChatBootstrap } = require('./customize_wechat_loading.cjs');
 
 const firstScreenFixture = [
   'let progressBarColor = [61 / 255, 197 / 255, 222 / 255, 1];',

@@ -38,9 +38,8 @@ export interface GameScreenActions {
   readonly onCollection: () => void;
   readonly onSwipe: (direction: Direction) => void;
   readonly onUseItem: (kind: ItemKind) => void;
-  readonly onRefillItem: (kind: ItemKind) => void;
   readonly canUseItem: (kind: ItemKind) => boolean;
-  readonly canRefillItem: (kind: ItemKind) => boolean;
+  readonly inventoryCount: (kind: ItemKind) => number;
 }
 
 export interface GameScreenModel {
@@ -113,13 +112,11 @@ export class GameScreen {
         onCollection: actions.onCollection,
       }, model.challenge);
 
-    if (layout.statsBarHeight > 0) {
-      this.statsBar.mount(parent, model.uiHeight / 2 - layout.statsBarCenterFromTop, {
-        moves: model.moves,
-        merges: model.merges,
-        spaces: model.board.size * model.board.size - model.board.tiles.length,
-      });
-    }
+    this.statsBar.mount(parent, model.uiHeight / 2 - layout.statsBarCenterFromTop, {
+      moves: model.moves,
+      merges: model.merges,
+      spaces: model.board.size * model.board.size - model.board.tiles.length,
+    });
 
     const board = this.boardView.mount(parent, BOARD_PIXELS);
     const boardY = model.uiHeight / 2 - layout.boardTop - BOARD_PIXELS * layout.boardScale / 2;
@@ -140,11 +137,16 @@ export class GameScreen {
     this.itemBar.mount(parent, model.uiHeight / 2 - layout.itemBarCenterFromTop, {
       isLocked: actions.isLocked,
       canUse: actions.canUseItem,
-      canRefill: actions.canRefillItem,
+      inventoryCount: actions.inventoryCount,
       onUse: actions.onUseItem,
-      onRefill: actions.onRefillItem,
     });
-    this.itemBar.refresh(model.items);
+    const inventoryCounts: Record<ItemKind, number> = {
+      undo: actions.inventoryCount('undo'),
+      spawn: actions.inventoryCount('spawn'),
+      shuffle: actions.inventoryCount('shuffle'),
+      erase: actions.inventoryCount('erase'),
+    };
+    this.itemBar.refresh(model.items, inventoryCounts);
 
     return {
       swipe,
@@ -153,8 +155,8 @@ export class GameScreen {
     };
   }
 
-  public refreshItems(state: ItemState): void {
-    this.itemBar.refresh(state);
+  public refreshItems(state: ItemState, inventoryCounts: Record<ItemKind, number>): void {
+    this.itemBar.refresh(state, inventoryCounts);
   }
 
   public refreshEvolution(board: BoardSnapshot, unlockedCount: number, challenge?: EvolutionChallenge): void {

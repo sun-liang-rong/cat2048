@@ -1,9 +1,7 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+const { dirname, resolve } = require('node:path');
+const { patchWeChatBootstrap } = require('../../../../scripts/customize_wechat_loading.cjs');
 
-import { patchWeChatBootstrap } from '../../../../scripts/customize_wechat_loading.mjs';
-
-const extensionDirectory = dirname(fileURLToPath(import.meta.url));
+const extensionDirectory = __dirname;
 const projectRoot = resolve(extensionDirectory, '..', '..');
 const projectPath = (value) => {
   if (typeof value !== 'string' || value.length === 0) {
@@ -14,11 +12,11 @@ const projectPath = (value) => {
     : resolve(value);
 };
 
-export async function onAfterBuild(options, result) {
+exports.onAfterBuild = async function onAfterBuild(options, result) {
   if (options?.platform !== 'wechatgame') return;
 
   const buildDirectory = result?.dest
     ? resolve(result.dest)
     : projectPath(options?.buildPath);
   patchWeChatBootstrap(buildDirectory);
-}
+};

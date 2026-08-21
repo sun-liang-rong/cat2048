@@ -29,8 +29,13 @@ export function addTopDecoration(panel: Node, sx: number, sy: number): void {
   paw.setPosition(-245 * sx, 231 * sy);
   panel.addChild(paw);
 
-  addLeaf(panel, 'ModalTitleLeafLeft', -114 * sx, 236 * sy, -42, LEAF_COLOR, 0.72);
-  addLeaf(panel, 'ModalTitleLeafRight', 114 * sx, 236 * sy, 42, LEAF_COLOR, 0.72);
+  // 叶片改为“标题下方”装饰：
+  // - 原来与标题同高（236*sy vs 232*sy），又位于 x=±114*sx 的标题文本区，会直接遮挡
+  //   “返回主页?”这类短标题的边缘字符。现改为紧贴标题下边缘的圆点行两侧（178*sy），
+  //   既保留了“标题两侧装饰”的语义，又彻底避开标题文字与正文之间的垂直空白。
+  // - 同时缩小缩放比例并外推 x，避免与圆点 / 标题文字横向重叠。
+  addLeaf(panel, 'ModalTitleLeafLeft', -132 * sx, 178 * sy, -42, LEAF_COLOR, 0.6);
+  addLeaf(panel, 'ModalTitleLeafRight', 132 * sx, 178 * sy, 42, LEAF_COLOR, 0.6);
 }
 
 /** 标题下方的圆点装饰。 */

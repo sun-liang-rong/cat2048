@@ -27,6 +27,7 @@ pip install -r requirements.txt
 | `compress_game_images.py` | 压缩 `game/assets/resources/game` 下的 PNG | `python3 compress_game_images.py` |
 | `pack_sprite_sheet.py` | 按配置合并 PNG 雪碧图 | `python3 pack_sprite_sheet.py --config <json>` |
 | `slice_cat_sprite_sheets.py` | 从猫咪雪碧图切分出单只猫咪 | `python3 slice_cat_sprite_sheets.py` |
+| `apply_generated_cat_skins.py` | 从 `cat/cat1.png`、`cat/cat2.png` 连通域切出 12 只猫，写入 classic / sunny 运行时资源 | `python3 apply_generated_cat_skins.py` |
 | `fingerprint_runtime_assets.py` | 生成运行时资源语义指纹（供测试断言） | `python3 fingerprint_runtime_assets.py` |
 
 ### 构建 / 微信小游戏

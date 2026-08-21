@@ -102,8 +102,8 @@ export class GameOverDialogView {
 
     const actionY = hasAction ? -105 : 0;
     const rescueText = model.canUndoRescue
-      ? `撤回一步（剩 ${model.undoRescueCount} 次）`
-      : `消除最低级猫咪 ×3（剩 ${model.removeLowestRescueCount} 次）`;
+      ? `撤回一步（剩 ${model.undoRescueCount} 个）`
+      : `消除最低级猫咪（剩 ${model.removeLowestRescueCount} 个）`;
     if (hasRescue && model.canRevive) {
       const rescue = createButton(rescueText, 240, 76, COLORS.teal, () => {
         if (model.canUndoRescue) actions.onUndoRescue();

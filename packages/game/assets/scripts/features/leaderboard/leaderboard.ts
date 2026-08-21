@@ -10,6 +10,11 @@
 import { PendingScoreQueue } from './pendingQueue';
 import { LeaderboardHttpError } from './errors';
 import {
+  WechatHttpTransport,
+  WechatLoginProvider,
+  type WechatRuntime,
+} from './wechatTransport';
+import {
   LEADERBOARD_AUTH_KEY,
   type PlayerSummary,
   type ScorePayload,
@@ -25,7 +30,21 @@ import {
 export * from './types';
 export * from './errors';
 export * from './pendingQueue';
-export * from './wechatTransport';
+export { WechatHttpTransport, WechatLoginProvider } from './wechatTransport';
+export type { WechatRuntime } from './wechatTransport';
+
+/** 创建使用微信运行时能力的排行榜客户端。 */
+export function createWechatLeaderboardClient(
+  baseUrl: string,
+  storage: StorageLike,
+  runtime: WechatRuntime = globalThis as unknown as WechatRuntime,
+): LeaderboardClient {
+  return new LeaderboardClient(
+    new WechatHttpTransport(baseUrl, runtime),
+    new WechatLoginProvider(runtime),
+    storage,
+  );
+}
 
 interface ApiEnvelope<T> {
   readonly data: T;

@@ -1,5 +1,5 @@
 export type ShareResult = 'shared' | 'unsupported' | 'failed';
-export type SharePurpose = 'score' | 'revive' | 'undo-refill' | 'remove-lowest-refill';
+export type SharePurpose = 'score' | 'revive';
 
 export interface ResultCardData {
   readonly purpose?: SharePurpose;
@@ -145,8 +145,6 @@ export class ResultShareController {
     const titles: Record<SharePurpose, string> = {
       score: `我在猫咪2048拿到了${score}分，来挑战我吧！`,
       revive: '猫咪挤满啦，帮我腾出两个位置继续挑战！',
-      'undo-refill': '帮我补充一次撤回机会，继续挑战猫咪2048！',
-      'remove-lowest-refill': '帮我补充一次消除机会，继续挑战猫咪2048！',
     };
     return titles[purpose];
   }
@@ -155,8 +153,6 @@ export class ResultShareController {
     const sources: Record<SharePurpose, string> = {
       score: 'score_share',
       revive: 'revive_share',
-      'undo-refill': 'undo_refill_share',
-      'remove-lowest-refill': 'remove_refill_share',
     };
     return sources[purpose];
   }
@@ -165,8 +161,6 @@ export class ResultShareController {
     const prompts: Record<SharePurpose, string> = {
       score: '猫咪2048 · 来挑战我的分数',
       revive: '猫咪2048 · 帮我继续挑战',
-      'undo-refill': '猫咪2048 · 帮我补充撤回',
-      'remove-lowest-refill': '猫咪2048 · 帮我补充消除',
     };
     return prompts[purpose];
   }

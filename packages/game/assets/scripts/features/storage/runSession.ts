@@ -8,8 +8,6 @@ export type SavedRunMode = 'classic' | 'daily-challenge';
 export interface SavedRun extends GameRunState {
   readonly runId: string;
   readonly savedAt: number;
-  readonly initialUndoItems?: number;
-  readonly initialRemoveLowestItems?: number;
   readonly mode?: SavedRunMode;
   readonly dailyChallengeCompleted?: boolean;
   readonly moves?: number;
@@ -43,19 +41,18 @@ export function normalizeSavedRun(value: unknown): SavedRun | null {
   const nextTileId = clampInteger(candidate.nextTileId, 1, Number.MAX_SAFE_INTEGER, 1);
   const savedAt = typeof candidate.savedAt === 'number' && Number.isFinite(candidate.savedAt)
     ? candidate.savedAt : Date.now();
+  const usedItemKinds = Array.isArray(candidate.usedItemKinds)
+    ? (candidate.usedItemKinds as string[]).filter((k) =>
+      ['undo', 'spawn', 'shuffle', 'erase'].includes(k)) as GameRunState['usedItemKinds']
+    : [];
   return {
     runId: candidate.runId,
     board,
     score,
     nextTileId,
     savedAt,
-    undoRemaining: clampInteger(candidate.undoRemaining, 0, 99, 1),
-    removeLowestRemaining: clampInteger(candidate.removeLowestRemaining, 0, 99, 1),
-    undoRefillRemaining: clampInteger(candidate.undoRefillRemaining, 0, 1, 1),
-    removeLowestRefillRemaining: clampInteger(candidate.removeLowestRefillRemaining, 0, 1, 1),
+    usedItemKinds,
     reviveRemaining: clampInteger(candidate.reviveRemaining, 0, 1, 1) as 0 | 1,
-    initialUndoItems: clampInteger(candidate.initialUndoItems, 0, 99, 0),
-    initialRemoveLowestItems: clampInteger(candidate.initialRemoveLowestItems, 0, 99, 0),
     mode: candidate.mode === 'daily-challenge' ? 'daily-challenge' : 'classic',
     dailyChallengeCompleted: candidate.dailyChallengeCompleted === true,
     moves: clampInteger(candidate.moves, 0, Number.MAX_SAFE_INTEGER, 0),

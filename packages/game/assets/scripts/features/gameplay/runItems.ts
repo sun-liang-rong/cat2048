@@ -2,7 +2,23 @@
  * 对局道具消耗规则（从 GameFlowController 拆出的纯逻辑）。
  */
 
-/** 计算本局实际消耗的分享补充道具数量（与每局基础 1 次叠加）。 */
-export function usedBonusItems(bonus: number, initial: number, remaining: number): number {
-  return Math.max(0, Math.min(bonus, initial - remaining - 1));
+import type { ItemKind } from '../../core/types';
+
+/** 本局已使用的道具种类列表 */
+export function usedItemKindsList(usedKinds: readonly ItemKind[]): ItemKind[] {
+  return [...usedKinds];
+}
+
+/** 检查本局是否还能使用指定道具 */
+export function canUseItemInRun(
+  kind: ItemKind,
+  usedKinds: readonly ItemKind[],
+  maxTotal: number,
+  maxPerKind: Record<string, number>,
+): boolean {
+  if (usedKinds.includes(kind)) return false;
+  if (usedKinds.length >= maxTotal) return false;
+  const kindCount = usedKinds.filter((k) => k === kind).length;
+  if (kindCount >= (maxPerKind[kind] ?? 0)) return false;
+  return true;
 }
