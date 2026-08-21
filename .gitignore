@@ -1,11 +1,24 @@
 .superpowers/
 .env
-game/node_modules/
-game/library/
-game/local/
-game/temp/
-game/build/
-game/profiles/
-game/.cache/
+packages/game/node_modules/
+packages/game/library/
+packages/game/local/
+packages/game/temp/
+packages/game/build/
+packages/game/profiles/
+packages/game/.cache/
 __pycache__/
 *.pyc
+
+# 系统文件
+.DS_Store
+*.log
+
+# 后端服务
+packages/server/node_modules/
+packages/server/dist/
+packages/server/.env
+
+# 编辑器与IDE
+.idea/
+.vscode/

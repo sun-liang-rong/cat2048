@@ -1,0 +1,28 @@
+name: Game CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'packages/game/**'
+      - 'scripts/**'
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install game dependencies
+        working-directory: packages/game
+        run: npm ci
+      - name: Type check
+        working-directory: packages/game
+        run: npm run typecheck:core
+      - name: Run tests
+        working-directory: packages/game
+        run: npm test

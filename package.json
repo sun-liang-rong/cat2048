@@ -1,0 +1,12 @@
+{
+  "name": "cat2048",
+  "version": "1.0.0",
+  "private": true,
+  "description": "猫咪2048 微信小游戏 monorepo（游戏 + 后端 + 共享包）",
+  "scripts": {
+    "test:game": "npm --prefix packages/game run verify",
+    "test:server": "npm --prefix packages/server test",
+    "typecheck": "npm --prefix packages/game run typecheck:core",
+    "verify": "npm run test:game && npm run test:server"
+  }
+}
