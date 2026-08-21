@@ -117,6 +117,11 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     applyEconomySnapshot: (snapshot) => this.applyEconomySnapshot(snapshot),
     showNotice: (text) => this.showNotice(text),
     showHome: () => this.showHome(),
+    refreshHome: () => {
+      if (this.currentScreen === 'home' && this.homeRoot?.isValid) {
+        this.homeView.refresh(this.homeViewModel());
+      }
+    },
     showGame: (resume, mode) => this.showGame(resume, mode),
     makeScreen: (name) => this.makeScreen(name),
     clearScreen: () => this.clearScreen(),

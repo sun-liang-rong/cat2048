@@ -1,0 +1,38 @@
+{
+  "style_prompt": "Kawaii 3x3 sticker sheet of the SAME chubby round kitten, nine colorways. Japanese children's picture-book mobile-game mascot, like a cute board-game piece. Huge round head, tiny sitting body, short legs, plump belly, simple friendly face, big glossy eyes, tiny pink nose, small smile. Soft warm illustration, smooth shapes, clean silhouette. Not photoreal, not oily painting, not detailed fur, not scary, not adult cat. Transparent background, no grass, no shadow, no grid, no text, no watermark, no furniture. Exactly 3 columns and 3 rows, even gaps, each kitten fully inside its cell with empty space around it. Identical sitting pose for every cell: three-quarter view, paws together in front, tail curled beside the body.",
+  "assets": [
+    {
+      "id": "cat_classic_sheet",
+      "file": "cat_classic_sheet.png",
+      "kind": "ui",
+      "request_size": "2048x2048",
+      "target_width": 2048,
+      "target_height": 2048,
+      "transparent": true,
+      "fit": "contain",
+      "prompt": "Nine coat colors of that same kitten, left to right, top to bottom: 1 orange tabby with cream chest. 2 gray-blue kitten with white face and paws. 3 white calico with orange and brown patches. 4 fluffy cream kitten with mocha ears and blue eyes. 5 cream Siamese with chocolate ears, face, and tail. 6 golden-brown tabby. 7 black-and-white tuxedo. 8 sleek black kitten with copper eyes. 9 indigo-purple galaxy kitten with a white chest and tiny stars on the fur. Super cute, round, collectible."
+    },
+    {
+      "id": "cat_sunny_sheet",
+      "file": "cat_sunny_sheet.png",
+      "kind": "ui",
+      "request_size": "2048x2048",
+      "target_width": 2048,
+      "target_height": 2048,
+      "transparent": true,
+      "fit": "contain",
+      "prompt": "Nine pretty sunshine colorways of that same chubby kitten. Warm peach, honey, cream, coral, and gold. Make them extra cute and decorative, tiny flowers or sun marks allowed if they stay on the kitten. Left to right, top to bottom: 1 honey-orange kitten with a heart on the forehead. 2 peach-and-sky-blue patched kitten. 3 apricot calico with a daisy on the ear. 4 vanilla-cream fluffy kitten. 5 cocoa-and-ivory kitten with a tiny blossom. 6 golden tabby. 7 chocolate-and-cream kitten with a white flower. 8 mocha kitten with a mint ribbon. 9 cream-gold kitten with a small flower crown. Joyful, sweet, shop-pretty."
+    },
+    {
+      "id": "cat_aurora_sheet",
+      "file": "cat_aurora_sheet.png",
+      "kind": "ui",
+      "request_size": "2048x2048",
+      "target_width": 2048,
+      "target_height": 2048,
+      "transparent": true,
+      "fit": "contain",
+      "prompt": "Nine pretty starlight colorways of that same chubby kitten. Indigo, lavender, aqua, rose, and white. Tiny stars on the fur are good; no floating debris. Left to right, top to bottom: 1 lavender-peach star tabby. 2 periwinkle kitten with a cyan chest gem. 3 lilac-and-aqua patched kitten. 4 fluffy frost-white kitten with lavender ears. 5 pale lilac kitten with indigo points. 6 dusk-violet tabby with a star on the forehead. 7 indigo tuxedo with star specks. 8 midnight kitten with a glowing lavender tail. 9 indigo-to-cyan aurora kitten with a short ribbon of light around the shoulders. Magical, cute, jewel-like, shop-pretty."
+    }
+  ]
+}

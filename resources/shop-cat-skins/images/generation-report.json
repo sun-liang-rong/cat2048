@@ -1,0 +1,51 @@
+{
+  "manifest": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/manifest.json",
+  "generated_at": "2026-08-21T08:00:02.149024+00:00",
+  "assets": [
+    {
+      "id": "cat_classic_sheet",
+      "output": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/cat_classic_sheet.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/responses/cat_classic_sheet.json",
+      "source_dimensions": [1254, 1254],
+      "output_dimensions": [2048, 2048],
+      "meaningful_alpha": true,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "f7245de4d7b721740bc27bceaacd197c22d4f69352fd8dead5ac5a13f4ba1311",
+      "bytes": 3339803,
+      "source": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/_source/cat_classic_sheet.png"
+    },
+    {
+      "id": "cat_sunny_sheet",
+      "output": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/cat_sunny_sheet.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/responses/cat_sunny_sheet.json",
+      "source_dimensions": [1254, 1254],
+      "output_dimensions": [2048, 2048],
+      "meaningful_alpha": true,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "4ffa986f2041a5870ccc6219a5ab8e0ebc7a596d35e2b1d35aae79986dda1f3f",
+      "bytes": 3200687,
+      "source": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/_source/cat_sunny_sheet.png"
+    },
+    {
+      "id": "cat_aurora_sheet",
+      "output": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/cat_aurora_sheet.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/responses/cat_aurora_sheet.json",
+      "source_dimensions": [1254, 1254],
+      "output_dimensions": [2048, 2048],
+      "meaningful_alpha": true,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "54b75a810c947a031547380967da8b49f458b279f353305ad29c0445291d6785",
+      "bytes": 3665045,
+      "source": "/Users/sunliangrong/Desktop/cat2048/resources/shop-cat-skins/images/_source/cat_aurora_sheet.png"
+    }
+  ]
+}

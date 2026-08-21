@@ -1,0 +1,25 @@
+{
+  "created": 1787298252,
+  "data": [
+    {
+      "b64_json": "[redacted_base64]",
+      "url": "[redacted_signed_url]",
+      "revised_prompt": "Create a production-ready merge-effect sprite for a warm, cozy Cat 2048 mobile game. Match a soft Japanese watercolor picture-book aesthetic with delicate paper grain, matte pigment, and clean mobile readability. Palette: mint teal, aqua cyan, lavender, soft rose-magenta, and a warm cream-gold core. Soft upper-left light, restrained watercolor luminosity, no neon, no photoreal lens flare, no heavy digital bloom, no glossy plastic. Exactly one centered symbol on a genuinely transparent square canvas. No text, letters, numbers, logos, watermark, cats, characters, checkerboard, border frame, circular plate, extra objects, cropped edges, or black background fill.\n\nA compact aurora merge burst icon, perfectly centered. From a bright cream-gold four-point star in the center, three to five watercolor aurora ribbons bloom outward in mint teal, aqua cyan, lavender, and soft rose. A few tiny four-point sparkles sit around the ribbons, still part of one clustered explosion. The whole burst is round, balanced, and occupies about 82 percent of the square canvas with transparent padding on every side. Readable as a shop preview at about 190 pixels and as a merge explosion at about 120 pixels. One object only, no second flame, no leftover fragment, no scattered debris outside the main bloom."
+    }
+  ],
+  "usage": {
+    "input_tokens": 270,
+    "output_tokens": 1650,
+    "total_tokens": 1920,
+    "input_tokens_details": {
+      "text_tokens": 270,
+      "image_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens_details": {
+      "text_tokens": 0,
+      "image_tokens": 1650,
+      "reasoning_tokens": 0
+    }
+  }
+}

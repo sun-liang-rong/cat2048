@@ -47,6 +47,8 @@ export interface EconomyPanelsDeps {
   readonly applyEconomySnapshot: (snapshot: EconomySnapshot) => void;
   readonly showNotice: (text: string) => void;
   readonly showHome: () => void;
+  /** 仅刷新首页视图（金币、红点等状态），不重建屏幕；非首页时无副作用。 */
+  readonly refreshHome: () => void;
   readonly showGame: (resume: boolean, mode?: SavedRunMode) => void;
   readonly makeScreen: (name: string) => Node;
   readonly clearScreen: () => void;
@@ -132,13 +134,17 @@ export class EconomyPanelsController {
     this.taskOverlay = this.deps.taskPanel.show(screenRoot, this.deps.tasks.snapshot(),
       width, height, {
         onClaim: (taskId) => { void this.claimTask(taskId); },
-        onClose: () => {
-          if (this.taskClaimInProgress) return;
-          this.taskOverlay?.destroy();
-          this.taskOverlay = null;
-          this.deps.unlockInput();
-        },
+        onClose: () => this.closeTasks(),
       });
+  }
+
+  private closeTasks(): void {
+    if (this.taskClaimInProgress) return;
+    this.taskOverlay?.destroy();
+    this.taskOverlay = null;
+    this.deps.unlockInput();
+    // 领取后首页任务红点可能变化（全部领取完应隐藏），关闭时同步刷新。
+    this.deps.refreshHome();
   }
 
   public async claimTask(taskId: string): Promise<void> {
@@ -154,13 +160,10 @@ export class EconomyPanelsController {
       }
       this.deps.taskPanel.refresh(result.snapshot, {
         onClaim: (id) => { void this.claimTask(id); },
-        onClose: () => {
-          if (this.taskClaimInProgress) return;
-          this.taskOverlay?.destroy();
-          this.taskOverlay = null;
-          this.deps.unlockInput();
-        },
+        onClose: () => this.closeTasks(),
       });
+      // 即时同步首页红点，避免关闭面板后仍残留。
+      this.deps.refreshHome();
     } catch (error) {
       console.warn('[Cat2048] Failed to claim task reward.', error);
       this.deps.showNotice('任务奖励领取失败');

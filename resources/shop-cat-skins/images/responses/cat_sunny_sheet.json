@@ -1,0 +1,25 @@
+{
+  "created": 1787299113,
+  "data": [
+    {
+      "b64_json": "[redacted_base64]",
+      "url": "[redacted_signed_url]",
+      "revised_prompt": "Create a production-ready 3x3 cat sprite sheet for a cozy Cat 2048 mobile game. STYLE: clean Q-version chibi mobile-game cats, same artist for every cell, soft cel shading, thin dark-brown contours, matte fur, upper-left key light, simple readable shapes. Not watercolor, not photoreal, not 3D clay. POSE for every cat: complete seated full-body cat, three-quarter view facing slightly left, round head, short limbs, tail fully visible, both ears complete, friendly open eyes, small muzzle. Same camera, same body proportions, same scale. SHEET: exactly one square image, exactly 3 columns by 3 rows, exactly nine cats, left-to-right then top-to-bottom. Genuinely transparent background. No grass, no ground oval, no drop shadow, no white sticker outline, no circular plate, no card, no border, no visible grid lines, no cell dividers, no numbers, no text, no labels, no watermark, no logo, no extra animals, no humans, no furniture. Each cat is centered in its own cell and occupies about 72 percent of that cell. Keep at least 12 percent empty transparent padding on all four sides of every cell. No paw, ear, tail, whisker, sparkle, or accessory may touch or cross a cell edge. No overlap between neighboring cats. No particles in the gutters. No duplicate cats. No cropped anatomy. Readable after cropping to about 80 pixels.\n\nTHEME: sunny garden SKIN of the same nine classic cats. Same breeds, same seated pose, same scale, same face structure. Only recolor and add tiny garden motifs. Palette: peach, honey gold, warm cream, pale apricot, soft leaf green, muted coral. No indigo, no galaxy, no neon. Accessories stay tiny and inside the 12 percent cell padding: a small ear flower or a fur marking, never a heavy crown, never a scarf covering the chest pattern. Row 1: (1) Sunny orange tabby, peach-orange stripes, cream chest, tiny honey heart on the forehead. (2) Sunny blue-and-white shorthair, warm cream-white with peach-blue patches, tiny leaf-green chest mark. (3) Sunny calico, cream, apricot, and honey-brown patches, one small daisy on the left ear. Row 2: (4) Sunny ragdoll, extra-fluffy warm cream fur, honey-tipped ears and tail, sky-blue eyes, no outline sticker. (5) Sunny Siamese, warm ivory body, cocoa-peach points, tiny coral blossom at the throat that does not cover the mouth. (6) Sunny brown tabby, golden-honey tabby, sunlit forehead M, amber eyes. Row 3: (7) Sunny tuxedo, chocolate-brown and cream instead of stark black-white, one small white blossom on the ear, no bow tie. (8) Sunny Bombay, warm dark cocoa coat, honey chest, slim leaf-green neckerchief sitting low, copper eyes. (9) Sunny garden aurora cat, cream-gold long fur, a modest ring of tiny peach blossoms around the head, honey eyes, every petal inside the cell. These must read as the classic nine cats wearing a sunny garden skin, not new breeds."
+    }
+  ],
+  "usage": {
+    "input_tokens": 686,
+    "output_tokens": 1650,
+    "total_tokens": 2336,
+    "input_tokens_details": {
+      "text_tokens": 686,
+      "image_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens_details": {
+      "text_tokens": 0,
+      "image_tokens": 1650,
+      "reasoning_tokens": 0
+    }
+  }
+}

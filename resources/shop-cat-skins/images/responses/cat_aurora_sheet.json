@@ -1,0 +1,25 @@
+{
+  "created": 1787299209,
+  "data": [
+    {
+      "b64_json": "[redacted_base64]",
+      "url": "[redacted_signed_url]",
+      "revised_prompt": "Create a production-ready 3x3 cat sprite sheet for a cozy Cat 2048 mobile game. STYLE: clean Q-version chibi mobile-game cats, same artist for every cell, soft cel shading, thin dark-brown contours, matte fur, upper-left key light, simple readable shapes. Not watercolor, not photoreal, not 3D clay. POSE for every cat: complete seated full-body cat, three-quarter view facing slightly left, round head, short limbs, tail fully visible, both ears complete, friendly open eyes, small muzzle. Same camera, same body proportions, same scale. SHEET: exactly one square image, exactly 3 columns by 3 rows, exactly nine cats, left-to-right then top-to-bottom. Genuinely transparent background. No grass, no ground oval, no drop shadow, no white sticker outline, no circular plate, no card, no border, no visible grid lines, no cell dividers, no numbers, no text, no labels, no watermark, no logo, no extra animals, no humans, no furniture. Each cat is centered in its own cell and occupies about 72 percent of that cell. Keep at least 12 percent empty transparent padding on all four sides of every cell. No paw, ear, tail, whisker, sparkle, or accessory may touch or cross a cell edge. No overlap between neighboring cats. No particles in the gutters. No duplicate cats. No cropped anatomy. Readable after cropping to about 80 pixels.\n\nTHEME: aurora constellation SKIN of the same nine classic cats. Same breeds, same seated pose, same scale, same face structure. Only recolor into a night-sky palette and add tiny star or aurora markings in the fur. Palette: indigo, lavender, aqua cyan, soft rose-magenta, cool white. No orange grass, no sunflower, no warm honey garden. Sparkles belong on the fur and tail tip, never as detached particles in the gutters. No large orbit rings that cross cell edges. Row 1: (1) Aurora tabby analogue, lavender-peach stripes, white chest, tiny cyan sparkles in the fur, amber-violet eyes. (2) Aurora British shorthair, periwinkle gray-blue and white, small cyan chest gem-mark, golden-violet eyes. (3) Aurora calico, white, lilac, and aqua patches, tiny four-point star on the chest. Row 2: (4) Aurora ragdoll, fluffy cool-white fur, lavender ear tips and tail, galaxy-blue eyes, no sticker outline. (5) Aurora Siamese, pale lilac body, indigo points, slim lavender collar that does not cover the mouth, cyan-blue eyes. (6) Aurora tabby, dusk brown-violet tabby with cyan undertone, star-shaped forehead M, teal eyes. Row 3: (7) Aurora tuxedo, deep indigo and white tuxedo, starry specks in the dark fur, no bow. (8) Aurora Bombay, matte midnight black, pink-lavender inner ears, cyan-blue eyes, softly glowing lavender tail tip, sparkles stay inside the coat. (9) Galaxy aurora cat, indigo-to-cyan gradient fur, white chest, purple eyes, a compact aurora ribbon curling close around the shoulders and staying inside the cell, no second cat, no huge halo. These must read as the classic nine cats wearing an aurora skin, not new breeds."
+    }
+  ],
+  "usage": {
+    "input_tokens": 715,
+    "output_tokens": 1650,
+    "total_tokens": 2365,
+    "input_tokens_details": {
+      "text_tokens": 715,
+      "image_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens_details": {
+      "text_tokens": 0,
+      "image_tokens": 1650,
+      "reasoning_tokens": 0
+    }
+  }
+}
