@@ -1,67 +1,31 @@
-export interface StorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-}
+/**
+ * 排行榜业务客户端（模块入口）。
+ *
+ * 公开 API 统一从这里 re-export，保持导入面稳定：
+ * - 类型与常量：./types
+ * - HTTP 错误：./errors
+ * - 待提交队列：./pendingQueue
+ * - 微信平台实现：./wechatTransport
+ */
+import { PendingScoreQueue } from './pendingQueue';
+import { LeaderboardHttpError } from './errors';
+import {
+  LEADERBOARD_AUTH_KEY,
+  type PlayerSummary,
+  type ScorePayload,
+  type ScoreSubmissionResponse,
+  type AuthResponse,
+  type LeaderboardResponse,
+  type LeaderboardHttpRequest,
+  type LeaderboardHttpTransport,
+  type LeaderboardLoginProvider,
+  type StorageLike,
+} from './types';
 
-export interface ScorePayload {
-  readonly runId: string;
-  readonly score: number;
-  readonly highestLevel: number;
-}
-
-export interface PlayerSummary {
-  readonly id: string;
-  readonly nickname: string | null;
-  readonly avatarUrl: string | null;
-  readonly highScore: number;
-}
-
-export interface AuthResponse {
-  readonly accessToken: string;
-  readonly expiresIn: number;
-  readonly player: PlayerSummary;
-}
-
-export interface LeaderboardEntry {
-  readonly rank: number;
-  readonly playerId: string;
-  readonly nickname: string | null;
-  readonly avatarUrl: string | null;
-  readonly score: number;
-  readonly achievedAt: string;
-}
-
-export interface LeaderboardResponse {
-  readonly entries: readonly LeaderboardEntry[];
-  readonly me: {
-    readonly rank: number;
-    readonly score: number;
-  } | null;
-}
-
-export interface ScoreSubmissionResponse {
-  readonly runId: string;
-  readonly score: number;
-  readonly accepted: boolean;
-  readonly duplicate: boolean;
-  readonly highScore: number;
-  readonly rank: number | null;
-}
-
-export interface LeaderboardHttpRequest {
-  readonly method: 'GET' | 'POST' | 'PATCH';
-  readonly path: string;
-  readonly body?: unknown;
-  readonly token?: string;
-}
-
-export interface LeaderboardHttpTransport {
-  request<TResponse>(request: LeaderboardHttpRequest): Promise<TResponse>;
-}
-
-export interface LeaderboardLoginProvider {
-  getLoginCode(): Promise<string>;
-}
+export * from './types';
+export * from './errors';
+export * from './pendingQueue';
+export * from './wechatTransport';
 
 interface ApiEnvelope<T> {
   readonly data: T;
@@ -72,68 +36,9 @@ interface StoredSession {
   readonly player: PlayerSummary;
 }
 
-export const LEADERBOARD_AUTH_KEY = 'cat2048.leaderboard.auth.v1';
-export const LEADERBOARD_QUEUE_KEY = 'cat2048.leaderboard.queue.v1';
-const MAX_SCORE = 2147483647;
-
+/** 棋盘上最高猫咪等级（空盘按 1 计算）。 */
 export function highestLevelOfTiles(tiles: readonly { readonly level: number }[]): number {
   return tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1);
-}
-
-export class LeaderboardHttpError extends Error {
-  public constructor(message: string, public readonly status: number) {
-    super(message);
-    this.name = 'LeaderboardHttpError';
-  }
-}
-
-export class PendingScoreQueue {
-  public constructor(
-    private readonly storage: StorageLike,
-    private readonly key = LEADERBOARD_QUEUE_KEY,
-  ) {}
-
-  public list(): readonly ScorePayload[] {
-    const raw = this.storage.getItem(this.key);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter((value): value is ScorePayload => this.isScorePayload(value));
-    } catch {
-      return [];
-    }
-  }
-
-  public enqueue(payload: ScorePayload): void {
-    if (!this.isScorePayload(payload)) return;
-    if (this.list().some((item) => item.runId === payload.runId)) return;
-    this.persist([...this.list(), payload]);
-  }
-
-  public remove(runId: string): void {
-    this.persist(this.list().filter((item) => item.runId !== runId));
-  }
-
-  private persist(values: readonly ScorePayload[]): void {
-    this.storage.setItem(this.key, JSON.stringify(values));
-  }
-
-  private isScorePayload(value: unknown): value is ScorePayload {
-    if (!value || typeof value !== 'object') return false;
-    const candidate = value as Record<string, unknown>;
-    return typeof candidate.runId === 'string'
-      && candidate.runId.trim().length > 0
-      && candidate.runId.length <= 64
-      && typeof candidate.score === 'number'
-      && Number.isSafeInteger(candidate.score)
-      && candidate.score >= 0
-      && candidate.score <= MAX_SCORE
-      && typeof candidate.highestLevel === 'number'
-      && Number.isInteger(candidate.highestLevel)
-      && candidate.highestLevel >= 1
-      && candidate.highestLevel <= 12;
-  }
 }
 
 export class LeaderboardClient {
@@ -288,77 +193,4 @@ export class LeaderboardClient {
     this.player = null;
     storage.setItem(LEADERBOARD_AUTH_KEY, '');
   }
-}
-
-interface WechatRequestOptions {
-  readonly url: string;
-  readonly method: 'GET' | 'POST' | 'PATCH';
-  readonly data?: unknown;
-  readonly header?: Record<string, string>;
-  readonly success: (response: { statusCode: number; data: unknown }) => void;
-  readonly fail: (error: unknown) => void;
-}
-
-interface WechatRuntime {
-  readonly wx?: {
-    request(options: WechatRequestOptions): void;
-    login(options: {
-      success: (result: { code: string }) => void;
-      fail: (error: unknown) => void;
-    }): void;
-  };
-}
-
-class WechatHttpTransport implements LeaderboardHttpTransport {
-  public constructor(private readonly baseUrl: string, private readonly runtime: WechatRuntime) {}
-
-  public request<TResponse>(request: LeaderboardHttpRequest): Promise<TResponse> {
-    const wx = this.runtime.wx;
-    if (!this.baseUrl.trim() || !wx?.request) {
-      return Promise.reject(new Error('Leaderboard API is not configured'));
-    }
-    return new Promise<TResponse>((resolve, reject) => {
-      wx.request({
-        url: `${this.baseUrl.replace(/\/$/, '')}${request.path}`,
-        method: request.method,
-        data: request.body,
-        header: {
-          'content-type': 'application/json',
-          ...(request.token ? { Authorization: `Bearer ${request.token}` } : {}),
-        },
-        success: (response) => {
-          if (response.statusCode < 200 || response.statusCode >= 300) {
-            reject(new LeaderboardHttpError(`Leaderboard request failed: ${response.statusCode}`, response.statusCode));
-            return;
-          }
-          resolve(response.data as TResponse);
-        },
-        fail: reject,
-      });
-    });
-  }
-}
-
-class WechatLoginProvider implements LeaderboardLoginProvider {
-  public constructor(private readonly runtime: WechatRuntime) {}
-
-  public getLoginCode(): Promise<string> {
-    const wx = this.runtime.wx;
-    if (!wx?.login) return Promise.reject(new Error('WeChat login is unavailable'));
-    return new Promise<string>((resolve, reject) => {
-      wx.login({ success: (result) => resolve(result.code), fail: reject });
-    });
-  }
-}
-
-export function createWechatLeaderboardClient(
-  baseUrl: string,
-  storage: StorageLike,
-  runtime: WechatRuntime = globalThis as unknown as WechatRuntime,
-): LeaderboardClient {
-  return new LeaderboardClient(
-    new WechatHttpTransport(baseUrl, runtime),
-    new WechatLoginProvider(runtime),
-    storage,
-  );
 }

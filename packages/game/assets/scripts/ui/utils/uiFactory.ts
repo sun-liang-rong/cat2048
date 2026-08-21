@@ -1,9 +1,14 @@
+/**
+ * UI 控件工厂（模块入口）。
+ *
+ * 公开 API 统一从这里 re-export，保持导入面稳定：
+ * - 调色板：./colors
+ * - 基础图形：./graphics
+ * - 文字排版：./typography
+ */
 import {
   Color,
-  Font,
   Graphics,
-  Label,
-  Layers,
   Mask,
   Node,
   Sprite,
@@ -11,131 +16,21 @@ import {
   tween,
   Tween,
   UITransform,
-  Vec2,
   Vec3,
 } from 'cc';
 import { spriteCropTransform } from '../styles/layout';
 import type { SpriteCropRect } from '../styles/layout';
-import { selectLabelFont } from '../styles/fontPolicy';
+import { COLORS } from './colors';
+import { createUiNode, drawRounded } from './graphics';
+import { createLabel } from './typography';
 
-export const COLORS = {
-  ink: new Color(60, 48, 44, 255),
-  ivory: new Color(255, 247, 225, 255),
-  cream: new Color(248, 225, 181, 255),
-  coral: new Color(239, 100, 83, 255),
-  teal: new Color(39, 166, 151, 255),
-  mustard: new Color(245, 180, 54, 255),
-  overlay: new Color(39, 29, 35, 190),
-  cell: new Color(255, 244, 213, 190),
-  white: new Color(255, 255, 255, 255),
-} as const;
+export * from './colors';
+export * from './graphics';
+export * from './typography';
 
-export type LabelStyle = 'body' | 'display';
-export type LabelFontPreference = 'auto' | 'display' | 'number';
-
-const BODY_FONT_FAMILY = 'Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif';
-const DISPLAY_FONT_FAMILY = 'ZCOOL KuaiLe, Microsoft YaHei, PingFang SC, sans-serif';
-const DISPLAY_DARK_OUTLINE = new Color(74, 45, 39, 255);
-const DISPLAY_LIGHT_OUTLINE = new Color(255, 240, 202, 255);
-const DISPLAY_DARK_SHADOW = new Color(72, 36, 32, 125);
-const DISPLAY_LIGHT_SHADOW = new Color(150, 92, 54, 95);
 const MIN_TOUCH_TARGET = 88;
 
-let displayFont: Font | null = null;
-let numberFont: Font | null = null;
-
-export function setRuntimeFonts(display: Font | null, numbers: Font | null): void {
-  displayFont = display;
-  numberFont = numbers;
-}
-
-export function createUiNode(name: string, width = 0, height = 0): Node {
-  const node = new Node(name);
-  node.layer = Layers.Enum.UI_2D;
-  node.addComponent(UITransform).setContentSize(width, height);
-  return node;
-}
-
-export function drawRounded(node: Node, width: number, height: number, color: Color, radius = 24,
-  stroke?: { color: Color; width: number }): Graphics {
-  const graphics = node.getComponent(Graphics) ?? node.addComponent(Graphics);
-  graphics.clear();
-  graphics.fillColor = color;
-  graphics.roundRect(-width / 2, -height / 2, width, height, radius);
-  graphics.fill();
-  if (stroke) {
-    graphics.strokeColor = stroke.color;
-    graphics.lineWidth = stroke.width;
-    graphics.roundRect(-width / 2, -height / 2, width, height, radius);
-    graphics.stroke();
-  }
-  return graphics;
-}
-
-function isLightColor(color: Color): boolean {
-  return color.r * 0.299 + color.g * 0.587 + color.b * 0.114 > 170;
-}
-
-function applyLabelStyle(label: Label, fontSize: number, color: Color, style: LabelStyle,
-  fontPreference: LabelFontPreference = 'auto'): void {
-  label.enableOutline = false;
-  label.enableShadow = false;
-  label.isBold = false;
-
-  if (style === 'display') {
-    label.lineHeight = Math.round(fontSize * 1.14);
-    const selectedFont = fontPreference === 'auto' ? selectLabelFont(style, label.string) : fontPreference;
-    const customFont = selectedFont === 'number' ? numberFont : selectedFont === 'display' ? displayFont : null;
-    if (customFont) {
-      label.useSystemFont = false;
-      label.font = customFont;
-    } else {
-      label.useSystemFont = true;
-      label.font = null;
-      label.fontFamily = selectedFont === 'body' ? BODY_FONT_FAMILY : DISPLAY_FONT_FAMILY;
-    }
-    if (selectedFont === 'number' && numberFont) return;
-    label.isBold = true;
-
-    const lightText = isLightColor(color);
-    label.enableOutline = true;
-    label.outlineColor = lightText ? DISPLAY_DARK_OUTLINE : DISPLAY_LIGHT_OUTLINE;
-    label.outlineWidth = Math.max(1, Math.min(5, Math.round(fontSize * 0.06)));
-    label.enableShadow = true;
-    label.shadowColor = lightText ? DISPLAY_DARK_SHADOW : DISPLAY_LIGHT_SHADOW;
-    label.shadowOffset = new Vec2(0, -Math.max(1, Math.round(fontSize * 0.05)));
-    label.shadowBlur = 0;
-    return;
-  }
-
-  label.useSystemFont = true;
-  label.font = null;
-  label.fontFamily = BODY_FONT_FAMILY;
-  label.lineHeight = Math.round(fontSize * 1.25);
-}
-
-export function createLabel(text: string, fontSize: number, color = COLORS.ink,
-  width = 500, height = fontSize * 1.5, style: LabelStyle = 'body',
-  fontPreference: LabelFontPreference = 'auto'): Label {
-  const node = createUiNode(`Label:${text}`, width, height);
-  const label = node.addComponent(Label);
-  label.string = text;
-  label.fontSize = fontSize;
-  label.color = color;
-  applyLabelStyle(label, fontSize, color, style, fontPreference);
-  label.horizontalAlign = Label.HorizontalAlign.CENTER;
-  label.verticalAlign = Label.VerticalAlign.CENTER;
-  label.overflow = Label.Overflow.SHRINK;
-  return label;
-}
-
-export function setLabelText(label: Label, text: string, style: LabelStyle = 'body',
-  fontSize = label.fontSize, fontPreference: LabelFontPreference = 'auto'): void {
-  label.string = text;
-  label.fontSize = fontSize;
-  applyLabelStyle(label, fontSize, label.color, style, fontPreference);
-}
-
+/** 创建精灵节点（设置自定义尺寸）。 */
 export function createSpriteNode(name: string, frame: SpriteFrame, width: number, height: number): Node {
   const node = createUiNode(name, width, height);
   const sprite = node.addComponent(Sprite);
@@ -147,6 +42,7 @@ export function createSpriteNode(name: string, frame: SpriteFrame, width: number
   return node;
 }
 
+/** 重绘按钮背景（圆角矩形 + 深色描边）。 */
 export function renderButtonBackground(node: Node, width: number, height: number, color: Color): void {
   node.getChildByName('ButtonBackground')?.destroy();
   node.getComponent(Graphics)?.clear();
@@ -167,6 +63,7 @@ function addExpandedTouchTarget(node: Node, width: number, height: number): void
   target.setSiblingIndex(0);
 }
 
+/** 创建圆角按钮（可带左侧图标）。 */
 export function createButton(text: string, width: number, height: number, color: Color,
   onTap: () => void, fontSize = 34, icon?: SpriteFrame): Node {
   const node = createUiNode(`Button:${text}`, width, height);
@@ -217,6 +114,7 @@ export interface ToggleOptions {
   readonly pawColor?: Color;
 }
 
+/** 创建开关控件（带猫爪旋钮）。 */
 export function createToggle(name: string, enabled: boolean, onChange: (enabled: boolean) => void,
   options: ToggleOptions = {}): Node {
   const node = createUiNode(`${name}:${enabled ? 'On' : 'Off'}`, 110, 58);
@@ -262,6 +160,7 @@ export function createToggle(name: string, enabled: boolean, onChange: (enabled:
   return node;
 }
 
+/** 创建圆形图标按钮（可带图片或文字回退）。 */
 export function createIconButton(name: string, frame: SpriteFrame | undefined, fallback: string,
   size: number, onTap: () => void, crop?: SpriteCropRect): Node {
   const node = createUiNode(name, Math.max(size, MIN_TOUCH_TARGET), Math.max(size, MIN_TOUCH_TARGET));

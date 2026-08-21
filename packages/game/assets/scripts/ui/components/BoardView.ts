@@ -18,31 +18,16 @@ import {
 } from '../utils/tweenAsync';
 import {
   COLORS,
-  createLabel,
   createSpriteNode,
   createUiNode,
   drawRounded,
 } from '../utils/uiFactory';
+import { createTileNode, playMergeAnimation } from './board/TileView';
 
 export interface BoardFeedback {
   onMerge(): void;
   onMove(): void;
 }
-
-const TILE_LEVEL_COLORS = [
-  new Color(255, 235, 195, 255),  // Lv1: 更鲜明的奶黄色
-  new Color(180, 210, 230, 255),  // Lv2: 更饱和的蓝白色
-  new Color(255, 195, 135, 255),  // Lv3: 更明亮的橙色
-  new Color(210, 215, 235, 255),  // Lv4: 更清晰的淡紫色
-  new Color(245, 205, 160, 255),  // Lv5: 更温暖的米色
-  new Color(200, 160, 100, 255),  // Lv6: 更深的棕色
-  new Color(220, 220, 210, 255),  // Lv7: 更明显的灰白色
-  new Color(70, 65, 75, 255),     // Lv8: 保持深色
-  new Color(95, 75, 170, 255),    // Lv9: 更鲜艳的紫色
-  new Color(95, 165, 185, 255),   // Lv10: 更清晰的青色
-  new Color(110, 85, 175, 255),   // Lv11: 更饱和的紫色
-  new Color(220, 165, 60, 255),   // Lv12: 更金黄的色调
-] as const;
 
 export class BoardView {
   private boardRoot: Node | null = null;
@@ -87,7 +72,7 @@ export class BoardView {
   public renderInitial(snapshot: BoardSnapshot): void {
     this.tileNodes.clear();
     snapshot.tiles.forEach((tile) => {
-      const node = this.createTileNode(tile);
+      const node = createTileNode(tile, this.tileLayer!, this.tileContext(), this.tileNodes);
       node.setScale(0.2, 0.2, 1);
       tween(node).delay(tile.col * 0.03).to(0.15, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
     });
@@ -98,7 +83,7 @@ export class BoardView {
     for (const child of [...this.tileLayer.children]) child.destroy();
     this.tileNodes.clear();
     snapshot.tiles.forEach((tile) => {
-      const node = this.createTileNode(tile);
+      const node = createTileNode(tile, this.tileLayer!, this.tileContext(), this.tileNodes);
       if (animate) {
         node.setScale(0.2, 0.2, 1);
         tween(node).to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
@@ -127,7 +112,7 @@ export class BoardView {
     if (!isAlive()) return;
 
     if (result.spawned) {
-      const node = this.createTileNode(result.spawned.tile);
+      const node = createTileNode(result.spawned.tile, this.tileLayer!, this.tileContext(), this.tileNodes);
       node.setScale(0.2, 0.2, 1);
       await tweenScale(node, Vec3.ONE, 0.12);
     }
@@ -215,70 +200,15 @@ export class BoardView {
   }
 
   private finishMerge(merge: MergeRecord): void {
-    for (const id of merge.sourceIds) {
-      this.tileNodes.get(id)?.destroy();
-      this.tileNodes.delete(id);
-    }
-    const resultTile: Tile = {
-      id: merge.resultId,
-      level: merge.level,
-      row: merge.at.row,
-      col: merge.at.col,
-    };
-    const node = this.createTileNode(resultTile);
-    node.setScale(0.84, 0.84, 1);
-    tween(node).to(0.1, { scale: new Vec3(1.12, 1.12, 1) }).to(0.1, { scale: Vec3.ONE }).start();
-    const sparkleFrame = this.cosmetics.mergeSparkleFrame();
-    if (sparkleFrame && this.tileLayer) {
-      const sparkle = createSpriteNode('MergeSparkle', sparkleFrame, CELL_SIZE * 1.35, CELL_SIZE * 1.35);
-      sparkle.setPosition(this.positionFor(merge.at));
-      sparkle.setScale(0.4, 0.4, 1);
-      this.tileLayer.addChild(sparkle);
-      tween(sparkle).to(0.1, { scale: Vec3.ONE }).to(0.1, { scale: new Vec3(1.25, 1.25, 1) }).call(() => sparkle.destroy()).start();
-    }
-    const burstFrame = this.cosmetics.mergeBurstFrame();
-    if (burstFrame && this.tileLayer) {
-      const burst = createSpriteNode('MergeBurst', burstFrame, CELL_SIZE * 1.75, CELL_SIZE * 1.75);
-      burst.setPosition(this.positionFor(merge.at));
-      burst.setScale(0.2, 0.2, 1);
-      this.tileLayer.addChild(burst);
-      burst.setSiblingIndex(Math.max(0, burst.getSiblingIndex() - 1));
-      tween(burst).to(0.14, { scale: Vec3.ONE }).to(0.16, { scale: new Vec3(1.25, 1.25, 1) })
-        .call(() => burst.destroy()).start();
-    }
+    if (!this.tileLayer) return;
+    playMergeAnimation(merge, this.tileLayer, this.tileContext(), this.tileNodes);
   }
 
-  private createTileNode(tile: Tile): Node {
-    if (!this.tileLayer) throw new Error('Tile layer is not initialized.');
-    const node = createUiNode(`Tile:${tile.id}`, CELL_SIZE, CELL_SIZE);
-    // 统一圆角24px，增强边框到4px，低等级方块使用更明显的边框
-    const borderWidth = tile.level <= 4 ? 4 : 4;
-    drawRounded(node, CELL_SIZE, CELL_SIZE, TILE_LEVEL_COLORS[tile.level - 1], 24, { color: COLORS.ink, width: borderWidth });
-    node.setPosition(this.positionFor(tile));
-    this.tileLayer.addChild(node);
-
-    const cat = GAME_CONFIG.cats[tile.level - 1];
-    if (tile.level === GAME_CONFIG.cats.length) {
-      const haloFrame = this.art.frame(GAME_CONFIG.art.maxHalo);
-      if (haloFrame) {
-        const halo = createSpriteNode('MaxLevelHalo', haloFrame, CELL_SIZE * 1.08, CELL_SIZE * 1.08);
-        node.addChild(halo);
-        tween(halo).by(7, { angle: 360 }).repeatForever().start();
-      }
-    }
-    const frame = this.cosmetics.catFrame(tile.level);
-    if (frame) {
-      const sprite = createSpriteNode(`Cat:${tile.level}`, frame, CELL_SIZE * 0.78, CELL_SIZE * 0.78);
-      sprite.setPosition(0, 10);
-      node.addChild(sprite);
-    }
-    const badge = createUiNode('LevelBadge', 72, 34);
-    drawRounded(badge, 72, 34, tile.level >= 8 ? COLORS.mustard : COLORS.teal, 17);
-    badge.setPosition(0, -CELL_SIZE / 2 + 23);
-    const label = createLabel(`Lv${tile.level}`, 20, COLORS.white, 68, 30, 'display');
-    badge.addChild(label.node);
-    node.addChild(badge);
-    this.tileNodes.set(tile.id, node);
-    return node;
+  private tileContext(): Parameters<typeof createTileNode>[2] {
+    return {
+      art: this.art,
+      cosmetics: this.cosmetics,
+      positionFor: (position) => this.positionFor(position),
+    };
   }
 }

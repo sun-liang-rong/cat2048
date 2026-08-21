@@ -1,10 +1,7 @@
 import {
   Color,
   Node,
-  UIOpacity,
   UITransform,
-  Vec3,
-  tween,
 } from 'cc';
 import type {
   CosmeticCategory,
@@ -20,11 +17,10 @@ import {
   createButton,
   createIconButton,
   createLabel,
-  createSpriteNode,
   createUiNode,
-  drawRounded,
   renderButtonBackground,
 } from '../utils/uiFactory';
+import { createShopCard, TITLE_COLOR } from '../components/shop/ShopCard';
 
 export interface ShopViewModel {
   readonly economy: EconomySnapshot;
@@ -48,9 +44,6 @@ const CATEGORY_LABELS: Readonly<Record<CosmeticCategory, string>> = {
 };
 
 const CATEGORIES: readonly CosmeticCategory[] = ['cat-skin', 'board', 'effect'];
-const TITLE_COLOR = new Color(91, 49, 31, 255);
-const PANEL_BORDER = new Color(105, 61, 40, 255);
-const CARD_COLOR = new Color(255, 249, 231, 250);
 const TAB_CONTENT_GAP = 25;
 const TAB_WIDTH = 166;
 const TAB_HEIGHT = 58;
@@ -174,7 +167,15 @@ export class ShopView {
     const rowGap = 18;
     const contentHeight = content.getComponent(UITransform)?.contentSize.height ?? cardHeight;
     items.forEach((item, index) => {
-      const card = this.createCard(item, model, actions, cardWidth, cardHeight);
+      const card = createShopCard(item, {
+        economy: model.economy,
+        width: cardWidth,
+        height: cardHeight,
+        art: this.art,
+        isEquipped: (candidate) => this.isEquipped(candidate),
+        onPurchase: actions.onPurchase,
+        onEquip: actions.onEquip,
+      });
       const col = index % 2;
       const row = Math.floor(index / 2);
       card.setPosition(-cardWidth / 2 - 14 + col * (cardWidth + 28),
@@ -188,69 +189,10 @@ export class ShopView {
     }
   }
 
-  private createCard(item: CosmeticDefinition, model: ShopViewModel, actions: ShopViewActions,
-    width: number, height: number): Node {
-    const card = createUiNode(`ShopCard:${item.id}`, width, height);
-    drawRounded(card, width, height, CARD_COLOR, 28, { color: PANEL_BORDER, width: 5 });
-
-    const previewFrame = item.previewAsset ? this.art.frame(item.previewAsset) : undefined;
-    const previewWidth = Math.min(190, width - 48);
-    const previewHeight = previewWidth;
-    const previewY = -10;
-    const previewPlate = createUiNode(`ShopPreviewPlate:${item.id}`, previewWidth + 18,
-      previewHeight + 18);
-    drawRounded(previewPlate, previewWidth + 18, previewHeight + 18,
-      new Color(255, 231, 195, 255), 30,
-      { color: new Color(163, 102, 69, 115), width: 2 });
-    previewPlate.setPosition(0, previewY);
-    card.addChild(previewPlate);
-    if (previewFrame) {
-      const preview = createSpriteNode(`ShopPreview:${item.id}`, previewFrame, previewWidth, previewHeight);
-      preview.setPosition(0, previewY);
-      card.addChild(preview);
-    } else {
-      const preview = createUiNode(`ShopPreview:${item.id}`, previewWidth, previewHeight);
-      drawRounded(preview, previewWidth, previewHeight, this.previewColor(item.category), 28,
-        { color: COLORS.ink, width: 3 });
-      preview.setPosition(0, previewY);
-      card.addChild(preview);
-    }
-
-    const name = createLabel(item.name, 25, TITLE_COLOR, width - 24, 42, 'display');
-    name.node.setPosition(0, height / 2 - 44);
-    card.addChild(name.node);
-
-    const owned = model.economy.ownedItemIds.indexOf(item.id) >= 0;
-    const equipped = this.isEquipped(item);
-    const actionText = equipped ? '已装备' : owned ? '装备' : `购买 ${item.price}`;
-    const canBuy = owned || model.economy.coins >= item.price;
-    const action = createButton(actionText, width - 38, 54,
-      equipped ? COLORS.teal : canBuy ? COLORS.coral : new Color(156, 148, 136, 210),
-      () => {
-        if (!canBuy || equipped) return;
-        if (owned) actions.onEquip(item.id);
-        else actions.onPurchase(item.id);
-      }, 20, owned ? undefined : this.art.frame(GAME_CONFIG.art.coin));
-    action.setPosition(0, -height / 2 + 40);
-    if (!canBuy) action.addComponent(UIOpacity).opacity = 170;
-    card.addChild(action);
-
-    card.setScale(0.96, 0.96, 1);
-    tween(card).to(0.16, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
-    return card;
-  }
-
   private isEquipped(item: CosmeticDefinition): boolean {
     const equipped = this.cosmetics.state;
     if (item.category === 'cat-skin') return equipped.catSkin === item.id;
     if (item.category === 'board') return equipped.board === item.id;
     return equipped.effect === item.id;
-  }
-
-  private previewColor(category: CosmeticCategory): Color {
-    if (category === 'cat-skin') return new Color(239, 100, 83, 255);
-    if (category === 'board') return new Color(196, 148, 91, 255);
-    if (category === 'effect') return new Color(121, 82, 190, 255);
-    return new Color(39, 166, 151, 255);
   }
 }
