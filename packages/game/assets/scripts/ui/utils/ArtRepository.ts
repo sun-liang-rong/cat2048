@@ -158,7 +158,17 @@ export class ArtRepository {
       art.classicMode,
       art.restart,
       art.locked,
+      art.taskIcons.play,
+      art.taskIcons.star,
+      art.taskIcons.bolt,
+      art.taskIcons.share,
+      art.taskIcons.check,
+      art.settingsIcons.sound,
+      art.settingsIcons.music,
+      art.settingsIcons.haptics,
       cats[cats.length - 1].asset,
+      // 排行榜空状态插图（Lv1 橘猫），不随装备皮肤变化。
+      cats[0].asset,
     ]);
     // 当前装备的猫咪皮肤需要全部等级，游戏中任意等级都可能出现。
     const equippedSkin = allCosmetics().find((item) => item.id === equipped.catSkin);

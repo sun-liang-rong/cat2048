@@ -18,8 +18,9 @@ export interface GameStats {
 type StatKind = keyof GameStats;
 
 const BAR_WIDTH = 620;
-const BAR_HEIGHT = 72;
-const ICON_SIZE = 52;
+const BAR_HEIGHT = 62;
+const STAT_WIDTH = 188;
+const ICON_SIZE = 44;
 const SHEET_CELL_SIZE = 256;
 const STAT_COLUMNS: readonly {
   kind: StatKind;
@@ -42,35 +43,27 @@ export class GameStatsBarView {
   public mount(parent: Node, y: number, stats: GameStats): void {
     this.clear();
     const bar = createUiNode('GameStatsBar', BAR_WIDTH, BAR_HEIGHT);
-    drawRounded(bar, BAR_WIDTH, BAR_HEIGHT, new Color(247, 224, 181, 244), 28,
-      { color: new Color(154, 99, 63, 210), width: 3 });
     bar.setPosition(0, y);
 
-    const highlight = createUiNode('GameStatsBar:Highlight', BAR_WIDTH - 26, 3);
-    drawRounded(highlight, BAR_WIDTH - 26, 3, new Color(255, 250, 230, 180), 1.5);
-    highlight.setPosition(0, BAR_HEIGHT / 2 - 10);
-    bar.addChild(highlight);
-
-    for (const x of [-102.5, 102.5]) {
-      const separator = createUiNode('GameStatsBar:Separator', 2, 44);
-      drawRounded(separator, 2, 44, new Color(166, 111, 71, 80), 1);
-      separator.setPosition(x, 0);
-      bar.addChild(separator);
-    }
-
     for (const column of STAT_COLUMNS) {
+      const stat = createUiNode(`GameStatsBar:${column.kind}`, STAT_WIDTH, BAR_HEIGHT - 4);
+      drawRounded(stat, STAT_WIDTH, BAR_HEIGHT - 4, new Color(255, 248, 228, 225), 20,
+        { color: new Color(139, 91, 59, 85), width: 1 });
+      stat.setPosition(column.x, 0);
+      bar.addChild(stat);
+
       const icon = this.createIcon(column.cell, column.fallback);
-      icon.setPosition(column.x - 50, 0);
-      bar.addChild(icon);
+      icon.setPosition(-55, 0);
+      stat.addChild(icon);
 
-      const title = createLabel(column.title, 16, new Color(117, 76, 52, 255), 94, 24, 'display');
-      title.node.setPosition(column.x + 27, 16);
-      bar.addChild(title.node);
+      const title = createLabel(column.title, 15, new Color(117, 76, 52, 235), 82, 22);
+      title.node.setPosition(24, 13);
+      stat.addChild(title.node);
 
-      const value = createLabel('0', 26, column.kind === 'spaces' ? COLORS.teal : COLORS.ink,
-        94, 34, 'display', 'number');
-      value.node.setPosition(column.x + 27, -13);
-      bar.addChild(value.node);
+      const value = createLabel('0', 24, column.kind === 'spaces' ? COLORS.teal : COLORS.ink,
+        82, 30, 'display', 'number');
+      value.node.setPosition(24, -11);
+      stat.addChild(value.node);
       this.values.set(column.kind, value);
     }
 

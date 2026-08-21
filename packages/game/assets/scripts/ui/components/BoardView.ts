@@ -50,11 +50,7 @@ export class BoardView {
 
     const boardFrame = this.cosmetics.boardFrame();
     if (boardFrame) board.addChild(createSpriteNode('BoardBackground', boardFrame, boardPixels, boardPixels));
-    else drawRounded(board, boardPixels, boardPixels, new Color(189, 139, 82, 255), 38);
-
-    const shade = createUiNode('BoardShade', boardPixels - 18, boardPixels - 18);
-    drawRounded(shade, boardPixels - 18, boardPixels - 18, new Color(79, 48, 29, 48), 32);
-    board.addChild(shade);
+    else drawRounded(board, boardPixels, boardPixels, new Color(224, 172, 100, 255), 38);
 
     this.createGrid(board);
     this.tileLayer = createUiNode('Tiles', boardPixels, boardPixels);

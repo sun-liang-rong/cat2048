@@ -10,7 +10,7 @@ import {
 describe('boardGeometry', () => {
   it('derives cell size from board pixels, padding, and gaps', () => {
     expect(BOARD_PIXELS).toBe(690);
-    expect(BOARD_PADDING).toBe(18);
+    expect(BOARD_PADDING).toBe(40);
     expect(CELL_GAP).toBe(10);
     expect(CELL_SIZE).toBe((BOARD_PIXELS - BOARD_PADDING * 2 - CELL_GAP * 3) / 4);
   });

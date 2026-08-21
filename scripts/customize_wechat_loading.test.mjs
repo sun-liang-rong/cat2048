@@ -6,6 +6,12 @@ import test from 'node:test';
 
 import { patchWeChatBootstrap } from './customize_wechat_loading.mjs';
 
+const firstScreenFixture = [
+  'let progressBarColor = [61 / 255, 197 / 255, 222 / 255, 1];',
+  'let progressBackground = [100 / 255, 111 / 255, 118 / 255, 1];',
+  'let bgColor = [0.01, 0.02, 0.03, 1];',
+].join('\n');
+
 const gameFixture = [
   "const firstScreen = require('./first-screen');",
   '',
@@ -36,7 +42,7 @@ test('patchWeChatBootstrap holds the Cocos first screen until runtime readiness'
   const directory = mkdtempSync(join(tmpdir(), 'cat2048-loading-'));
   const gamePath = join(directory, 'game.js');
   writeFileSync(gamePath, gameFixture);
-  writeFileSync(join(directory, 'first-screen.js'), 'module.exports = {};');
+  writeFileSync(join(directory, 'first-screen.js'), firstScreenFixture);
 
   assert.equal(patchWeChatBootstrap(directory), true);
   assert.equal(patchWeChatBootstrap(directory), false);
@@ -46,13 +52,18 @@ test('patchWeChatBootstrap holds the Cocos first screen until runtime readiness'
   assert.match(output, /globalThis\.__cat2048CocosLoading/);
   assert.match(output, /runtimeReady\.then\(\(\) => firstScreen\.end\(\)\)/);
   assert.doesNotMatch(output, /firstScreen\.end\(\)\.then\(\(\) => application\.start\(\)\)/);
+
+  const firstScreen = readFileSync(join(directory, 'first-screen.js'), 'utf8');
+  assert.equal((firstScreen.match(/CAT2048_COCOS_LOADING_THEME/g) ?? []).length, 1);
+  assert.match(firstScreen, /239 \/ 255, 100 \/ 255, 83 \/ 255/);
+  assert.match(firstScreen, /255 \/ 255, 244 \/ 255, 222 \/ 255/);
 });
 
 test('patchWeChatBootstrap rejects unsupported generated bootstraps before writing', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cat2048-loading-'));
   const gamePath = join(directory, 'game.js');
   writeFileSync(gamePath, 'const firstScreen = require(\'./first-screen\');');
-  writeFileSync(join(directory, 'first-screen.js'), 'module.exports = {};');
+  writeFileSync(join(directory, 'first-screen.js'), firstScreenFixture);
 
   assert.throws(() => patchWeChatBootstrap(directory), /missing first-screen end chain/);
   assert.equal(readFileSync(gamePath, 'utf8'), "const firstScreen = require('./first-screen');");

@@ -1,9 +1,11 @@
-import { Color, Graphics, Node } from 'cc';
+import { Color, Node } from 'cc';
 import type { ArtRepository } from '../utils/ArtRepository';
 import { ModalView, MODAL_CARD } from './ModalView';
+import { GAME_CONFIG } from '../../core/config/gameConfig';
 import {
   COLORS,
   createLabel,
+  createSpriteNode,
   createToggle,
   createUiNode,
   drawRounded,
@@ -35,7 +37,7 @@ export class SettingsPanel {
 
   public constructor(
     getSize: () => { width: number; height: number },
-    art: ArtRepository,
+    private readonly art: ArtRepository,
   ) {
     this.modal = new ModalView(art, getSize);
   }
@@ -112,61 +114,13 @@ export class SettingsPanel {
         : new Color(251, 195, 102, 255);
     drawRounded(icon, 66, 66, background, 33,
       { color: new Color(255, 255, 255, 92), width: 2 });
-    const graphics = icon.addComponent(Graphics);
-    graphics.fillColor = COLORS.white;
-    graphics.strokeColor = COLORS.white;
-    graphics.lineWidth = 5;
-    if (type === 'sound') this.drawSoundIcon(graphics);
-    else if (type === 'music') this.drawMusicIcon(graphics);
-    else this.drawHapticsIcon(graphics);
+    // 图标字形：Remix Icon 字体渲染的白色 PNG，与任务图标同一套生成管线。
+    const iconFrame = this.art.frame(GAME_CONFIG.art.settingsIcons[type]);
+    if (iconFrame) {
+      const glyph = createSpriteNode(`${parent.name}:${type}Glyph`, iconFrame, 44, 44);
+      icon.addChild(glyph);
+    }
     icon.setPosition(x, 0);
     parent.addChild(icon);
-  }
-
-  private drawSoundIcon(graphics: Graphics): void {
-    graphics.moveTo(-22, -10);
-    graphics.lineTo(-11, -10);
-    graphics.lineTo(6, -23);
-    graphics.lineTo(6, 23);
-    graphics.lineTo(-11, 10);
-    graphics.lineTo(-22, 10);
-    graphics.close();
-    graphics.fill();
-    graphics.arc(4, 0, 19, -0.78, 0.78, false);
-    graphics.stroke();
-    graphics.arc(5, 0, 28, -0.72, 0.72, false);
-    graphics.stroke();
-  }
-
-  private drawMusicIcon(graphics: Graphics): void {
-    graphics.circle(-11, -17, 7);
-    graphics.circle(12, -9, 7);
-    graphics.fill();
-    graphics.moveTo(-4, -17);
-    graphics.lineTo(-4, 16);
-    graphics.moveTo(19, -9);
-    graphics.lineTo(19, 9);
-    graphics.moveTo(-4, 16);
-    graphics.lineTo(19, 9);
-    graphics.stroke();
-  }
-
-  private drawHapticsIcon(graphics: Graphics): void {
-    graphics.roundRect(-12, -22, 24, 44, 6);
-    graphics.stroke();
-    graphics.lineWidth = 3;
-    graphics.moveTo(-20, -12);
-    graphics.lineTo(-24, -8);
-    graphics.lineTo(-24, 8);
-    graphics.lineTo(-20, 12);
-    graphics.moveTo(20, -12);
-    graphics.lineTo(24, -8);
-    graphics.lineTo(24, 8);
-    graphics.lineTo(20, 12);
-    graphics.stroke();
-    graphics.lineWidth = 4;
-    graphics.moveTo(-5, -14);
-    graphics.lineTo(5, -14);
-    graphics.stroke();
   }
 }

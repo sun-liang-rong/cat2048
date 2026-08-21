@@ -10,25 +10,28 @@ import {
   tween,
 } from 'cc';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
-import { createLabel, createSpriteNode, createUiNode, drawRounded } from '../utils/uiFactory';
+import { createButton, createLabel, createSpriteNode, createUiNode, drawRounded } from '../utils/uiFactory';
 
 const DESIGN_HEIGHT = 1334;
-const LOGO_SIZE = 320;
+const LOGO_SIZE = 388;
 const TRACK_WIDTH = 468;
-const TRACK_HEIGHT = 20;
+const TRACK_HEIGHT = 24;
 const TRACK_INSET = 4;
 
-const BACKGROUND = new Color(55, 39, 43, 255);
-const TRACK = new Color(76, 54, 53, 255);
-const TRACK_EDGE = new Color(143, 100, 82, 255);
+const BACKGROUND = new Color(255, 244, 222, 255);
+const TRACK = new Color(235, 216, 190, 255);
+const TRACK_EDGE = new Color(154, 103, 72, 210);
 const PROGRESS = new Color(239, 100, 83, 255);
-const TEXT = new Color(255, 247, 225, 255);
-const MUTED_TEXT = new Color(220, 188, 163, 255);
+const TEXT = new Color(103, 67, 48, 255);
+const MUTED_TEXT = new Color(143, 100, 75, 255);
 
 export class LoadingView {
   private fill: Node | null = null;
+  private track: Node | null = null;
   private progressLabel: Label | null = null;
   private statusLabel: Label | null = null;
+  private hintLabel: Label | null = null;
+  private retryButton: Node | null = null;
   private progress = 0;
   private failed = false;
   private barWidth = TRACK_WIDTH;
@@ -36,12 +39,15 @@ export class LoadingView {
   private contentScale = 1;
   private logoSize = LOGO_SIZE;
 
-  public build(parent: Node, width: number, height: number): void {
+  public build(parent: Node, width: number, height: number, onRetry: () => void): void {
     this.fill = null;
+    this.track = null;
     this.progressLabel = null;
     this.statusLabel = null;
+    this.hintLabel = null;
+    this.retryButton = null;
     this.contentScale = Math.min(1, Math.max(0.72, height / DESIGN_HEIGHT));
-    this.logoSize = Math.round(LOGO_SIZE * this.contentScale);
+    this.logoSize = Math.min(Math.round(LOGO_SIZE * this.contentScale), Math.max(260, width - 150));
     this.barWidth = Math.min(TRACK_WIDTH, Math.max(280, width - 112));
     this.barHeight = Math.max(14, Math.round(TRACK_HEIGHT * this.contentScale));
 
@@ -50,13 +56,13 @@ export class LoadingView {
     parent.addChild(background);
 
     const logoHost = createUiNode('LoadingLogoHost', this.logoSize, this.logoSize);
-    logoHost.setPosition(0, Math.round(112 * this.contentScale));
+    logoHost.setPosition(0, Math.round(132 * this.contentScale));
     parent.addChild(logoHost);
     this.loadLogo(logoHost);
 
-    this.statusLabel = createLabel('正在加载游戏资源', Math.round(25 * this.contentScale), TEXT,
+    this.statusLabel = createLabel('正在加载游戏资源', Math.round(28 * this.contentScale), TEXT,
       Math.min(620, width - 72), Math.round(46 * this.contentScale), 'display');
-    this.statusLabel.node.setPosition(0, Math.round(-116 * this.contentScale));
+    this.statusLabel.node.setPosition(0, Math.round(-104 * this.contentScale));
     parent.addChild(this.statusLabel.node);
 
     const track = createUiNode('LoadingTrack', this.barWidth, this.barHeight);
@@ -64,27 +70,34 @@ export class LoadingView {
       color: TRACK_EDGE,
       width: 2,
     });
-    track.setPosition(0, Math.round(-176 * this.contentScale));
+    track.setPosition(0, Math.round(-164 * this.contentScale));
     parent.addChild(track);
+    this.track = track;
 
     const innerWidth = this.barWidth - TRACK_INSET * 2;
     const innerHeight = this.barHeight - TRACK_INSET * 2;
     const innerTrack = createUiNode('LoadingTrackInner', innerWidth, innerHeight);
-    drawRounded(innerTrack, innerWidth, innerHeight, new Color(48, 34, 39, 255), innerHeight / 2);
+    drawRounded(innerTrack, innerWidth, innerHeight, TRACK, innerHeight / 2);
     track.addChild(innerTrack);
 
     this.fill = createUiNode('LoadingProgress', innerWidth, innerHeight);
     innerTrack.addChild(this.fill);
 
-    this.progressLabel = createLabel('0%', Math.round(21 * this.contentScale), TEXT, 180,
+    this.progressLabel = createLabel('0%', Math.round(24 * this.contentScale), TEXT, 180,
       Math.round(40 * this.contentScale), 'display', 'number');
-    this.progressLabel.node.setPosition(0, Math.round(-222 * this.contentScale));
+    this.progressLabel.node.setPosition(0, Math.round(-210 * this.contentScale));
     parent.addChild(this.progressLabel.node);
 
-    const hint = createLabel('猫咪正在准备中', Math.round(18 * this.contentScale), MUTED_TEXT,
+    this.hintLabel = createLabel('猫咪正在准备中', Math.round(23 * this.contentScale), MUTED_TEXT,
       Math.min(420, width - 96), Math.round(32 * this.contentScale));
-    hint.node.setPosition(0, Math.round(-264 * this.contentScale));
-    parent.addChild(hint.node);
+    this.hintLabel.node.setPosition(0, Math.round(-254 * this.contentScale));
+    parent.addChild(this.hintLabel.node);
+
+    this.retryButton = createButton('重新加载', 250, 76, PROGRESS, onRetry,
+      Math.round(27 * this.contentScale));
+    this.retryButton.setPosition(0, Math.round(-184 * this.contentScale));
+    this.retryButton.active = false;
+    parent.addChild(this.retryButton);
 
     this.render();
   }
@@ -92,6 +105,11 @@ export class LoadingView {
   public setProgress(ratio: number): void {
     this.progress = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0;
     this.render();
+  }
+
+  public reset(): void {
+    this.progress = 0;
+    this.failed = false;
   }
 
   public showError(): void {
@@ -128,7 +146,7 @@ export class LoadingView {
   private render(): void {
     if (this.statusLabel) {
       this.statusLabel.string = this.failed
-        ? '资源加载失败'
+        ? '资源加载失败，请检查网络'
         : this.progress >= 0.9
           ? '马上就好啦'
           : this.progress >= 0.55
@@ -136,8 +154,12 @@ export class LoadingView {
             : '正在加载游戏资源';
     }
     if (this.progressLabel) {
-      this.progressLabel.string = this.failed ? '加载失败' : `${Math.round(this.progress * 100)}%`;
+      this.progressLabel.string = `${Math.round(this.progress * 100)}%`;
+      this.progressLabel.node.active = !this.failed;
     }
+    if (this.track) this.track.active = !this.failed;
+    if (this.hintLabel) this.hintLabel.node.active = !this.failed;
+    if (this.retryButton) this.retryButton.active = this.failed;
     if (!this.fill) return;
 
     const innerWidth = this.barWidth - TRACK_INSET * 2;

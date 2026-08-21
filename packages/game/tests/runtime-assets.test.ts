@@ -36,27 +36,39 @@ const gameplayImagePaths = [
   'stats_sprite_sheet.png',
 ].map((name) => `ui/gameplay/${name}`);
 
-const homeV2ImagePaths = [
-  'checkin_button.png',
-  'coin.png',
-  'collection.png',
-  'home_background_v2.png',
+const taskIconImagePaths = [
+  'task_play.png',
+  'task_star.png',
+  'task_bolt.png',
+  'task_share.png',
+  'task_check.png',
+].map((name) => `ui/tasks/${name}`);
+
+const settingsIconImagePaths = [
+  'setting_sound.png',
+  'setting_music.png',
+  'setting_haptics.png',
+].map((name) => `ui/settings/${name}`);
+
+const homeImagePaths = [
+  'home_background.png',
   'home_bottom_dock.png',
   'home_cat_room.png',
+  'home_checkin_button.png',
+  'home_coin.png',
+  'home_collection.png',
+  'home_leaderboard_button.png',
   'home_play_paw.png',
-  'leaderboard_button.png',
-  'nav_sprite_sheet.png',
-  'plus.png',
-  'settings.png',
-  'shop.png',
-  'tasks.png',
-].map((name) => `ui/home-v2/${name}`);
+  'home_plus.png',
+  'home_settings.png',
+  'home_shop.png',
+  'home_tasks.png',
+].map((name) => `ui/home/${name}`);
 
 const expectedImagePaths = [
-  ...['bg_home.png', 'bg_page.png', 'share_score_bg.png'].map((name) => `backgrounds/common/${name}`),
+  ...['bg_page.png', 'share_score_bg.png'].map((name) => `backgrounds/common/${name}`),
   ...['wood', 'pink', 'star'].map((theme) => `backgrounds/board/${theme}/bg_board_${theme}.png`),
   ...catImagePaths,
-  'home_bottom_dock_preview.png',
   'ui/common/logo.png',
   'ui/common/tile_empty.png',
   'ui/common/tile_selected.png',
@@ -66,12 +78,14 @@ const expectedImagePaths = [
   ].map((name) => `ui/common/${name}.png`),
   ...collectionImagePaths,
   ...gameplayImagePaths,
-  ...homeV2ImagePaths,
+  ...taskIconImagePaths,
+  ...settingsIconImagePaths,
+  ...homeImagePaths,
   ...['sparkle_small', 'merge_sparkle', 'merge_burst', 'max_halo']
     .map((name) => `effects/classic/${name}.png`),
-  ...['aurora_sparkle', 'aurora_burst', 'aurora_paw_sparkle', 'aurora_paw_burst']
+  ...['aurora_sparkle', 'aurora_burst']
     .map((name) => `effects/aurora/${name}.png`),
-  ...['stars_sparkle', 'stars_burst', 'stars_fish_sparkle', 'stars_confetti_burst']
+  ...['stars_sparkle', 'stars_burst']
     .map((name) => `effects/stars/${name}.png`),
   'fonts/score.png',
 ].sort();

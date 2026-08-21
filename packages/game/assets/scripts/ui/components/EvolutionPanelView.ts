@@ -9,7 +9,9 @@ import {
   createUiNode,
   drawRounded,
 } from '../utils/uiFactory';
-import { MODAL_EDGE, MODAL_FILL } from '../panels/ModalView';
+
+const PANEL_FILL = new Color(255, 249, 232, 238);
+const PANEL_EDGE = new Color(139, 91, 59, 125);
 
 export interface EvolutionPanelActions {
   readonly isLocked: () => boolean;
@@ -40,8 +42,8 @@ export class EvolutionPanelView {
     this.challenge = challenge ?? null;
     if (height > 0) {
       const panel = createUiNode('EvolutionPanel', 650, height);
-      drawRounded(panel, 650, height, MODAL_FILL, 28,
-        { color: MODAL_EDGE, width: 4 });
+      drawRounded(panel, 650, height, PANEL_FILL, 22,
+        { color: PANEL_EDGE, width: 2 });
       panel.setPosition(0, y);
       parent.addChild(panel);
       this.panel = panel;
@@ -73,39 +75,39 @@ export class EvolutionPanelView {
     const next = GAME_CONFIG.cats[Math.min(safeLevel, GAME_CONFIG.cats.length - 1)];
     const maxed = safeLevel === GAME_CONFIG.cats.length;
 
-    const title = createLabel(challenge ? '今日挑战' : '猫咪进化路线', compact ? 21 : 24,
-      COLORS.ink, 250, 38, 'display');
-    title.node.setPosition(-173, panelHeight / 2 - (compact ? 26 : 31));
+    const title = createLabel(challenge ? '今日挑战' : '猫咪进化路线', compact ? 20 : 22,
+      COLORS.ink, 250, 36, 'display');
+    title.node.setPosition(-173, panelHeight / 2 - (compact ? 25 : 28));
     panel.addChild(title.node);
 
     const collection = createLabel(challenge
       ? challenge.completed ? '挑战完成' : `合成 Lv.${challenge.targetLevel}`
-      : this.collectionText(unlockedCount), compact ? 18 : 20,
-    challenge?.completed ? COLORS.mustard : COLORS.teal, 180, 36, 'display');
-    collection.node.setPosition(220, panelHeight / 2 - (compact ? 26 : 31));
+      : this.collectionText(unlockedCount), compact ? 17 : 18,
+    challenge?.completed ? COLORS.mustard : COLORS.teal, 180, 34, 'display');
+    collection.node.setPosition(220, panelHeight / 2 - (compact ? 25 : 28));
     collection.node.on(Node.EventType.TOUCH_END, () => {
       if (!challenge && !this.actions?.isLocked()) this.actions?.onCollection();
     });
     panel.addChild(collection.node);
 
-    const catY = compact ? -2 : 8;
-    const catSize = compact ? 68 : 94;
+    const catY = compact ? -2 : 9;
+    const catSize = compact ? 68 : 80;
     const currentFrame = this.cosmetics.catFrame(current.level);
     if (currentFrame) {
       const cat = createSpriteNode('EvolutionCurrentCat', currentFrame, catSize, catSize);
       cat.setPosition(-185, catY);
       panel.addChild(cat);
     }
-    const currentText = createLabel(`Lv.${safeLevel}  ${current.name}`, compact ? 18 : 21,
-      COLORS.ink, 250, compact ? 32 : 38, 'display');
-    currentText.node.setPosition(-185, compact ? -45 : -55);
+    const currentText = createLabel(`Lv.${safeLevel}  ${current.name}`, compact ? 18 : 19,
+      COLORS.ink, 250, compact ? 32 : 34, 'display');
+    currentText.node.setPosition(-185, compact ? -45 : -48);
     panel.addChild(currentText.node);
 
-    const arrowBadge = createUiNode('EvolutionArrow', compact ? 42 : 52, compact ? 42 : 52);
-    drawRounded(arrowBadge, compact ? 42 : 52, compact ? 42 : 52,
-      COLORS.teal, compact ? 21 : 26);
-    const arrow = createLabel('›', compact ? 34 : 42, COLORS.white,
-      compact ? 36 : 44, compact ? 36 : 44, 'display');
+    const arrowBadge = createUiNode('EvolutionArrow', compact ? 40 : 44, compact ? 40 : 44);
+    drawRounded(arrowBadge, compact ? 40 : 44, compact ? 40 : 44,
+      COLORS.mustard, compact ? 20 : 22);
+    const arrow = createLabel('›', compact ? 31 : 34, COLORS.white,
+      compact ? 34 : 38, compact ? 34 : 38, 'display');
     arrow.node.setPosition(2, 2);
     arrowBadge.addChild(arrow.node);
     arrowBadge.setPosition(0, catY);
@@ -123,22 +125,22 @@ export class EvolutionPanelView {
         nextCat.setPosition(185, catY);
         panel.addChild(nextCat);
       }
-      const nextText = createLabel(`Lv.${safeLevel + 1}  ${next.name}`, compact ? 17 : 20,
-        COLORS.ink, 250, compact ? 32 : 38, 'display');
-      nextText.node.setPosition(185, compact ? -45 : -55);
+      const nextText = createLabel(`Lv.${safeLevel + 1}  ${next.name}`, compact ? 17 : 18,
+        COLORS.ink, 250, compact ? 32 : 34, 'display');
+      nextText.node.setPosition(185, compact ? -45 : -48);
       panel.addChild(nextText.node);
     }
 
     if (!compact) {
       const trackWidth = 570;
-      const track = createUiNode('EvolutionProgressTrack', trackWidth, 18);
-      drawRounded(track, trackWidth, 18, new Color(226, 207, 171, 255), 9);
-      track.setPosition(0, -panelHeight / 2 + 31);
+      const track = createUiNode('EvolutionProgressTrack', trackWidth, 14);
+      drawRounded(track, trackWidth, 14, new Color(226, 207, 171, 210), 7);
+      track.setPosition(0, -panelHeight / 2 + 18);
       panel.addChild(track);
       const progressLimit = challenge?.targetLevel ?? GAME_CONFIG.cats.length;
-      const fillWidth = Math.max(18, trackWidth * Math.min(1, safeLevel / progressLimit));
-      const fill = createUiNode('EvolutionProgressFill', fillWidth, 18);
-      drawRounded(fill, fillWidth, 18, challenge?.completed || maxed ? COLORS.mustard : COLORS.teal, 9);
+      const fillWidth = Math.max(14, trackWidth * Math.min(1, safeLevel / progressLimit));
+      const fill = createUiNode('EvolutionProgressFill', fillWidth, 14);
+      drawRounded(fill, fillWidth, 14, challenge?.completed || maxed ? COLORS.mustard : COLORS.coral, 7);
       fill.setPosition(-trackWidth / 2 + fillWidth / 2, 0);
       track.addChild(fill);
     }
@@ -153,8 +155,8 @@ export class EvolutionPanelView {
 
   private createCompactCollectionEntry(parent: Node, y: number, unlockedCount: number): void {
     const entry = createUiNode('CompactCollectionEntry', 250, 44);
-    drawRounded(entry, 250, 44, MODAL_FILL, 22,
-      { color: COLORS.teal, width: 3 });
+    drawRounded(entry, 250, 44, PANEL_FILL, 22,
+      { color: COLORS.teal, width: 2 });
     entry.setPosition(0, y);
     this.compactCollectionLabel = createLabel(this.challenge
       ? this.compactChallengeText(1)

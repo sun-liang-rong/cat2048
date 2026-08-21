@@ -1,0 +1,28 @@
+{
+  "manifest": "/Users/sunliangrong/Desktop/cat2048/resources/home-play-paw/manifest.json",
+  "generated_at": "2026-08-21T03:22:44.081487+00:00",
+  "assets": [
+    {
+      "id": "home_play_paw_watercolor",
+      "output": "/Users/sunliangrong/Desktop/cat2048/resources/home-play-paw/images/home_play_paw.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "/Users/sunliangrong/Desktop/cat2048/resources/home-play-paw/images/responses/home_play_paw_watercolor.json",
+      "source_dimensions": [
+        1254,
+        1254
+      ],
+      "output_dimensions": [
+        760,
+        760
+      ],
+      "meaningful_alpha": true,
+      "transparent_pixel_ratio": 0.362882,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "292945bf8c2df61c6270120ca9dd75ff4b61b92f92bb1f58b3f084f69c76ae5d",
+      "bytes": 725500,
+      "source": "/Users/sunliangrong/Desktop/cat2048/resources/home-play-paw/images/_source/home_play_paw_watercolor.png"
+    }
+  ]
+}

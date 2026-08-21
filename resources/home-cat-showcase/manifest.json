@@ -1,0 +1,16 @@
+{
+  "style_prompt": "Create a production-ready isolated gameplay diorama for the home screen of a warm, cozy Cat 2048 mobile game. Match a soft Japanese watercolor picture-book aesthetic with delicate paper grain, warm sunlight, hand-painted honey-colored wood, and polished mobile-game readability. Palette: honey wood, warm cream, pale apricot, muted coral, small teal accents, and natural cat colors. Soft upper-left sunlight and restrained lower-right contact shadows. Render one cohesive horizontal cutout on a genuinely transparent background. No room background, floor, rug, circular composition, circular border, outer frame, card, text, letters, numbers, logos, watermark, UI labels, buttons, checkerboard, photorealism, glossy plastic, neon, heavy black outlines, or cropped subjects.",
+  "assets": [
+    {
+      "id": "home_cat_merge_showcase",
+      "file": "home_cat_room.png",
+      "kind": "ui",
+      "request_size": "1536x1024",
+      "target_width": 1200,
+      "target_height": 920,
+      "transparent": true,
+      "fit": "contain",
+      "prompt": "An isolated Cat 2048 gameplay board viewed from a gentle near-top-down angle, with no surrounding rug or room. The rounded honey-wood board occupies about 88 percent of the canvas width and 72 percent of its height, centered slightly low so a few merge sparkles can rise above it. CRITICAL GRID REQUIREMENT: the board contains exactly sixteen cells arranged in exactly four columns and exactly four rows, a true 4 by 4 matrix. Draw five vertical grid boundaries and five horizontal grid boundaries. Never add a fifth row, extra strip, partial cell, or cells outside the 4 by 4 board. Place exactly six cute full-body cat pieces in six separate cells and leave exactly ten cells visibly empty. Row 1 contains one evolved blue-gray kitten. Row 2 contains two identical orange tabbies in adjacent central cells. Row 3 contains one calico kitten and one black-and-white kitten with empty space between them. Row 4 contains one fluffy cream kitten. Show the identical orange tabbies actively merging: they lean toward one another with a compact warm golden paw-shaped sparkle centered between them, with a short trail of watercolor light leading upward toward the evolved blue-gray kitten. Add only a few restrained coral and teal sparkle flecks to the left and right to balance the horizontal silhouette. The matching pair, merge action, upgraded cat, and exact 4 by 4 board must remain clear at about 300 pixels wide. Cats are charming, round, expressive collectible game pieces. Preserve clean semitransparent watercolor edges and one soft contact shadow directly beneath the board. No duplicated body parts, floating heads, extra cats, arrows, humans, furniture, food, written symbols, opaque rectangle, or background color."
+    }
+  ]
+}

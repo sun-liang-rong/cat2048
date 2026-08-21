@@ -24,7 +24,7 @@ export class TaskPanelView {
   private rowsRoot: Node | null = null;
   private readonly modal: ModalView;
 
-  public constructor(art: ArtRepository) {
+  public constructor(private readonly art: ArtRepository) {
     this.modal = new ModalView(art, () => ({ width: 0, height: 0 }));
   }
 
@@ -90,7 +90,7 @@ export class TaskPanelView {
     const rowsRoot = this.rowsRoot;
     if (!rowsRoot?.isValid) return;
     model.items.forEach((item, index) => {
-      const row = createTaskRow(item, actions);
+      const row = createTaskRow(item, actions, this.art);
       row.setPosition(0, ROW_START_Y - index * ROW_STEP);
       rowsRoot.addChild(row);
     });

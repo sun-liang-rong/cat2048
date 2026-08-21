@@ -1,11 +1,10 @@
-import { Color, Label, Mask, Node, tween, Tween, Vec3 } from 'cc';
+import { Color, Label, Node, tween, Tween, Vec3 } from 'cc';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
 import { addCoverBackground } from '../styles/background';
 import { homeActionDockPositions } from '../styles/layout';
 import {
   COLORS,
-  createIconButton,
   createLabel,
   createSpriteNode,
   createUiNode,
@@ -16,13 +15,15 @@ import { ModernNavDock } from '../components/ModernNavDock';
 
 const TITLE_TOP = 60;
 const WALLET_TOP = 156;
-const SHOWCASE_TOP = 228;
-const SHOWCASE_SIZE = 522;
+const SHOWCASE_TOP = 220;
+const SHOWCASE_WIDTH = 600;
+const SHOWCASE_HEIGHT = 460;
 const PLAY_SIZE = 380;
 const PLAY_DOCK_GAP = 50; // 开始按钮底部距底部导航栏顶部的间距
 const MODERN_DOCK_HEIGHT = 168; // 与 ModernNavDock 的 DOCK_HEIGHT 保持一致
-const SIDE_ACTION_SIZE = 154;
-const SIDE_ACTION_X = 278;
+const UTILITY_ACTION_WIDTH = 164;
+const UTILITY_ACTION_HEIGHT = 64;
+const UTILITY_ACTION_X = 246;
 const DOCK_HEIGHT = 148;
 
 export interface HomeViewModel {
@@ -69,6 +70,7 @@ export class HomeView {
   private mainPlayButton: Node | null = null;
   private mainPlayLabel: Label | null = null;
   private taskBadge: Node | null = null;
+  private dailyRewardBadge: Node | null = null;
   private modernNavDock: ModernNavDock | null = null;
   private readonly tweens: Tween<Node>[] = [];
 
@@ -108,6 +110,10 @@ export class HomeView {
       this.mainPlayButton.setPosition(0, this.playButtonY(model));
     }
 
+    if (this.dailyRewardBadge) {
+      this.dailyRewardBadge.active = model.canClaimDaily;
+    }
+
     if (this.modernNavDock) {
       this.modernNavDock.setTaskBadge(model.taskClaimable);
     }
@@ -127,11 +133,11 @@ export class HomeView {
 
     this.addTitle(parent, model);
     this.addWallet(parent, model, actions);
+    this.addUtilityAction(parent, model, 'Leaderboard', GAME_CONFIG.art.homeLeaderboardButton,
+      '榜', '排行', -UTILITY_ACTION_X, actions.onLeaderboard);
+    this.addUtilityAction(parent, model, 'Checkin', GAME_CONFIG.art.homeCheckinButton,
+      '签', '签到', UTILITY_ACTION_X, actions.onDailyReward, model.canClaimDaily);
     this.addCatShowcase(parent, model);
-    this.addSideAction(parent, model, 'Leaderboard', GAME_CONFIG.art.homeLeaderboardButton,
-      '榜', '排行', -SIDE_ACTION_X, actions.onLeaderboard);
-    this.addSideAction(parent, model, 'Checkin', GAME_CONFIG.art.homeCheckinButton,
-      '签', '签到', SIDE_ACTION_X, actions.onDailyReward);
     this.addPlayButton(parent, model, actions);
     
     // 使用现代化导航栏
@@ -199,27 +205,18 @@ export class HomeView {
   }
 
   private addCatShowcase(root: Node, model: HomeViewModel): void {
-    const showcase = createUiNode('HomeCatShowcase', SHOWCASE_SIZE + 24, SHOWCASE_SIZE + 24);
-    showcase.setPosition(0, this.fromTop(model, SHOWCASE_TOP + SHOWCASE_SIZE / 2));
-
-    const shadow = createUiNode('HomeCatShowcase:Shadow', SHOWCASE_SIZE + 18, SHOWCASE_SIZE + 18);
-    drawRounded(shadow, SHOWCASE_SIZE + 18, SHOWCASE_SIZE + 18,
-      new Color(102, 62, 42, 105), (SHOWCASE_SIZE + 18) / 2);
-    shadow.setPosition(0, -12);
-    showcase.addChild(shadow);
-
-    const rim = createUiNode('HomeCatShowcase:Rim', SHOWCASE_SIZE + 14, SHOWCASE_SIZE + 14);
-    drawRounded(rim, SHOWCASE_SIZE + 14, SHOWCASE_SIZE + 14,
-      new Color(255, 247, 221, 255), (SHOWCASE_SIZE + 14) / 2,
-      { color: new Color(132, 83, 55, 240), width: 6 });
-    showcase.addChild(rim);
-
-    const viewport = createUiNode('HomeCatShowcase:Viewport', SHOWCASE_SIZE, SHOWCASE_SIZE);
-    viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_ELLIPSE;
-    showcase.addChild(viewport);
+    const showcase = createUiNode('HomeCatShowcase', SHOWCASE_WIDTH, SHOWCASE_HEIGHT);
+    const showcaseScale = Math.min(1, Math.max(0.72,
+      (this.playButtonTopFromTop(model) + 48 - SHOWCASE_TOP) / SHOWCASE_HEIGHT));
+    showcase.setScale(showcaseScale, showcaseScale, 1);
+    showcase.setPosition(0,
+      this.fromTop(model, SHOWCASE_TOP + SHOWCASE_HEIGHT * showcaseScale / 2));
 
     const frame = this.art.frame(GAME_CONFIG.art.homeCatRoom);
-    if (frame) viewport.addChild(createSpriteNode('HomeCatShowcase:Art', frame, SHOWCASE_SIZE, SHOWCASE_SIZE));
+    if (frame) {
+      showcase.addChild(createSpriteNode('HomeCatShowcase:Art', frame,
+        SHOWCASE_WIDTH, SHOWCASE_HEIGHT));
+    }
 
     root.addChild(showcase);
     this.trackTween(tween(showcase)
@@ -228,7 +225,7 @@ export class HomeView {
       .union().repeatForever().start());
   }
 
-  private addSideAction(
+  private addUtilityAction(
     root: Node,
     model: HomeViewModel,
     name: string,
@@ -237,22 +234,51 @@ export class HomeView {
     text: string,
     x: number,
     onTap: () => void,
+    rewardAvailable?: boolean,
   ): void {
-    const node = createUiNode(`HomeSideAction:${name}`, SIDE_ACTION_SIZE, SIDE_ACTION_SIZE);
-    node.setPosition(x, this.playButtonY(model));
+    const node = createUiNode(`HomeUtilityAction:${name}`,
+      UTILITY_ACTION_WIDTH, UTILITY_ACTION_HEIGHT);
+    node.setPosition(x, this.fromTop(model, WALLET_TOP));
+
+    const shadow = createUiNode(`${node.name}:Shadow`,
+      UTILITY_ACTION_WIDTH - 4, UTILITY_ACTION_HEIGHT - 2);
+    drawRounded(shadow, UTILITY_ACTION_WIDTH - 4, UTILITY_ACTION_HEIGHT - 2,
+      new Color(105, 61, 40, 35), 22);
+    shadow.setPosition(0, -3);
+    node.addChild(shadow);
+
+    const surface = createUiNode(`${node.name}:Surface`,
+      UTILITY_ACTION_WIDTH, UTILITY_ACTION_HEIGHT);
+    drawRounded(surface, UTILITY_ACTION_WIDTH, UTILITY_ACTION_HEIGHT,
+      new Color(255, 248, 228, 246), 22,
+      { color: new Color(143, 91, 57, 155), width: 2 });
+    node.addChild(surface);
+
     const frame = this.art.frame(framePath);
-    if (frame) node.addChild(createSpriteNode(`${node.name}:Art`, frame, SIDE_ACTION_SIZE, SIDE_ACTION_SIZE));
-    else {
-      drawRounded(node, SIDE_ACTION_SIZE - 8, SIDE_ACTION_SIZE - 8,
-        new Color(248, 225, 181, 255), (SIDE_ACTION_SIZE - 8) / 2,
-        { color: new Color(154, 91, 52, 255), width: 5 });
-      const icon = createLabel(fallback, 36, COLORS.ink, 80, 60, 'display');
-      icon.node.setPosition(0, 20);
-      node.addChild(icon.node);
+    if (frame) {
+      const icon = createSpriteNode(`${node.name}:Icon`, frame, 46, 46);
+      icon.setPosition(-51, 1);
+      surface.addChild(icon);
+    } else {
+      const icon = createLabel(fallback, 25, COLORS.mustard, 44, 44, 'display');
+      icon.node.setPosition(-51, 1);
+      surface.addChild(icon.node);
     }
-    const label = createLabel(text, 20, new Color(113, 72, 49, 255), 106, 34, 'display');
-    label.node.setPosition(0, -44);
-    node.addChild(label.node);
+
+    const label = createLabel(text, 20, new Color(113, 72, 49, 255), 82, 40, 'display');
+    label.node.setPosition(27, 0);
+    surface.addChild(label.node);
+
+    if (typeof rewardAvailable === 'boolean') {
+      const badge = createUiNode('DailyRewardBadge', 22, 22);
+      drawRounded(badge, 22, 22, COLORS.coral, 11,
+        { color: COLORS.white, width: 2 });
+      badge.setPosition(UTILITY_ACTION_WIDTH / 2 - 5, UTILITY_ACTION_HEIGHT / 2 - 3);
+      badge.active = rewardAvailable;
+      node.addChild(badge);
+      this.dailyRewardBadge = badge;
+    }
+
     root.addChild(node);
     this.bindTap(node, onTap);
   }
@@ -339,6 +365,10 @@ export class HomeView {
   private playButtonY(model: HomeViewModel): number {
     const dockTop = -model.uiHeight / 2 + model.bottomInset + MODERN_DOCK_HEIGHT;
     return dockTop + PLAY_DOCK_GAP + PLAY_SIZE / 2;
+  }
+
+  private playButtonTopFromTop(model: HomeViewModel): number {
+    return model.uiHeight / 2 - this.playButtonY(model) - PLAY_SIZE / 2;
   }
 
   private drawModernDockBackground(node: Node, width: number, height: number): void {

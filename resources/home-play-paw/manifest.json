@@ -1,0 +1,16 @@
+{
+  "style_prompt": "Create a production-ready main action button asset for a warm, cozy Cat 2048 mobile game. Match a soft Japanese watercolor picture-book interface with subtle layered-paper depth and delicate natural paper grain. Use a warm cream, pale apricot, muted coral pink, and warm brown palette. Matte finish, restrained highlights, soft upper-left light, very subtle lower-right shadow, clean readable silhouette. The result must blend with a sunlit watercolor wooden cat room and hand-painted cat artwork. One centered object only on a genuinely transparent background. No text, letters, numbers, logo, watermark, scene, cat character, extra symbols, checkerboard, border frame, neon, glow, metal, glass, glossy plastic, rubber, jelly, clay-toy rendering, photorealism, heavy black outlines, or cropped edges.",
+  "assets": [
+    {
+      "id": "home_play_paw_watercolor",
+      "file": "home_play_paw.png",
+      "kind": "ui",
+      "request_size": "1024x1024",
+      "target_width": 760,
+      "target_height": 760,
+      "transparent": true,
+      "fit": "contain",
+      "prompt": "A front-facing cat paw shaped game button, complete and perfectly centered. Four small toe pads and one large central paw pad, anatomically clear but charming and simplified. The outer paw is warm cream with pale apricot shading; the pads are muted coral pink with soft watercolor variation and fine warm-brown hand-painted edge accents. Give the paw only a slight tactile layered-paper depth, with matte surfaces and almost no specular highlight. Keep the large lower central pad broad, smooth, uncluttered, evenly colored, and visually quiet so the game can overlay four Chinese characters across it later; do not render any text. The paw occupies about 82 percent of the square canvas with generous transparent padding on every side. Symmetrical, polished mobile-game UI asset, readable at approximately 190 pixels."
+    }
+  ]
+}

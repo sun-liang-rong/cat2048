@@ -32,10 +32,10 @@ describe('portrait layout', () => {
     expect(tall.boardScale).toBe(1);
     expect(tall.boardTop).toBeGreaterThan(tall.hudCenterFromTop + 46);
     expect(tall.boardTop).toBeGreaterThan(430);
-    expect(tall.evolutionPanelHeight).toBe(236);
+    expect(tall.evolutionPanelHeight).toBe(204);
     expect(tall.evolutionPanelCenterFromTop + tall.evolutionPanelHeight / 2)
       .toBeLessThan(tall.boardTop);
-    expect(tall.statsBarHeight).toBe(72);
+    expect(tall.statsBarHeight).toBe(62);
     expect(tall.statsBarCenterFromTop - tall.statsBarHeight / 2)
       .toBeGreaterThan(tall.evolutionPanelCenterFromTop + tall.evolutionPanelHeight / 2);
     expect(tall.statsBarCenterFromTop + tall.statsBarHeight / 2).toBeLessThan(tall.boardTop);

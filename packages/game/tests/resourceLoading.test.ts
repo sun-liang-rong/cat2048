@@ -29,6 +29,31 @@ describe('loadResourceDirectory', () => {
     expect(onProgress).toHaveBeenLastCalledWith(1);
   });
 
+  it('keeps parallel directory progress monotonic and includes every in-flight directory', async () => {
+    const pending = new Map<string, {
+      progress: (finished: number, total: number) => void;
+      complete: (error: Error | null) => void;
+    }>();
+    const values: number[] = [];
+    const running = loadRuntimeResourceDirectories((directory, progress, complete) => {
+      pending.set(directory, { progress, complete });
+    }, (ratio) => values.push(ratio));
+
+    pending.get('game/cats')?.progress(9, 10);
+    pending.get('game/backgrounds')?.progress(9, 10);
+    pending.get('game/cats')?.complete(null);
+    pending.get('game/effects')?.progress(2, 10);
+
+    expect(values.at(-1)).toBeCloseTo(0.525);
+    expect(values.every((value, index) => index === 0 || value >= values[index - 1])).toBe(true);
+
+    pending.get('game/backgrounds')?.complete(null);
+    pending.get('game/effects')?.complete(null);
+    pending.get('game/ui')?.complete(null);
+    await running;
+    expect(values.at(-1)).toBe(1);
+  });
+
   it('reports normalized progress and resolves after the directory loads', async () => {
     const onProgress = vi.fn();
 

@@ -60,7 +60,7 @@ import {
 import { economyErrorText } from '../../features/economy/errors';
 import { cosmeticAssetPaths, collectionAssetPaths } from '../utils/assetPaths';
 import { wechatCapsuleInset } from '../utils/safeInsets';
-import { stopTweens } from '../utils/tweenAsync';
+import { stopTweens, tweenOpacity } from '../utils/tweenAsync';
 
 const { ccclass } = _decorator;
 
@@ -129,6 +129,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   private sceneToken = 0;
   private shareInProgress = false;
   private assetsReady = false;
+  private homeTransitionToken = 0;
   private currentScreen: ScreenName = 'loading';
   private homeRoot: Node | null = null;
   private readonly leaderboardCtrl = new LeaderboardController({
@@ -183,6 +184,7 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     screen.off('window-resize', this.onResize, this);
     screen.off('orientation-change', this.onResize, this);
     Tween.stopAll();
+    this.homeTransitionToken += 1;
     this.sceneToken += 1;
   }
 
@@ -275,23 +277,25 @@ export class Cat2048Boot extends Component implements GameFlowHost {
   // ---- 生命周期与画布 ----
 
   private async initialize(): Promise<void> {
+    this.assetsReady = false;
+    this.homeTransitionToken += 1;
+    this.loadingView.reset();
     this.showLoading();
     // The Cocos first screen should hand off to this page before remote assets load.
     markCocosLoadingReady();
-    this.applyEconomySnapshot(await this.economy.load());
+    try {
+      this.applyEconomySnapshot(await this.economy.load());
+    } catch (error) {
+      console.error('[Cat2048] Startup data loading failed', error);
+      this.loadingView.showError();
+      return;
+    }
     await runStartupSequence({
       preload: () => this.art.preload(this.save.economy.equipped, (ratio) => this.loadingView.setProgress(ratio)),
       isActive: () => this.isValid,
       onReady: () => {
         this.assetsReady = true;
-        setRuntimeFonts(
-          this.art.font(GAME_CONFIG.fonts.display) ?? null,
-          null,
-        );
-        this.audio.playMusic();
-        this.showHome();
-        void this.leaderboardCtrl.authenticate();
-        void this.leaderboardCtrl.flushPendingScores();
+        this.beginHomeTransition();
       },
       onError: (error) => {
         console.error('[Cat2048] Startup asset loading failed', error);
@@ -323,6 +327,11 @@ export class Cat2048Boot extends Component implements GameFlowHost {
       this.showLoading();
       return;
     }
+    if (screenBeforeResize === 'loading') {
+      this.showLoading();
+      this.beginHomeTransition();
+      return;
+    }
     if (screenBeforeResize === 'game') this.showGame(false);
     else if (screenBeforeResize === 'collection') this.economyPanels.showCollection(this.economyPanels.lastCollectionOrigin);
     else if (screenBeforeResize === 'shop') this.economyPanels.showShop();
@@ -344,7 +353,25 @@ export class Cat2048Boot extends Component implements GameFlowHost {
     this.clearScreen();
     this.currentScreen = 'loading';
     const root = this.makeScreen('Loading');
-    this.loadingView.build(root, this.uiWidth, this.uiHeight);
+    this.loadingView.build(root, this.uiWidth, this.uiHeight, () => { void this.initialize(); });
+  }
+
+  private beginHomeTransition(): void {
+    const token = ++this.homeTransitionToken;
+    this.loadingView.setProgress(1);
+    this.scheduleOnce(() => {
+      if (token !== this.homeTransitionToken || this.currentScreen !== 'loading') return;
+      const loadingRoot = this.screenRoot;
+      if (!loadingRoot?.isValid) return;
+      void tweenOpacity(loadingRoot, 0, 0.18).then(() => {
+        if (token !== this.homeTransitionToken || this.screenRoot !== loadingRoot) return;
+        setRuntimeFonts(this.art.font(GAME_CONFIG.fonts.display) ?? null, null);
+        this.audio.playMusic();
+        this.showHome();
+        void this.leaderboardCtrl.authenticate();
+        void this.leaderboardCtrl.flushPendingScores();
+      });
+    }, 0.15);
   }
 
   private homeViewModel(): HomeViewModel {

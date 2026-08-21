@@ -1,0 +1,25 @@
+{
+  "created": 1787284484,
+  "data": [
+    {
+      "b64_json": "[redacted_base64]",
+      "url": "[redacted_signed_url]",
+      "revised_prompt": "Create production-ready utility icons for the home toolbar of a warm, cozy Cat 2048 mobile game. Match a soft Japanese watercolor picture-book interface with subtle layered-paper depth, delicate paper grain, matte materials, and clean mobile readability. Use warm cream, honey gold, muted coral, small teal accents, and fine warm-brown edge accents. Soft upper-left light and a restrained lower-right contact shadow. Render exactly one centered symbol on a genuinely transparent square canvas, occupying about 78 percent of the image. It must remain recognizable at 40 pixels. No circular plate, button background, badge frame, text, letters, numbers, logos, watermark, extra objects, checkerboard, photorealism, glossy plastic, neon, glass, metal shine, or heavy black outlines.\n\nA compact muted-coral daily calendar icon with two cream binder rings and one clear honey-gold cat paw mark centered on the blank calendar page. Slight watercolor paper-cut depth, broad uncomplicated silhouette, stable upright front view. The calendar is the only object. No dates, numbers, letters, checkmark, clock, gift box, circular border, or written symbols."
+    }
+  ],
+  "usage": {
+    "input_tokens": 230,
+    "output_tokens": 1650,
+    "total_tokens": 1880,
+    "input_tokens_details": {
+      "text_tokens": 230,
+      "image_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens_details": {
+      "text_tokens": 0,
+      "image_tokens": 1650,
+      "reasoning_tokens": 0
+    }
+  }
+}

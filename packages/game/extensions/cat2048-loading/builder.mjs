@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { patchWeChatBootstrap } from '../../../../scripts/customize_wechat_loading.mjs';
 
 const extensionDirectory = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(extensionDirectory, '..', '..', '..');
+const projectRoot = resolve(extensionDirectory, '..', '..');
 const projectPath = (value) => {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error('Cocos WeChat loading hook received an empty build path.');

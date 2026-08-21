@@ -1,7 +1,7 @@
 import type { Position } from '../../core/types';
 
 export const BOARD_PIXELS = 690;
-export const BOARD_PADDING = 18;
+export const BOARD_PADDING = 40;
 export const CELL_GAP = 10;
 export const CELL_SIZE = (BOARD_PIXELS - BOARD_PADDING * 2 - CELL_GAP * 3) / 4;
 

@@ -2,12 +2,15 @@
  * 每日任务行组件（从 TaskPanelView 拆出）。
  * 纯函数组件：接收任务数据与回调，返回渲染好的行 Node。
  */
-import { Color, Graphics, Label, Node } from 'cc';
+import { Color, Label, Node, Sprite } from 'cc';
 import type { DailyTaskItem, DailyTaskKind } from '../../../features/tasks/dailyTasks';
+import { GAME_CONFIG } from '../../../core/config/gameConfig';
+import type { ArtRepository } from '../../utils/ArtRepository';
 import { MODAL_CARD } from '../../panels/ModalView';
 import {
   createButton,
   createLabel,
+  createSpriteNode,
   createUiNode,
   drawRounded,
 } from '../../utils/uiFactory';
@@ -42,19 +45,21 @@ const BUTTON_CLAIMED = new Color(201, 197, 187, 255);
 const BUTTON_EDGE = new Color(128, 121, 112, 210);
 const BUTTON_SHADOW = new Color(96, 77, 62, 52);
 
-const KIND_GLYPHS: Readonly<Record<DailyTaskKind, string>> = {
+const KIND_ICONS: Readonly<Record<DailyTaskKind, TaskIconKey>> = {
   'play-runs': 'play',
   'reach-lv5': 'star',
   'use-items': 'bolt',
   'share-once': 'share',
 };
 
+type TaskIconKey = 'play' | 'star' | 'bolt' | 'share' | 'check';
+
 export interface TaskRowActions {
   readonly onClaim: (taskId: string) => void;
 }
 
 /** 生成一行任务（含阴影、进度条、领取按钮与图标）。 */
-export function createTaskRow(item: DailyTaskItem, actions: TaskRowActions): Node {
+export function createTaskRow(item: DailyTaskItem, actions: TaskRowActions, art: ArtRepository): Node {
   const row = createUiNode(`TaskRow:${item.id}`, ROW_WIDTH, ROW_HEIGHT);
   const rowShadow = createUiNode(`TaskRowShadow:${item.id}`, ROW_WIDTH + 4, ROW_HEIGHT + 9);
   drawRounded(rowShadow, ROW_WIDTH + 4, ROW_HEIGHT + 9, ROW_SHADOW, 24);
@@ -68,10 +73,17 @@ export function createTaskRow(item: DailyTaskItem, actions: TaskRowActions): Nod
 
   const completed = item.progress >= item.target;
   const icon = createUiNode(`TaskIcon:${item.id}`, ICON_SIZE, ICON_SIZE);
-  const iconGraphics = drawRounded(icon, ICON_SIZE, ICON_SIZE, new Color(255, 253, 245, 255),
+  drawRounded(icon, ICON_SIZE, ICON_SIZE, new Color(255, 253, 245, 255),
     ICON_SIZE / 2, { color: item.claimed ? new Color(178, 174, 164, 150) : TASK_RING, width: 2 });
-  drawTaskGlyph(iconGraphics, item.claimed ? 'check' : KIND_GLYPHS[item.kind],
-    item.claimed ? new Color(154, 150, 141, 255) : TASK_ACCENT);
+  // 图标字形：Remix Icon 字体渲染的白色 PNG，运行时按状态着色。
+  const iconKey = item.claimed ? 'check' : KIND_ICONS[item.kind];
+  const iconFrame = art.frame(GAME_CONFIG.art.taskIcons[iconKey]);
+  if (iconFrame) {
+    const glyph = createSpriteNode(`TaskGlyph:${item.id}`, iconFrame, 52, 52);
+    const glyphSprite = glyph.getComponent(Sprite);
+    if (glyphSprite) glyphSprite.color = item.claimed ? new Color(154, 150, 141, 255) : TASK_ACCENT;
+    icon.addChild(glyph);
+  }
   icon.setPosition(ICON_CENTER_X, 0);
   row.addChild(icon);
 
@@ -127,60 +139,4 @@ function claimButton(item: DailyTaskItem, actions: TaskRowActions): Node {
   drawRounded(button, BUTTON_WIDTH, BUTTON_HEIGHT, color, BUTTON_HEIGHT / 2,
     { color: BUTTON_EDGE, width: 2 });
   return button;
-}
-
-function drawTaskGlyph(graphics: Graphics, glyph: string, color: Color): void {
-  graphics.fillColor = color;
-  graphics.strokeColor = color;
-  graphics.lineWidth = 5;
-  if (glyph === 'play') {
-    graphics.moveTo(-12, -18);
-    graphics.lineTo(18, 0);
-    graphics.lineTo(-12, 18);
-    graphics.close();
-    graphics.fill();
-    return;
-  }
-  if (glyph === 'star') {
-    const points: Array<[number, number]> = [];
-    for (let index = 0; index < 10; index += 1) {
-      const angle = -Math.PI / 2 + index * Math.PI / 5;
-      const radius = index % 2 === 0 ? 20 : 8;
-      points.push([Math.cos(angle) * radius, Math.sin(angle) * radius]);
-    }
-    graphics.moveTo(points[0][0], points[0][1]);
-    for (const [x, y] of points.slice(1)) graphics.lineTo(x, y);
-    graphics.close();
-    graphics.fill();
-    return;
-  }
-  if (glyph === 'bolt') {
-    graphics.moveTo(5, 21);
-    graphics.lineTo(-14, -1);
-    graphics.lineTo(-2, -1);
-    graphics.lineTo(-6, -21);
-    graphics.lineTo(14, 2);
-    graphics.lineTo(3, 2);
-    graphics.close();
-    graphics.fill();
-    return;
-  }
-  if (glyph === 'share') {
-    graphics.moveTo(-13, -14);
-    graphics.lineTo(14, 16);
-    graphics.stroke();
-    graphics.moveTo(1, 16);
-    graphics.lineTo(14, 16);
-    graphics.lineTo(14, 3);
-    graphics.stroke();
-    return;
-  }
-  graphics.moveTo(-15, 0);
-  graphics.lineTo(-5, -10);
-  graphics.lineTo(15, 11);
-  graphics.moveTo(15, 11);
-  graphics.lineTo(2, 11);
-  graphics.moveTo(15, 11);
-  graphics.lineTo(15, -2);
-  graphics.stroke();
 }

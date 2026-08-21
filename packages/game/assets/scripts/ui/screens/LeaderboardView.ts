@@ -11,6 +11,7 @@ import {
   createButton,
   createIconButton,
   createLabel,
+  createSpriteNode,
   createUiNode,
   drawRounded,
 } from '../utils/uiFactory';
@@ -36,14 +37,16 @@ export interface LeaderboardViewActions {
 }
 
 const TITLE_COLOR = new Color(91, 49, 31, 255);
-// Keep 24px of clear space between the decorative border and the text area.
-const MY_RANK_TEXT_HEIGHT = 74;
-const MY_RANK_BORDER_PADDING = 24;
-const MY_RANK_HEIGHT = MY_RANK_TEXT_HEIGHT + MY_RANK_BORDER_PADDING * 2;
-const MY_RANK_CENTER_OFFSET = 90;
-const LIST_TOP_GAP = 17;
-const OFFLINE_STATE_HEIGHT = 238;
-const OFFLINE_TOP_GAP = 50;
+const SUMMARY_BACKGROUND = new Color(255, 250, 234, 245);
+const SUMMARY_BORDER = new Color(126, 79, 52, 105);
+const SUMMARY_SHADOW = new Color(105, 61, 40, 32);
+const STATE_WELL_BACKGROUND = new Color(255, 244, 214, 235);
+const STATUS_PILL_BACKGROUND = new Color(255, 248, 226, 225);
+const MY_RANK_HEIGHT = 86;
+const MY_RANK_CENTER_OFFSET = 105;
+const LIST_TOP_GAP = 28;
+const EMPTY_STATE_HEIGHT = 430;
+const OFFLINE_STATE_HEIGHT = 440;
 
 export class LeaderboardView {
   private parent: Node | null = null;
@@ -115,10 +118,7 @@ export class LeaderboardView {
 
     const entries = model.data?.entries ?? [];
     if (entries.length === 0) {
-      const empty = createLabel('暂无排名，成为第一个挑战者吧',
-        26, COLORS.ink, Math.min(620, model.uiWidth - 50), 80, 'display');
-      empty.node.setPosition(0, this.listRegion(model).center);
-      parent.addChild(empty.node);
+      this.renderEmptyState(parent, model, actions);
       return;
     }
 
@@ -140,36 +140,66 @@ export class LeaderboardView {
   }
 
   private renderMyRank(parent: Node, model: LeaderboardViewModel, width: number, centerY: number): void {
-    const stripWidth = width;
-    const strip = createUiNode('LeaderboardMyRank', stripWidth, MY_RANK_HEIGHT);
-    renderPaperSurface(strip, stripWidth, MY_RANK_HEIGHT, false, this.art);
+    const strip = createUiNode('LeaderboardMyRank', width, MY_RANK_HEIGHT);
     strip.setPosition(0, centerY);
     parent.addChild(strip);
 
-    const me = model.data?.me;
-    if (me) {
-      const leftPill = createUiNode('MyRankBadge', 168, 42);
-      // 去掉边框，只保留背景色
-      drawRounded(leftPill, 168, 42, COLORS.coral, 21);
-      const leftText = createLabel('我的排名', 20, COLORS.white, 150, 38, 'display');
-      leftText.node.setScale(0.92, 0.92, 1);
-      leftPill.addChild(leftText.node);
-      leftPill.setPosition(-stripWidth / 2 + 100, 0);
-      strip.addChild(leftPill);
+    const shadow = createUiNode('LeaderboardMyRankShadow', width - 4, MY_RANK_HEIGHT - 2);
+    drawRounded(shadow, width - 4, MY_RANK_HEIGHT - 2, SUMMARY_SHADOW, 30);
+    shadow.setPosition(0, -4);
+    strip.addChild(shadow);
 
-      const detailWidth = Math.max(1, stripWidth - 210);
-      const rightText = createLabel(
-        `第 ${me.rank} 名 · 最高分 ${formatScore(me.score)}`,
-        21, COLORS.teal, detailWidth, 40, 'display');
-      rightText.node.setPosition(stripWidth / 2 - detailWidth / 2, 0);
-      strip.addChild(rightText.node);
-    } else {
-      const hint = createLabel(model.localHighScore > 0
-        ? `本地最高分 ${formatScore(model.localHighScore)} · 完成同步后加入排行榜`
-        : '完成一局后加入排行榜', 20, COLORS.teal, stripWidth - 72, MY_RANK_TEXT_HEIGHT, 'display');
-      hint.node.setPosition(0, 0);
-      strip.addChild(hint.node);
-    }
+    const surface = createUiNode('LeaderboardMyRankSurface', width, MY_RANK_HEIGHT);
+    drawRounded(surface, width, MY_RANK_HEIGHT, SUMMARY_BACKGROUND, 30,
+      { color: SUMMARY_BORDER, width: 2 });
+    strip.addChild(surface);
+
+    const me = model.data?.me;
+    const badgeText = me ? '我的排名' : model.localHighScore > 0 ? '本地成绩' : '参赛记录';
+    const detailText = me
+      ? `第 ${me.rank} 名 · 最高分 ${formatScore(me.score)}`
+      : model.localHighScore > 0
+        ? `${formatScore(model.localHighScore)} 分 · 等待同步`
+        : '完成一局后加入排行榜';
+
+    const badge = createUiNode('MyRankBadge', 154, 46);
+    drawRounded(badge, 154, 46, me ? COLORS.coral : COLORS.mustard, 23);
+    const badgeLabel = createLabel(badgeText, 20, COLORS.white, 136, 40, 'display');
+    badge.addChild(badgeLabel.node);
+    badge.setPosition(-width / 2 + 95, 0);
+    surface.addChild(badge);
+
+    const detailWidth = Math.max(1, width - 202);
+    const detail = createLabel(detailText, 21, COLORS.teal, detailWidth, 44);
+    detail.isBold = true;
+    detail.node.setPosition(83, 0);
+    surface.addChild(detail.node);
+  }
+
+  /** 无任何好友成绩时的空状态：猫咪插图 + 引导文案 + 刷新动作。 */
+  private renderEmptyState(parent: Node, model: LeaderboardViewModel,
+    actions: LeaderboardViewActions): void {
+    const width = Math.min(590, model.uiWidth - 64);
+    const state = createUiNode('LeaderboardEmptyState', width, EMPTY_STATE_HEIGHT);
+    state.setPosition(0, this.listRegion(model).center);
+    parent.addChild(state);
+
+    this.renderStateCat(state, 'EmptyState', 128, COLORS.teal, false);
+
+    const title = createLabel('还没有好友上榜', 30, TITLE_COLOR, width - 44, 52, 'display');
+    title.node.setPosition(0, 18);
+    state.addChild(title.node);
+
+    const hint = createLabel(model.localHighScore > 0
+      ? `用 ${formatScore(model.localHighScore)} 分的实力，拿下第一名吧！`
+      : '完成一局，成为第一个上榜的挑战者吧！',
+    20, CAPTION_COLOR, width - 52, 40);
+    hint.node.setPosition(0, -30);
+    state.addChild(hint.node);
+
+    const retry = createButton('刷新榜单', 270, 68, COLORS.teal, actions.onRetry, 24);
+    retry.setPosition(0, -112);
+    state.addChild(retry);
   }
 
   private renderLoadingState(parent: Node, model: LeaderboardViewModel): void {
@@ -209,24 +239,60 @@ export class LeaderboardView {
   private renderOfflineState(parent: Node, model: LeaderboardViewModel, actions: LeaderboardViewActions): void {
     const width = Math.min(590, model.uiWidth - 64);
     const state = createUiNode('LeaderboardOfflineState', width, OFFLINE_STATE_HEIGHT);
-    renderPaperSurface(state, width, OFFLINE_STATE_HEIGHT, false, this.art);
-    state.setPosition(0, this.myRankBottomY(model) - OFFLINE_TOP_GAP - OFFLINE_STATE_HEIGHT / 2);
+    state.setPosition(0, this.listRegion(model).center);
     parent.addChild(state);
 
-    const title = createLabel('排行榜暂时不可用', 29, TITLE_COLOR, width - 44, 52, 'display');
-    title.node.setPosition(0, 72);
+    this.renderStateCat(state, 'OfflineState', 142, COLORS.coral, true);
+
+    const title = createLabel('排行榜暂时不可用', 30, TITLE_COLOR, width - 44, 54, 'display');
+    title.node.setPosition(0, 30);
     state.addChild(title.node);
-    const copy = createLabel('网络恢复后可重新同步好友成绩', 21, TITLE_COLOR, width - 52, 40, 'display');
-    copy.node.setPosition(0, 22);
+
+    const copy = createLabel('网络恢复后，可重新同步好友成绩', 20, TITLE_COLOR, width - 52, 40);
+    copy.node.setPosition(0, -18);
     state.addChild(copy.node);
+
+    const status = createUiNode('LeaderboardLocalScoreStatus', 380, 42);
+    drawRounded(status, 380, 42, STATUS_PILL_BACKGROUND, 21);
     const local = createLabel(model.localHighScore > 0
-      ? `本地最高分 ${formatScore(model.localHighScore)} 已保留`
-      : '先完成一局，记录你的本地成绩', 20, CAPTION_COLOR, width - 52, 36);
-    local.node.setPosition(0, -20);
-    state.addChild(local.node);
-    const retry = createButton('重新连接', 250, 64, COLORS.teal, actions.onRetry, 24);
-    retry.setPosition(0, -80);
+      ? `本地最高分 ${formatScore(model.localHighScore)} 已安全保留`
+      : '完成一局后，本地成绩会自动保留', 18, CAPTION_COLOR, 350, 36);
+    status.addChild(local.node);
+    status.setPosition(0, -72);
+    state.addChild(status);
+
+    const retry = createButton('重新连接', 270, 68, COLORS.teal, actions.onRetry, 24);
+    retry.setPosition(0, -146);
     state.addChild(retry);
+  }
+
+  private renderStateCat(parent: Node, name: string, centerY: number, accent: Color,
+    showStatusBadge: boolean): void {
+    const shadow = createUiNode(`${name}CatShadow`, 150, 150);
+    drawRounded(shadow, 150, 150, SUMMARY_SHADOW, 75);
+    shadow.setPosition(0, centerY - 5);
+    parent.addChild(shadow);
+
+    const catWell = createUiNode(`${name}CatWell`, 150, 150);
+    drawRounded(catWell, 150, 150, STATE_WELL_BACKGROUND, 75,
+      { color: accent, width: 2 });
+    const catFrame = this.art.frame(GAME_CONFIG.cats[0].asset);
+    if (catFrame) {
+      const cat = createSpriteNode(`${name}Cat`, catFrame, 126, 126);
+      cat.setPosition(0, 5);
+      catWell.addChild(cat);
+    }
+    catWell.setPosition(0, centerY);
+    parent.addChild(catWell);
+
+    if (!showStatusBadge) return;
+    const badge = createUiNode(`${name}Badge`, 42, 42);
+    drawRounded(badge, 42, 42, COLORS.coral, 21,
+      { color: COLORS.white, width: 3 });
+    const mark = createLabel('!', 24, COLORS.white, 34, 34, 'display');
+    badge.addChild(mark.node);
+    badge.setPosition(58, centerY + 54);
+    parent.addChild(badge);
   }
 
   private renderEntries(parent: Node, model: LeaderboardViewModel, entries: readonly LeaderboardEntry[]): void {

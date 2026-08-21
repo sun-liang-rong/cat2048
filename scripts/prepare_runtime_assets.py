@@ -32,7 +32,6 @@ ALPHA_THRESHOLD = 8
 CAT_LEVELS = range(1, 13)
 EXPECTED_IMAGE_SIZES = {
     **{f"cat_{level:02}.png": (256, 256) for level in CAT_LEVELS},
-    "bg_home.png": (750, 1334),
     "bg_page.png": (750, 1334),
     "bg_board_wood.png": (1024, 1024),
     "bg_board_pink.png": (1024, 1024),
@@ -49,13 +48,12 @@ EXPECTED_IMAGE_SIZES = {
         "coin.png",
     ]},
     **{name: (256, 256) for name in [
-        "aurora_sparkle.png", "aurora_burst.png", "aurora_paw_sparkle.png", "aurora_paw_burst.png",
-        "stars_sparkle.png", "stars_burst.png", "stars_fish_sparkle.png", "stars_confetti_burst.png",
+        "aurora_sparkle.png", "aurora_burst.png",
+        "stars_sparkle.png", "stars_burst.png",
     ]},
 }
 
 BACKGROUND_TARGETS = {
-    "bg_home": "backgrounds/common",
     "bg_page": "backgrounds/common",
     "share_score_bg": "backgrounds/common",
     "bg_board_wood": "backgrounds/board/wood",
@@ -263,7 +261,7 @@ def validate() -> dict[str, str]:
         *(OUTPUT / "cats" / skin / f"cat_{level:02}.png"
           for skin in ["sunny", "aurora"] for level in CAT_LEVELS),
         *(OUTPUT / "backgrounds" / "common" / name
-          for name in ["bg_home.png", "bg_page.png", "share_score_bg.png"]),
+          for name in ["bg_page.png", "share_score_bg.png"]),
         *(OUTPUT / "backgrounds" / "board" / theme / f"bg_board_{theme}.png"
           for theme in ["wood", "pink", "star"]),
         *(OUTPUT / "ui" / "common" / name for name in [
@@ -278,9 +276,7 @@ def validate() -> dict[str, str]:
         ]),
         *(OUTPUT / "effects" / theme / name for theme, name in [
             ("aurora", "aurora_sparkle.png"), ("aurora", "aurora_burst.png"),
-            ("aurora", "aurora_paw_sparkle.png"), ("aurora", "aurora_paw_burst.png"),
             ("stars", "stars_sparkle.png"), ("stars", "stars_burst.png"),
-            ("stars", "stars_fish_sparkle.png"), ("stars", "stars_confetti_burst.png"),
         ]),
         OUTPUT / "audio" / "move.wav",
         OUTPUT / "audio" / "merge.wav",
@@ -322,14 +318,13 @@ def main() -> int:
                      {0: "classic_mode", 2: "collection"}, "ui/common", 160)
     slice_grid_cells("sheet_economy.png", 4, 2,
                      {0: "undo", 3: "remove_lowest", 4: "coin"}, "ui/common", 160)
-    slice_grid("effect_aurora.png", 2, 2,
-               ["aurora_sparkle", "aurora_burst", "aurora_paw_sparkle", "aurora_paw_burst"],
-               "effects/aurora", 256)
-    slice_grid("effect_stars.png", 2, 2,
-               ["stars_sparkle", "stars_burst", "stars_fish_sparkle", "stars_confetti_burst"],
-               "effects/stars", 256)
+    slice_grid_cells("effect_aurora.png", 2, 2,
+                     {0: "aurora_sparkle", 1: "aurora_burst"},
+                     "effects/aurora", 256)
+    slice_grid_cells("effect_stars.png", 2, 2,
+                     {0: "stars_sparkle", 1: "stars_burst"},
+                     "effects/stars", 256)
     for background, size in {
-        "bg_home": (750, 1334),
         "bg_page": (750, 1334),
         "bg_board_wood": (1024, 1024),
         "bg_board_pink": (1024, 1024),

@@ -24,6 +24,7 @@
 
 - `P0_FIX_COMPLETED.md` / `P1_ERROR_FIX.md` / `P1_OPTIMIZATION_COMPLETED.md` — 历史修复记录
 - `home_redesign_notes.md` / `HOME_UI_OPTIMIZATION_ANALYSIS.md` — 首页 UI 重设计记录
+- `PROJECT_REFACTOR_PLAN.md` / `REFACTOR_INDEX.md` — 项目重整方案与索引（重整已完成，归档存档）
 
 ## 开发记录
 

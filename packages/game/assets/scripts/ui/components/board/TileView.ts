@@ -18,19 +18,22 @@ import {
 
 /** 各等级棋子的底色（由样式定义）。 */
 export const TILE_LEVEL_COLORS = [
-  new Color(255, 235, 195, 255),  // Lv1: 更鲜明的奶黄色
-  new Color(180, 210, 230, 255),  // Lv2: 更饱和的蓝白色
-  new Color(255, 195, 135, 255),  // Lv3: 更明亮的橙色
-  new Color(210, 215, 235, 255),  // Lv4: 更清晰的淡紫色
-  new Color(245, 205, 160, 255),  // Lv5: 更温暖的米色
-  new Color(200, 160, 100, 255),  // Lv6: 更深的棕色
-  new Color(220, 220, 210, 255),  // Lv7: 更明显的灰白色
-  new Color(70, 65, 75, 255),     // Lv8: 保持深色
-  new Color(95, 75, 170, 255),    // Lv9: 更鲜艳的紫色
-  new Color(95, 165, 185, 255),   // Lv10: 更清晰的青色
-  new Color(110, 85, 175, 255),   // Lv11: 更饱和的紫色
-  new Color(220, 165, 60, 255),   // Lv12: 更金黄的色调
+  new Color(255, 240, 208, 255),
+  new Color(224, 239, 240, 255),
+  new Color(255, 224, 194, 255),
+  new Color(231, 225, 242, 255),
+  new Color(249, 221, 202, 255),
+  new Color(230, 209, 174, 255),
+  new Color(222, 231, 215, 255),
+  new Color(218, 207, 228, 255),
+  new Color(211, 202, 235, 255),
+  new Color(198, 229, 229, 255),
+  new Color(218, 207, 237, 255),
+  new Color(250, 225, 166, 255),
 ] as const;
+
+const TILE_BORDER = new Color(112, 75, 53, 145);
+const TILE_SHADOW = new Color(91, 57, 39, 42);
 
 export interface TileViewContext {
   readonly art: ArtRepository;
@@ -42,34 +45,39 @@ export interface TileViewContext {
 export function createTileNode(tile: Tile, layer: Node, ctx: TileViewContext,
   tileNodes: Map<string, Node>): Node {
   const node = createUiNode(`Tile:${tile.id}`, CELL_SIZE, CELL_SIZE);
-  // 统一圆角24px，增强边框到4px，低等级方块使用更明显的边框
-  const borderWidth = tile.level <= 4 ? 4 : 4;
-  drawRounded(node, CELL_SIZE, CELL_SIZE, TILE_LEVEL_COLORS[tile.level - 1], 24,
-    { color: COLORS.ink, width: borderWidth });
   node.setPosition(ctx.positionFor(tile));
   layer.addChild(node);
 
-  const cat = GAME_CONFIG.cats[tile.level - 1];
+  const shadow = createUiNode(`TileShadow:${tile.id}`, CELL_SIZE - 2, CELL_SIZE - 2);
+  drawRounded(shadow, CELL_SIZE - 2, CELL_SIZE - 2, TILE_SHADOW, 22);
+  shadow.setPosition(0, -3);
+  node.addChild(shadow);
+
+  const surface = createUiNode(`TileSurface:${tile.id}`, CELL_SIZE, CELL_SIZE);
+  drawRounded(surface, CELL_SIZE, CELL_SIZE, TILE_LEVEL_COLORS[tile.level - 1], 22,
+    { color: TILE_BORDER, width: 2 });
+  node.addChild(surface);
+
   if (tile.level === GAME_CONFIG.cats.length) {
     const haloFrame = ctx.art.frame(GAME_CONFIG.art.maxHalo);
     if (haloFrame) {
       const halo = createSpriteNode('MaxLevelHalo', haloFrame, CELL_SIZE * 1.08, CELL_SIZE * 1.08);
-      node.addChild(halo);
+      surface.addChild(halo);
       tween(halo).by(7, { angle: 360 }).repeatForever().start();
     }
   }
   const frame = ctx.cosmetics.catFrame(tile.level);
   if (frame) {
-    const sprite = createSpriteNode(`Cat:${tile.level}`, frame, CELL_SIZE * 0.78, CELL_SIZE * 0.78);
-    sprite.setPosition(0, 10);
-    node.addChild(sprite);
+    const sprite = createSpriteNode(`Cat:${tile.level}`, frame, CELL_SIZE * 0.82, CELL_SIZE * 0.82);
+    sprite.setPosition(0, 8);
+    surface.addChild(sprite);
   }
-  const badge = createUiNode('LevelBadge', 72, 34);
-  drawRounded(badge, 72, 34, tile.level >= 8 ? COLORS.mustard : COLORS.teal, 17);
-  badge.setPosition(0, -CELL_SIZE / 2 + 23);
-  const label = createLabel(`Lv${tile.level}`, 20, COLORS.white, 68, 30, 'display');
+  const badge = createUiNode('LevelBadge', 62, 28);
+  drawRounded(badge, 62, 28, tile.level >= 8 ? COLORS.mustard : COLORS.teal, 14);
+  badge.setPosition(0, -CELL_SIZE / 2 + 20);
+  const label = createLabel(`Lv.${tile.level}`, 17, COLORS.white, 58, 26, 'display');
   badge.addChild(label.node);
-  node.addChild(badge);
+  surface.addChild(badge);
   tileNodes.set(tile.id, node);
   return node;
 }

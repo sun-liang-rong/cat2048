@@ -1,0 +1,25 @@
+{
+  "created": 1787290859,
+  "data": [
+    {
+      "b64_json": "[redacted_base64]",
+      "url": "[redacted_signed_url]",
+      "revised_prompt": "Create production-ready gameplay UI surfaces for a warm, cozy Cat 2048 mobile game. Match a soft Japanese watercolor picture-book aesthetic with subtle paper grain, hand-painted honey wood, warm cream, pale apricot, and restrained warm-brown edge accents. Matte surfaces, soft upper-left light, gentle lower-right depth, clean mobile readability. No text, letters, numbers, logos, watermark, cats, characters, objects, yarn, fabric, plants, room scenery, checkerboard pattern, photorealism, glossy plastic, neon, heavy black outlines, or cropped edges.\n\nA clean square top-down honey-colored wooden game-board base with softly rounded outer corners. The center is one uninterrupted pale honey-wood surface where the game will overlay its own 4 by 4 cells later. Use quiet hand-painted horizontal wood grain, a slim layered wooden rim, two tiny carved paw accents near opposite outer corners, and a very soft inset shadow around the usable center. Keep the center flat, bright, and low contrast. CRITICAL: do not draw any grid, cells, slots, squares, checker pattern, central ornament, yarn, cloth, props, or scene background. The board fills the entire square image edge to edge."
+    }
+  ],
+  "usage": {
+    "input_tokens": 246,
+    "output_tokens": 1650,
+    "total_tokens": 1896,
+    "input_tokens_details": {
+      "text_tokens": 246,
+      "image_tokens": 0,
+      "cached_tokens": 0
+    },
+    "output_tokens_details": {
+      "text_tokens": 0,
+      "image_tokens": 1650,
+      "reasoning_tokens": 0
+    }
+  }
+}

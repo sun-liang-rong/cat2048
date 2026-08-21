@@ -98,11 +98,11 @@ export class GameScreen {
     parent.addChild(settings);
 
     const scoreCard = this.createHudCard('本局', String(model.score));
-    scoreCard.node.setPosition(-115, hudY);
+    scoreCard.node.setPosition(-108, hudY);
     parent.addChild(scoreCard.node);
     this.scoreLabel = scoreCard.value;
     const bestCard = this.createHudCard('最高', String(model.highScore));
-    bestCard.node.setPosition(115, hudY);
+    bestCard.node.setPosition(108, hudY);
     parent.addChild(bestCard.node);
     this.highScoreLabel = bestCard.value;
 
@@ -184,20 +184,21 @@ export class GameScreen {
   }
 
   private createHudCard(titleText: string, valueText: string): { node: Node; value: Label } {
-    const node = createUiNode(`Hud:${titleText}`, 190, 92);
-    drawRounded(node, 190, 92, new Color(255, 248, 226, 240), 24, { color: COLORS.ink, width: 4 });
-    const title = createLabel(titleText, 20, COLORS.teal, 160, 30, 'display');
-    title.node.setPosition(0, 24);
+    const node = createUiNode(`Hud:${titleText}`, 176, 84);
+    drawRounded(node, 176, 84, new Color(255, 249, 232, 242), 20,
+      { color: new Color(139, 91, 59, 145), width: 2 });
+    const title = createLabel(titleText, 18, COLORS.teal, 148, 26, 'display');
+    title.node.setPosition(0, 22);
     node.addChild(title.node);
     const value = this.createHudValue(valueText);
-    value.node.setPosition(0, -15);
+    value.node.setPosition(0, -13);
     node.addChild(value.node);
     return { node, value };
   }
 
   private createHudValue(valueText: string): Label {
     // NONE：固定字号、不裁剪、不缩放；超大分数完整显示（居中溢出卡片边缘）。
-    const value = createLabel(valueText, HUD_VALUE_FONT_SIZE, COLORS.ink, 178, 48, 'display', 'display');
+    const value = createLabel(valueText, HUD_VALUE_FONT_SIZE, COLORS.ink, 164, 44, 'display', 'display');
     value.enableWrapText = false;
     value.overflow = Label.Overflow.NONE;
     return value;

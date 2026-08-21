@@ -1,0 +1,28 @@
+{
+  "manifest": "/Users/sunliangrong/Desktop/cat2048/resources/home-cat-showcase/manifest.json",
+  "generated_at": "2026-08-21T03:42:07.454495+00:00",
+  "assets": [
+    {
+      "id": "home_cat_merge_showcase",
+      "output": "/Users/sunliangrong/Desktop/cat2048/resources/home-cat-showcase/images/home_cat_room.png",
+      "status": "generated",
+      "warnings": [],
+      "response_record": "/Users/sunliangrong/Desktop/cat2048/resources/home-cat-showcase/images/responses/home_cat_merge_showcase.json",
+      "source_dimensions": [
+        1536,
+        1024
+      ],
+      "output_dimensions": [
+        1200,
+        920
+      ],
+      "meaningful_alpha": true,
+      "transparent_pixel_ratio": 0.417318,
+      "checkerboard_removed": false,
+      "flat_background_removed": false,
+      "sha256": "50c9c7511fc17f107de0fa8dbcc20363b4a39c85f7c82da83a43e12657505ab3",
+      "bytes": 1297421,
+      "source": "/Users/sunliangrong/Desktop/cat2048/resources/home-cat-showcase/images/_source/home_cat_merge_showcase.png"
+    }
+  ]
+}

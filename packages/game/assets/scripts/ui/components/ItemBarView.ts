@@ -46,18 +46,18 @@ export class ItemBarView {
 
   public mount(parent: Node, y: number, actions: ItemBarActions): void {
     this.actions = actions;
-    const bar = createUiNode('ItemBar', 650, 96);
+    const bar = createUiNode('ItemBar', 650, 88);
     bar.setPosition(0, y);
     parent.addChild(bar);
 
     const undo = this.createItemButton('undo', 'UndoItem', '撤回一步', '↶');
-    undo.node.setPosition(-167, 0);
+    undo.node.setPosition(-163, 0);
     bar.addChild(undo.node);
     this.undoItem = undo;
 
     const remove = this.createItemButton('remove-lowest', 'RemoveLowestItem',
-      '消除最低 ×3', '×3');
-    remove.node.setPosition(167, 0);
+      '移除最低3只', '×3');
+    remove.node.setPosition(163, 0);
     bar.addChild(remove.node);
     this.removeLowestItem = remove;
   }
@@ -80,26 +80,27 @@ export class ItemBarView {
   }
 
   private createItemButton(kind: ItemKind, name: string, titleText: string, iconText: string): ItemButtonView {
-    const node = createUiNode(name, 316, 96);
-    drawRounded(node, 316, 96, new Color(255, 248, 226, 245), 26,
-      { color: COLORS.ink, width: 4 });
+    const node = createUiNode(name, 310, 88);
+    drawRounded(node, 310, 88, new Color(255, 248, 228, 242), 22,
+      { color: new Color(139, 91, 59, 145), width: 2 });
 
-    const icon = createUiNode(`${name}:Icon`, 68, 68);
-    drawRounded(icon, 68, 68, COLORS.teal, 22);
+    const icon = createUiNode(`${name}:Icon`, 60, 60);
+    drawRounded(icon, 60, 60, new Color(247, 226, 188, 245), 18,
+      { color: new Color(139, 91, 59, 80), width: 1 });
     icon.setPosition(-111, 0);
     const itemFrame = this.art.frame(kind === 'undo' ? GAME_CONFIG.art.undo : GAME_CONFIG.art.removeLowest);
-    if (itemFrame) icon.addChild(createSpriteNode(`${name}:IconSprite`, itemFrame, 56, 56));
-    else icon.addChild(createLabel(iconText, 29, COLORS.white, 60, 58, 'display').node);
+    if (itemFrame) icon.addChild(createSpriteNode(`${name}:IconSprite`, itemFrame, 52, 52));
+    else icon.addChild(createLabel(iconText, 27, COLORS.teal, 54, 52, 'display').node);
     node.addChild(icon);
 
-    const title = createLabel(titleText, 25, COLORS.ink, 176, 46, 'display');
-    title.node.setPosition(11, 7);
+    const title = createLabel(titleText, 22, COLORS.ink, 174, 42, 'display');
+    title.node.setPosition(10, 3);
     node.addChild(title.node);
 
-    const badge = createUiNode(`${name}:CountBadge`, 54, 32);
-    drawRounded(badge, 54, 32, COLORS.mustard, 16);
-    badge.setPosition(119, -26);
-    const count = createLabel('1', 20, COLORS.white, 48, 28, 'display');
+    const badge = createUiNode(`${name}:CountBadge`, 58, 28);
+    drawRounded(badge, 58, 28, COLORS.mustard, 14);
+    badge.setPosition(117, -24);
+    const count = createLabel('×1', 17, COLORS.white, 52, 24, 'display');
     badge.addChild(count.node);
     node.addChild(badge);
 
@@ -126,21 +127,21 @@ export class ItemBarView {
   }
 
   private setItemButtonState(view: ItemButtonView | null, canUse: boolean, canRefill: boolean,
-    remaining: number, refillRemaining: number): void {
+    remaining: number, _refillRemaining: number): void {
     if (!view) return;
     const refillAvailable = !canUse && canRefill;
-    view.count.string = refillAvailable ? '可补' : String(remaining);
-    setLabelText(view.title, canUse ? view.baseTitle : refillAvailable ? '分享补充' : '已用完', 'display');
-    drawRounded(view.badge, 54, 32, refillAvailable ? COLORS.coral
-      : canUse ? COLORS.mustard : new Color(157, 148, 135, 210), 16);
+    view.count.string = refillAvailable ? '补充' : `×${Math.max(0, remaining)}`;
+    setLabelText(view.title, refillAvailable ? '分享补充' : view.baseTitle, 'display', 22);
+    drawRounded(view.badge, 58, 28, refillAvailable ? COLORS.coral
+      : canUse ? COLORS.mustard : new Color(157, 148, 135, 190), 14);
     for (const child of [...view.icon.children]) child.destroy();
     const frame = refillAvailable
       ? this.art.frame(GAME_CONFIG.art.share)
       : this.art.frame(view.kind === 'undo' ? GAME_CONFIG.art.undo : GAME_CONFIG.art.removeLowest);
-    if (frame) view.icon.addChild(createSpriteNode(`${view.node.name}:IconSprite`, frame, 56, 56));
+    if (frame) view.icon.addChild(createSpriteNode(`${view.node.name}:IconSprite`, frame, 52, 52));
     else view.icon.addChild(createLabel(refillAvailable ? '↗' : view.baseIcon,
-      29, COLORS.white, 60, 58, 'display').node);
+      27, COLORS.teal, 54, 52, 'display').node);
     const opacity = view.node.getComponent(UIOpacity) ?? view.node.addComponent(UIOpacity);
-    opacity.opacity = canUse || canRefill ? 255 : refillRemaining > 0 || remaining > 0 ? 145 : 90;
+    opacity.opacity = canUse || canRefill ? 255 : 105;
   }
 }

@@ -94,6 +94,9 @@ export function homeActionDockPositions(count: number, spacing = 116): number[] 
   return Array.from({ length: count }, (_, index) => (index - center) * spacing);
 }
 
+const GAME_EVOLUTION_PANEL_HEIGHT = 204;
+const GAME_STATS_BAR_HEIGHT = 62;
+
 /** Keeps the HUD, one-hand board, and item bar clear of both safe areas. */
 export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, bottomInset: number,
   boardPixels: number): GameLayout {
@@ -112,7 +115,8 @@ export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, 
   // On tall screens reserve the evolution route, stats bar, and their small
   // gaps as one vertical block so the board sits directly below the stats
   // instead of drifting toward the bottom of the available space.
-  const statsAwareBoardTop = hudCenterFromTop + 46 + 50 + 236 + 72;
+  const statsAwareBoardTop = hudCenterFromTop + 96
+    + GAME_EVOLUTION_PANEL_HEIGHT + GAME_STATS_BAR_HEIGHT;
   const defaultBoardTop = minimumBoardTop + Math.max(0, maximumBoardTop - minimumBoardTop) * 0.82;
   const preferredBoardTop = statsAwareBoardTop <= maximumBoardTop
     ? statsAwareBoardTop
@@ -120,8 +124,13 @@ export function gameLayout(uiWidth: number, uiHeight: number, topInset: number, 
   const boardTop = Math.max(minimumBoardTop, Math.min(maximumBoardTop, preferredBoardTop));
   const hudBottom = hudCenterFromTop + 46;
   const panelSpace = boardTop - hudBottom - 28;
-  const evolutionPanelHeight = panelSpace >= 176 ? Math.min(236, panelSpace) : 0;
-  const statsBarHeight = evolutionPanelHeight > 0 && panelSpace - evolutionPanelHeight >= 90 ? 72 : 0;
+  const evolutionPanelHeight = panelSpace >= 176
+    ? Math.min(GAME_EVOLUTION_PANEL_HEIGHT, panelSpace)
+    : 0;
+  const statsBarHeight = evolutionPanelHeight > 0
+    && panelSpace - evolutionPanelHeight >= GAME_STATS_BAR_HEIGHT + 22
+    ? GAME_STATS_BAR_HEIGHT
+    : 0;
   const statsBarCenterFromTop = hudBottom + 14 + evolutionPanelHeight + 18 + statsBarHeight / 2;
   return {
     hudCenterFromTop,
