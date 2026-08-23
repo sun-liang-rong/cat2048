@@ -22,7 +22,7 @@ import {
   createUiNode,
   drawRounded,
 } from '../utils/uiFactory';
-import { createTileNode, playMergeAnimation } from './board/TileView';
+import { createTileNode, playMergeAnimation, TileNodePool } from './board/TileView';
 
 /** 棋盘背景外轮廓圆角（与格子 22 同级，略大以体现由外到内的收束）。 */
 const BOARD_CORNER_RADIUS = 30;
@@ -37,8 +37,8 @@ export class BoardView {
   private tileLayer: Node | null = null;
   private tileNodes = new Map<string, Node>();
   private touchHighlight: Node | null = null;
-  private tilePool: Node[] = [];
-  private readonly POOL_MAX_SIZE = 20;
+  /** 棋子节点对象池：棋盘最多 16 格，池容量留出合并动画过渡的余量。 */
+  private readonly tilePool = new TileNodePool(20);
 
   public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
@@ -91,9 +91,8 @@ export class BoardView {
     this.tileNodes.clear();
     this.tileLayer = null;
     this.boardRoot = null;
-    // 清空对象池
-    this.tilePool.forEach(node => node.destroy());
-    this.tilePool = [];
+    // 销毁对象池中的空闲节点
+    this.tilePool.destroyAll();
   }
 
   public renderInitial(snapshot: BoardSnapshot): void {
@@ -107,13 +106,13 @@ export class BoardView {
 
   public rebuild(snapshot: BoardSnapshot, animate = true): void {
     if (!this.tileLayer) return;
-    // 回收所有节点到对象池
+    // 回收所有节点到对象池（release 内部会停止动画并从父节点移除）
     const children = this.tileLayer.children;
     for (let i = children.length - 1; i >= 0; i--) {
-      this.returnTileNodeToPool(children[i]);
+      this.tilePool.release(children[i]);
     }
     this.tileNodes.clear();
-    // 从池中获取或创建新节点
+    // 从池中取用或创建新节点
     snapshot.tiles.forEach((tile) => {
       const node = createTileNode(tile, this.tileLayer!, this.tileContext(), this.tileNodes);
       if (animate) {
@@ -121,31 +120,6 @@ export class BoardView {
         tween(node).to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
       }
     });
-  }
-
-  /** 归还节点到对象池 */
-  private returnTileNodeToPool(node: Node): void {
-    if (this.tilePool.length < this.POOL_MAX_SIZE) {
-      // 清理状态
-      Tween.stopAllByTarget(node);
-      node.active = false;
-      node.removeFromParent();
-      node.setPosition(0, 0, 0);
-      node.setScale(1, 1, 1);
-
-      // 清理子节点的动画状态
-      node.children.forEach(child => {
-        Tween.stopAllByTarget(child);
-        child.children.forEach(grandChild => {
-          Tween.stopAllByTarget(grandChild);
-        });
-      });
-
-      this.tilePool.push(node);
-    } else {
-      Tween.stopAllByTarget(node);
-      node.destroy();
-    }
   }
 
   public async animateMove(
@@ -180,8 +154,8 @@ export class BoardView {
       const node = this.tileNodes.get(tileId);
       if (!node) continue;
       await tweenScale(node, new Vec3(0.08, 0.08, 1), 0.1);
-      node.destroy();
       this.tileNodes.delete(tileId);
+      this.tilePool.release(node);
       if (!isAlive()) return;
     }
   }
@@ -266,6 +240,7 @@ export class BoardView {
       art: this.art,
       cosmetics: this.cosmetics,
       positionFor: (position) => this.positionFor(position),
+      pool: this.tilePool,
     };
   }
 }

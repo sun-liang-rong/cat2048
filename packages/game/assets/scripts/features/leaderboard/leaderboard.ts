@@ -55,6 +55,9 @@ interface StoredSession {
   readonly player: PlayerSummary;
 }
 
+/** 批量提交的分块大小（服务端单批上限 20，客户端留出余量）。 */
+const SCORE_BATCH_SIZE = 10;
+
 /** 棋盘上最高猫咪等级（空盘按 1 计算）。 */
 export function highestLevelOfTiles(tiles: readonly { readonly level: number }[]): number {
   return tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1);
@@ -132,7 +135,28 @@ export class LeaderboardClient {
 
   private async drainPendingScores(): Promise<number> {
     let flushed = 0;
-    for (const payload of this.queue.list()) {
+    const snapshot = this.queue.list();
+    // 分块批量提交；网络级错误（-1）中止本轮，剩余条目留待下次。
+    for (let index = 0; index < snapshot.length; index += SCORE_BATCH_SIZE) {
+      const flushedCount = await this.drainChunk(snapshot.slice(index, index + SCORE_BATCH_SIZE));
+      if (flushedCount < 0) break;
+      flushed += flushedCount;
+    }
+    return flushed;
+  }
+
+  /** 提交一个批次：优先走批量接口，接口不可用或整批被拒时回退逐条提交。返回 -1 表示遇到网络错误应中止。 */
+  private async drainChunk(chunk: readonly ScorePayload[]): Promise<number> {
+    if (chunk.length > 1) {
+      try {
+        return await this.sendScoresBatch(chunk);
+      } catch (error) {
+        if (error instanceof LeaderboardHttpError && error.status >= 500) return -1;
+        // 批量接口不存在（旧服务端）或校验拒绝：回退逐条以定位坏数据
+      }
+    }
+    let flushed = 0;
+    for (const payload of chunk) {
       try {
         await this.sendScore(payload);
         this.queue.remove(payload.runId);
@@ -145,10 +169,26 @@ export class LeaderboardClient {
           this.queue.remove(payload.runId);
           continue;
         }
-        break;
+        return -1;
       }
     }
     return flushed;
+  }
+
+  /** 批量提交：服务端对每条返回结果，仅移除确认处理的条目。 */
+  private async sendScoresBatch(payloads: readonly ScorePayload[]): Promise<number> {
+    const response = await this.authorizedRequest<ApiEnvelope<{ results: readonly ScoreSubmissionResponse[] }>>({
+      method: 'POST',
+      path: '/v1/leaderboard/scores/batch',
+      body: { scores: payloads },
+    });
+    const results = response.data.results;
+    if (!Array.isArray(results)) throw new Error('Malformed batch submission response');
+    const handledRunIds = new Set(results.map((result) => result.runId));
+    for (const payload of payloads) {
+      if (handledRunIds.has(payload.runId)) this.queue.remove(payload.runId);
+    }
+    return results.length;
   }
 
   public async getLeaderboard(limit = 50): Promise<LeaderboardResponse> {

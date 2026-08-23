@@ -162,7 +162,46 @@ describe('LeaderboardClient', () => {
     expect(client.pendingScores()).toEqual([]);
   });
 
-  it('drops permanently rejected scores and continues flushing later runs', async () => {
+  it('flushes multiple pending scores through the batch endpoint', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(LEADERBOARD_AUTH_KEY, JSON.stringify({
+      accessToken: 'token-1',
+      player: { id: 'player-1', nickname: null, avatarUrl: null, highScore: 0 },
+    }));
+    storage.setItem('cat2048.leaderboard.queue.v1', JSON.stringify([
+      { runId: 'run-1', score: 1024, highestLevel: 5 },
+      { runId: 'run-2', score: 2048, highestLevel: 6 },
+    ]));
+    const request = vi.fn().mockResolvedValueOnce({
+      data: {
+        results: [
+          { runId: 'run-1', accepted: true, duplicate: false, highScore: 2048, rank: 1 },
+          { runId: 'run-2', accepted: true, duplicate: false, highScore: 2048, rank: 1 },
+        ],
+      },
+    });
+    const transport: LeaderboardHttpTransport = { request };
+    const login: LeaderboardLoginProvider = {
+      getLoginCode: vi.fn(),
+    };
+    const client = new LeaderboardClient(transport, login, storage);
+
+    await expect(client.flushPendingScores()).resolves.toBe(2);
+    expect(request).toHaveBeenCalledOnce();
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      method: 'POST',
+      path: '/v1/leaderboard/scores/batch',
+      body: {
+        scores: [
+          { runId: 'run-1', score: 1024, highestLevel: 5 },
+          { runId: 'run-2', score: 2048, highestLevel: 6 },
+        ],
+      },
+    });
+    expect(client.pendingScores()).toEqual([]);
+  });
+
+  it('falls back to per-score submission when the batch endpoint rejects the payload', async () => {
     const storage = new MemoryStorage();
     storage.setItem(LEADERBOARD_AUTH_KEY, JSON.stringify({
       accessToken: 'token-1',
@@ -174,7 +213,8 @@ describe('LeaderboardClient', () => {
     ]));
     const transport: LeaderboardHttpTransport = {
       request: vi.fn()
-        .mockRejectedValueOnce(new LeaderboardHttpError('invalid', 400))
+        .mockRejectedValueOnce(new LeaderboardHttpError('batch rejected', 400))
+        .mockRejectedValueOnce(new LeaderboardHttpError('invalid score', 400))
         .mockResolvedValueOnce({
           data: {
             runId: 'run-valid',
@@ -192,6 +232,29 @@ describe('LeaderboardClient', () => {
 
     await expect(client.flushPendingScores()).resolves.toBe(1);
     expect(client.pendingScores()).toEqual([]);
+  });
+
+  it('keeps pending scores when the server errors during a batch flush', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(LEADERBOARD_AUTH_KEY, JSON.stringify({
+      accessToken: 'token-1',
+      player: { id: 'player-1', nickname: null, avatarUrl: null, highScore: 0 },
+    }));
+    storage.setItem('cat2048.leaderboard.queue.v1', JSON.stringify([
+      { runId: 'run-1', score: 100, highestLevel: 2 },
+      { runId: 'run-2', score: 200, highestLevel: 3 },
+    ]));
+    const transport: LeaderboardHttpTransport = {
+      request: vi.fn()
+        .mockRejectedValueOnce(new LeaderboardHttpError('server error', 500)),
+    };
+    const login: LeaderboardLoginProvider = {
+      getLoginCode: vi.fn(),
+    };
+    const client = new LeaderboardClient(transport, login, storage);
+
+    await expect(client.flushPendingScores()).resolves.toBe(0);
+    expect(client.pendingScores()).toHaveLength(2);
   });
 
   it('re-authenticates once when the stored token expires', async () => {

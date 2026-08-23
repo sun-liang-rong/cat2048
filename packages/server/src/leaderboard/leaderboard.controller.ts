@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LeaderboardQueryDto } from './dto/leaderboard-query.dto';
 import { SubmitScoreDto } from './dto/submit-score.dto';
+import { SubmitScoresBatchDto } from './dto/submit-scores-batch.dto';
 import { LeaderboardService } from './leaderboard.service';
 
 @Controller('v1/leaderboard')
@@ -16,6 +17,14 @@ export class LeaderboardController {
   public async submitScore(@Req() request: AuthenticatedRequest, @Body() body: SubmitScoreDto) {
     return {
       data: await this.leaderboard.submitScore(request.user.playerId, body),
+    };
+  }
+
+  @Post('scores/batch')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  public async submitScores(@Req() request: AuthenticatedRequest, @Body() body: SubmitScoresBatchDto) {
+    return {
+      data: await this.leaderboard.submitScores(request.user.playerId, body.scores),
     };
   }
 
