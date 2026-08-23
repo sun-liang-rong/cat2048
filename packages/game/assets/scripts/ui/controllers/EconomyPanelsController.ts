@@ -271,10 +271,13 @@ export class EconomyPanelsController {
   private async openCollection(origin: CollectionOrigin): Promise<void> {
     const token = this.deps.getSceneToken();
     try {
-      // 图鉴只显示当前装备皮肤的猫咪（启动时已预加载），这里只需补齐
-      // 图鉴自身的 UI 素材；全量皮肤目录由商店打开时按需加载，避免
-      // 每次进图鉴都同步解码 30+ 张猫咪大图导致明显卡顿。
-      await this.deps.art.loadFrames(collectionAssetPaths());
+      // 图鉴只显示当前装备皮肤的猫咪。Tier2 启动后台加载已覆盖高等级立绘；
+      // 若用户在 Tier2 完成前就打开图鉴，这里并行补齐，避免 Lv5+ 已解锁卡缺立绘。
+      const skinId = this.deps.getSave().economy.equipped.catSkin;
+      await Promise.all([
+        this.deps.art.loadFrames(collectionAssetPaths()),
+        this.deps.art.loadHighLevelAssets(skinId),
+      ]);
     } catch (error) {
       console.warn('[Cat2048] Failed to load collection assets, showing fallbacks.', error);
     }

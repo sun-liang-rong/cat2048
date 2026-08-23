@@ -11,6 +11,10 @@ export class ArtRepository {
   private readonly imageLoads = new Map<string, Promise<string | undefined>>();
   private readonly highLevelAssetsLoaded = new Set<string>();
 
+  /**
+   * 关键资源预载（Tier 1）：仅首页与对局必需的资源，阻塞加载进度条。
+   * 图鉴/商店/排行榜等次级资源由 {@link preloadSecondary} 在首页可交互后后台加载。
+   */
   public async preload(
     equipped: EquippedCosmetics = DEFAULT_EQUIPPED,
     onProgress?: (ratio: number) => void,
@@ -20,22 +24,52 @@ export class ArtRepository {
     await Promise.all(framePaths.map(async (path) => {
       await this.loadFrame(path);
       loadedFrames += 1;
-      onProgress?.(0.05 + (loadedFrames / Math.max(1, framePaths.length)) * 0.75);
+      onProgress?.(0.05 + (loadedFrames / Math.max(1, framePaths.length)) * 0.8);
     }));
 
     await this.cacheFont(GAME_CONFIG.fonts.display, TTFFont);
-    onProgress?.(0.82);
+    onProgress?.(0.9);
 
-    const audioNames = ['move', 'merge', 'game_over', 'bgm'];
+    // game_over 属对局必需（结束时刻一次性播放，错过无法补偿），留在关键层。
+    const audioNames = ['move', 'merge', 'game_over'];
     let loadedAudio = 0;
     await Promise.all(audioNames.map(async (name) => {
       const path = `game/audio/${name}`;
       try { this.clips.set(name, await this.loadClip(path)); }
       catch (error) { console.warn(`[Cat2048] Optional audio unavailable: ${path}`, error); }
       loadedAudio += 1;
-      onProgress?.(0.82 + (loadedAudio / audioNames.length) * 0.18);
+      onProgress?.(0.9 + (loadedAudio / audioNames.length) * 0.1);
     }));
     onProgress?.(1);
+  }
+
+  /**
+   * 次级资源后台预载（Tier 2）：功能页（图鉴/商店/排行榜）界面图、
+   * 设置/任务图标、剩余音效。首页可交互后调用；分片加载让出主线程。
+   */
+  /**
+   * 次级资源后台预载（Tier 2）：功能页（图鉴/商店/排行榜）界面图、
+   * 设置/任务图标、装备皮肤高等级立绘与 BGM。首页可交互后调用；分片加载让出主线程。
+   */
+  public async preloadSecondary(equipped: EquippedCosmetics = DEFAULT_EQUIPPED): Promise<void> {
+    await this.loadFramesChunked(this.secondaryFramePaths(equipped));
+    const audioNames = ['bgm'];
+    await Promise.all(audioNames.map(async (name) => {
+      const path = `game/audio/${name}`;
+      try { this.clips.set(name, await this.loadClip(path)); }
+      catch (error) { console.warn(`[Cat2048] Optional audio unavailable: ${path}`, error); }
+    }));
+  }
+
+  /** 分片加载帧资源：每片之间让出一轮事件循环，避免连续解码阻塞渲染。 */
+  private async loadFramesChunked(paths: readonly string[], chunkSize = 4): Promise<void> {
+    for (let index = 0; index < paths.length; index += chunkSize) {
+      const chunk = paths.slice(index, index + chunkSize);
+      await Promise.all(chunk.map((path) => this.loadFrame(path).catch((error) => {
+        console.warn(`[Cat2048] Secondary asset unavailable: ${path}`, error);
+      })));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   }
 
   public frame(path: string): SpriteFrame | undefined { return this.frames.get(path); }
@@ -137,10 +171,11 @@ export class ArtRepository {
     });
   }
 
+  /** 关键路径（Tier 1）：首页 UI、对局基础、常用按钮、装备皮肤前 4 级与当前装扮。 */
   private startupFramePaths(equipped: EquippedCosmetics): string[] {
-    const cats = GAME_CONFIG.cats;
     const art = GAME_CONFIG.art;
     const paths = new Set<string>([
+      // 首页
       art.homeBackground,
       art.homeCatRoom,
       art.homePlayPaw,
@@ -153,47 +188,26 @@ export class ArtRepository {
       art.homePlus,
       art.homeLeaderboardButton,
       art.homeCheckinButton,
-      art.collectionBackground,
-      art.collectionCardLight,
-      art.collectionCardLocked,
-      art.collectionBackPaw,
-      art.collectionLockedCat,
-      art.collectionLock,
+      // 对局基础
       art.pageBackground,
       art.boardBackground,
       art.gameplayStatsSheet,
       art.tileBase,
       art.tileSelected,
-      art.sparkleSmall,
       art.mergeSparkle,
       art.mergeBurst,
       art.maxHalo,
+      // 对局与弹窗常用按钮
       art.close,
       art.back,
       art.home,
-      art.info,
-      art.collection,
-      art.coin,
-      art.soundOn,
-      art.soundOff,
-      art.settings,
+      art.restart,
       art.share,
+      art.coin,
+      art.settings,
       art.undo,
       art.removeLowest,
       art.classicMode,
-      art.restart,
-      art.locked,
-      art.taskIcons.play,
-      art.taskIcons.star,
-      art.taskIcons.bolt,
-      art.taskIcons.share,
-      art.taskIcons.check,
-      art.settingsIcons.sound,
-      art.settingsIcons.music,
-      art.settingsIcons.haptics,
-      cats[cats.length - 1].asset,
-      // 排行榜空状态插图（Lv1 橘猫），不随装备皮肤变化。
-      cats[0].asset,
     ]);
     // 当前装备的猫咪皮肤：仅预加载前 4 个等级（1-4 级），5-12 级懒加载
     const equippedSkin = allCosmetics().find((item) => item.id === equipped.catSkin);
@@ -206,6 +220,46 @@ export class ArtRepository {
     const equippedEffect = allCosmetics().find((item) => item.id === equipped.effect);
     if (equippedEffect?.sparkleAsset) paths.add(equippedEffect.sparkleAsset);
     if (equippedEffect?.burstAsset) paths.add(equippedEffect.burstAsset);
+    return Array.from(paths);
+  }
+
+  /** 次级路径（Tier 2）：功能页界面图、设置/任务图标、皮肤高等级立绘与装饰资源。 */
+  private secondaryFramePaths(equipped: EquippedCosmetics): string[] {
+    const cats = GAME_CONFIG.cats;
+    const art = GAME_CONFIG.art;
+    const paths = new Set<string>([
+      // 图鉴/商店/排行榜共用界面图
+      art.collectionBackground,
+      art.collectionCardLight,
+      art.collectionCardLocked,
+      art.collectionBackPaw,
+      art.collectionLockedCat,
+      art.collectionLock,
+      // 其余图标与装饰
+      art.sparkleSmall,
+      art.shareScoreBackground,
+      art.info,
+      art.collection,
+      art.locked,
+      art.soundOn,
+      art.soundOff,
+      art.taskIcons.play,
+      art.taskIcons.star,
+      art.taskIcons.bolt,
+      art.taskIcons.share,
+      art.taskIcons.check,
+      art.settingsIcons.sound,
+      art.settingsIcons.music,
+      art.settingsIcons.haptics,
+      // 满级展示与排行榜空状态插图（不随装备皮肤变化）
+      cats[cats.length - 1].asset,
+      cats[0].asset,
+    ]);
+    // 装备皮肤 5-12 级立绘：图鉴已解锁卡与续玩棋盘在首次移动前就需要。
+    const equippedSkin = allCosmetics().find((item) => item.id === equipped.catSkin);
+    if (equippedSkin?.levelAssets) {
+      for (const path of equippedSkin.levelAssets.slice(4)) paths.add(path);
+    }
     return Array.from(paths);
   }
 }

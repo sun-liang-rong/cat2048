@@ -90,6 +90,10 @@ export class GameFlowController {
   private movesCount = 0;
   private mergesCount = 0;
   private hasTriggeredHighLevelLoad = false;
+  /** 移动动画进行中标记：用于区分「动画锁」与「弹窗锁」，只对前者缓冲输入。 */
+  private moveAnimating = false;
+  /** 动画期间缓冲的最后一次滑动方向（只保留最新一次）。 */
+  private bufferedDirection: Direction | null = null;
 
   public constructor(private readonly deps: GameFlowDeps) {
     this.boardView = new BoardView(deps.art, deps.cosmetics);
@@ -122,6 +126,8 @@ export class GameFlowController {
     this.movesCount = 0;
     this.mergesCount = 0;
     this.hasTriggeredHighLevelLoad = false;
+    this.moveAnimating = false;
+    this.bufferedDirection = null;
     this.registerBoardCats(this.game.start());
   }
 
@@ -137,7 +143,20 @@ export class GameFlowController {
     this.newRecordThisRun = this.game.score > this.deps.host.getSave().highScore;
     this.movesCount = savedRun.moves ?? 0;
     this.mergesCount = savedRun.merges ?? 0;
+    this.moveAnimating = false;
+    this.bufferedDirection = null;
     this.registerBoardCats(this.game.board);
+    // 续玩存档可能已含 Lv4+ 棋子：预热高等级立绘，就绪后刷新存量棋子节点补上缺失的立绘。
+    if (highestLevelOfTiles(this.game.board.tiles) >= 4) {
+      const skinId = this.deps.host.getSave().economy.equipped.catSkin;
+      const token = this.sessionToken;
+      void this.deps.art.loadHighLevelAssets(skinId).then(() => {
+        if (token === this.sessionToken && this.boardView.root !== null
+          && !this.moveAnimating && this.game.status !== 'game-over') {
+          this.boardView.rebuild(this.game.board, false);
+        }
+      });
+    }
   }
 
   public buildGameScreen(root: Node, model: GameScreenModel): void {
@@ -172,6 +191,11 @@ export class GameFlowController {
   }
 
   public async performMove(direction: Direction): Promise<void> {
+    // 动画进行中：缓冲最后一次滑动，动画结束立即执行，保证连滑跟手不丢操作。
+    if (this.moveAnimating) {
+      this.bufferedDirection = direction;
+      return;
+    }
     if (this.deps.host.isInputLocked()) return;
     const result = this.game.move(direction);
     if (!result.changed) {
@@ -185,10 +209,10 @@ export class GameFlowController {
     this.persistRun();
     if (!this.deps.host.getSave().tutorial.swipeGuideCompleted) this.completeSwipeGuide();
 
-    // 懒加载高级资源：当首次达到 5 级时触发
+    // 懒加载高级资源：达到 4 级即预热 5-12 级（玩家合出 5 级前已就绪，无闪帧）
     if (!this.hasTriggeredHighLevelLoad) {
       const maxLevel = Math.max(...result.board.tiles.map(t => t.level));
-      if (maxLevel >= 5) {
+      if (maxLevel >= 4) {
         this.hasTriggeredHighLevelLoad = true;
         const currentSkin = this.deps.host.getSave().economy.equipped.catSkin;
         // 异步加载，不阻塞游戏
@@ -200,25 +224,41 @@ export class GameFlowController {
 
     const token = this.sessionToken;
     this.deps.host.lockInput();
-    await this.boardView.animateMove(
-      result,
-      () => token === this.sessionToken && this.boardView.root !== null,
-      {
-        onMerge: () => {
-          this.deps.haptics.light();
-          this.deps.audio.play('merge', 0.8);
+    this.moveAnimating = true;
+    try {
+      await this.boardView.animateMove(
+        result,
+        () => token === this.sessionToken && this.boardView.root !== null,
+        {
+          onMerge: () => {
+            this.deps.haptics.light();
+            this.deps.audio.play('merge', 0.8);
+          },
+          onMove: () => {
+            this.deps.audio.play('move', 0.55);
+          },
         },
-        onMove: () => {
-          this.deps.audio.play('move', 0.55);
-        },
-      },
-    );
-    if (token !== this.sessionToken || !this.boardView.root) return;
+      );
+    } finally {
+      this.moveAnimating = false;
+    }
+    if (token !== this.sessionToken || !this.boardView.root) {
+      this.bufferedDirection = null;
+      return;
+    }
     this.updateScore(result.score);
     this.refreshGameViews();
     this.deps.host.unlockInput();
     if (completedDailyChallenge) this.deps.host.showNotice('今日挑战完成！');
-    if (result.status === 'game-over') this.showGameOver();
+    if (result.status === 'game-over') {
+      this.bufferedDirection = null;
+      this.showGameOver();
+      return;
+    }
+    // 消费动画期间缓冲的滑动，形成连续操作
+    const next = this.bufferedDirection;
+    this.bufferedDirection = null;
+    if (next) void this.performMove(next);
   }
 
   /** 统一道具使用入口 */
@@ -376,6 +416,9 @@ export class GameFlowController {
     this.gameRoot = null;
     // 确保在页面离开时保存状态
     this.deps.runSession.flush();
+    // 丢弃未消费的缓冲输入与动画标记
+    this.moveAnimating = false;
+    this.bufferedDirection = null;
   }
 
   private showGameOver(): void {

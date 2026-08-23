@@ -6,8 +6,10 @@ export const GAME_CONFIG = {
   designHeight: 1334,
   boardSize: 4,
   swipeThreshold: 42,
-  moveSeconds: 0.12,
-  mergeSeconds: 0.2,
+  // 动画节奏：普通移动全程 ≈160ms（移动+出生），合并移动 ≈240ms，保证连滑跟手。
+  moveSeconds: 0.1,
+  mergeSeconds: 0.08,
+  spawnSeconds: 0.06,
   cats: CAT_DEFINITIONS,
   network: {
     // 排行榜服务地址：接入新环境时只需改这里（或替换为环境配置）。

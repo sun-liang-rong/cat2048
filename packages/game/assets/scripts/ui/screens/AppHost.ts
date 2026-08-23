@@ -16,6 +16,7 @@ import { GAME_CONFIG } from '../../core/config/gameConfig';
 import { HapticController } from '../../infrastructure/HapticController';
 import { ResultShareController } from '../../infrastructure/ResultShareController';
 import type { SharePurpose, ShareResult } from '../../infrastructure/ResultShareController';
+import { StartupMetrics } from '../../infrastructure/StartupMetrics';
 import { runtimeStorage } from '../../features/storage/runtime';
 import {
   highestLevelOfTiles,
@@ -100,6 +101,7 @@ export class AppHost implements GameFlowHost {
   private homeTransitionToken = 0;
   private sceneToken = 0;
   private currentScreen: ScreenName = 'loading';
+  private readonly startupMetrics = new StartupMetrics();
 
   public constructor(
     private readonly platform: HostPlatform,
@@ -205,6 +207,7 @@ export class AppHost implements GameFlowHost {
   public async initialize(): Promise<void> {
     this.assetsReady = false;
     this.homeTransitionToken += 1;
+    this.startupMetrics.mark('boot');
     this.svc.loadingView.reset();
     this.showLoading();
     try {
@@ -224,12 +227,28 @@ export class AppHost implements GameFlowHost {
       onReady: () => {
         this.assetsReady = true;
         this.beginHomeTransition();
+        // 首页已可交互：后台加载次级资源（图鉴/商店/排行榜/高等级立绘/BGM），不阻塞用户。
+        void this.preloadSecondaryAssets();
       },
       onError: (error) => {
         console.error('[Cat2048] Startup asset loading failed', error);
         this.svc.loadingView.showError();
       },
     });
+  }
+
+  /** 首页就绪后后台加载 Tier 2 资源，完成后输出启动性能埋点。 */
+  private async preloadSecondaryAssets(): Promise<void> {
+    try {
+      await this.svc.art.preloadSecondary(this.saveValue.economy.equipped);
+    } catch (error) {
+      console.warn('[Cat2048] Secondary asset loading failed', error);
+    } finally {
+      this.startupMetrics.mark('secondary-loaded');
+      this.startupMetrics.report();
+      // BGM 属于次级资源：就绪后补启动音乐。已播放或用户关闭音乐时内部会直接跳过。
+      this.svc.audio.playMusic();
+    }
   }
 
   // ---- GameFlowHost 实现 ----

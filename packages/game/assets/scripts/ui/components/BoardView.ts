@@ -145,7 +145,7 @@ export class BoardView {
     if (result.spawned) {
       const node = createTileNode(result.spawned.tile, this.tileLayer!, this.tileContext(), this.tileNodes);
       node.setScale(0.2, 0.2, 1);
-      await tweenScale(node, Vec3.ONE, 0.12);
+      await tweenScale(node, Vec3.ONE, GAME_CONFIG.spawnSeconds);
     }
   }
 
