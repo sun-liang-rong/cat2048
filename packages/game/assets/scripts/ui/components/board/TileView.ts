@@ -129,7 +129,11 @@ export class TileNodePool {
 
     const badge = createUiNode('Badge', 62, 28);
     badge.setPosition(0, -CELL_SIZE / 2 + 20);
-    const label = createLabel('', 17, COLORS.white, 58, 26, 'display');
+    // Create the label with its real text and final font path. Creating it empty first
+    // can leave Cocos with stale render data when applyLevel switches fonts immediately.
+    const label = createLabel(`Lv.${tile.level}`, 17, COLORS.white, 58, 26,
+      'display', 'number');
+    label.node.name = 'LevelLabel';
     badge.addChild(label.node);
     surface.addChild(badge);
 
@@ -181,8 +185,8 @@ export class TileNodePool {
     const badge = surface.getChildByName('Badge');
     if (badge) {
       drawRounded(badge, 62, 28, tile.level >= 8 ? COLORS.mustard : COLORS.teal, 14);
-      const label = badge.children[0]?.getComponent(Label);
-      if (label) setLabelText(label, `Lv.${tile.level}`, 'display');
+      const label = badge.getChildByName('LevelLabel')?.getComponent(Label);
+      if (label) setLabelText(label, `Lv.${tile.level}`, 'display', 17, 'number');
     }
   }
 }

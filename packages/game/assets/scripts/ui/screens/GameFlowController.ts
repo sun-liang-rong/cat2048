@@ -502,7 +502,9 @@ export class GameFlowController {
   }
 
   private async settleGameOver(): Promise<{ reward: number; rewardFailed: boolean }> {
-    await this.submitCurrentScore();
+    // Score submission is already persisted in the retry queue. Never let a slow or
+    // unavailable leaderboard block the game-over dialog or navigation back home.
+    void this.submitCurrentScore();
     let reward = 0;
     let rewardFailed = false;
     try {

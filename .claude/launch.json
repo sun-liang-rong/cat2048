@@ -1,0 +1,10 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cocos-preview",
+      "url": "http://localhost:7456",
+      "port": 7456
+    }
+  ]
+}
