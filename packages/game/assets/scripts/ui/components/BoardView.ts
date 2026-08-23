@@ -37,6 +37,8 @@ export class BoardView {
   private tileLayer: Node | null = null;
   private tileNodes = new Map<string, Node>();
   private touchHighlight: Node | null = null;
+  private tilePool: Node[] = [];
+  private readonly POOL_MAX_SIZE = 20;
 
   public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
@@ -89,6 +91,9 @@ export class BoardView {
     this.tileNodes.clear();
     this.tileLayer = null;
     this.boardRoot = null;
+    // 清空对象池
+    this.tilePool.forEach(node => node.destroy());
+    this.tilePool = [];
   }
 
   public renderInitial(snapshot: BoardSnapshot): void {
@@ -102,14 +107,13 @@ export class BoardView {
 
   public rebuild(snapshot: BoardSnapshot, animate = true): void {
     if (!this.tileLayer) return;
-    // 倒序删除并停止所有动画，避免数组拷贝和内存泄漏
+    // 回收所有节点到对象池
     const children = this.tileLayer.children;
     for (let i = children.length - 1; i >= 0; i--) {
-      const child = children[i];
-      Tween.stopAllByTarget(child);
-      child.destroy();
+      this.returnTileNodeToPool(children[i]);
     }
     this.tileNodes.clear();
+    // 从池中获取或创建新节点
     snapshot.tiles.forEach((tile) => {
       const node = createTileNode(tile, this.tileLayer!, this.tileContext(), this.tileNodes);
       if (animate) {
@@ -117,6 +121,31 @@ export class BoardView {
         tween(node).to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
       }
     });
+  }
+
+  /** 归还节点到对象池 */
+  private returnTileNodeToPool(node: Node): void {
+    if (this.tilePool.length < this.POOL_MAX_SIZE) {
+      // 清理状态
+      Tween.stopAllByTarget(node);
+      node.active = false;
+      node.removeFromParent();
+      node.setPosition(0, 0, 0);
+      node.setScale(1, 1, 1);
+
+      // 清理子节点的动画状态
+      node.children.forEach(child => {
+        Tween.stopAllByTarget(child);
+        child.children.forEach(grandChild => {
+          Tween.stopAllByTarget(grandChild);
+        });
+      });
+
+      this.tilePool.push(node);
+    } else {
+      Tween.stopAllByTarget(node);
+      node.destroy();
+    }
   }
 
   public async animateMove(

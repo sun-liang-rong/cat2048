@@ -24,6 +24,7 @@ const copyTile = (tile: Tile): Tile => ({ ...tile });
 
 export class Board {
   private readonly byCell: ReadonlyMap<string, Tile>;
+  private cachedEmptyCells: Position[] | null = null;
 
   public constructor(snapshot: BoardSnapshot = { size: BOARD_SIZE, tiles: [] }) {
     Board.validateSnapshot(snapshot);
@@ -59,12 +60,21 @@ export class Board {
   }
 
   public emptyCells(): Position[] {
+    // 如果有缓存，直接返回
+    if (this.cachedEmptyCells) {
+      return this.cachedEmptyCells;
+    }
+
+    // 计算空格子
     const cells: Position[] = [];
     for (let row = 0; row < BOARD_SIZE; row += 1) {
       for (let col = 0; col < BOARD_SIZE; col += 1) {
         if (!this.byCell.has(keyOf({ row, col }))) cells.push({ row, col });
       }
     }
+
+    // 缓存结果
+    this.cachedEmptyCells = cells;
     return cells;
   }
 
