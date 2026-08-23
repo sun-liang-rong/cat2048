@@ -46,7 +46,6 @@ export const GAME_CONFIG = {
     close: 'game/ui/common/close/texture',
     back: 'game/ui/common/back/texture',
     home: 'game/ui/common/home/texture',
-    check: 'game/ui/common/check/texture',
     classicMode: 'game/ui/common/classic_mode/texture',
     restart: 'game/ui/common/restart/texture',
     collection: 'game/ui/common/collection/texture',

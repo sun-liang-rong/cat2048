@@ -144,7 +144,8 @@ export class LocalEconomyRepository implements EconomyRepository {
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
     if (safeAmount <= 0) return this.result(save.economy, false, 0);
     const key = this.itemKey(kind);
-    const economy = { ...save.economy, [key]: save.economy[key] + safeAmount };
+    const current = save.economy[key] as number;
+    const economy = { ...save.economy, [key]: current + safeAmount };
     this.saveStorage.save({ ...save, economy });
     return this.result(economy, true, 0);
   }
@@ -154,7 +155,8 @@ export class LocalEconomyRepository implements EconomyRepository {
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
     if (safeAmount <= 0) return this.result(save.economy, false, 0);
     const key = this.itemKey(kind);
-    const economy = { ...save.economy, [key]: Math.max(0, save.economy[key] - safeAmount) };
+    const current = save.economy[key] as number;
+    const economy = { ...save.economy, [key]: Math.max(0, current - safeAmount) };
     this.saveStorage.save({ ...save, economy });
     return this.result(economy, true, 0);
   }

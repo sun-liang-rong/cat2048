@@ -32,6 +32,7 @@ describe('RunSessionStore', () => {
     const storage = new MemoryStorage();
     const store = new RunSessionStore(storage);
     store.save(sampleRun());
+    store.flush(); // 立即保存
     expect(store.load()).toEqual(sampleRun());
   });
 
@@ -44,6 +45,7 @@ describe('RunSessionStore', () => {
     const storage = new MemoryStorage();
     const store = new RunSessionStore(storage);
     store.save(sampleRun());
+    store.flush(); // 立即保存
     store.clear();
     expect(store.load()).toBeNull();
   });

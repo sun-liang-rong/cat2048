@@ -73,7 +73,7 @@ const expectedImagePaths = [
   'ui/common/tile_empty.png',
   'ui/common/tile_selected.png',
   ...[
-    'back', 'check', 'classic_mode', 'close', 'coin', 'collection', 'home', 'info',
+    'back', 'classic_mode', 'close', 'coin', 'collection', 'home', 'info',
     'locked', 'remove_lowest', 'restart', 'settings', 'share', 'sound_off', 'sound_on', 'undo',
   ].map((name) => `ui/common/${name}.png`),
   ...collectionImagePaths,
@@ -87,7 +87,6 @@ const expectedImagePaths = [
     .map((name) => `effects/aurora/${name}.png`),
   ...['stars_sparkle', 'stars_burst']
     .map((name) => `effects/stars/${name}.png`),
-  'fonts/score.png',
 ].sort();
 
 describe('runtime image assets', () => {

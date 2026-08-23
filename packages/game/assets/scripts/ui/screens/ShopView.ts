@@ -1,6 +1,8 @@
 import {
   Color,
+  Mask,
   Node,
+  ScrollView,
   UITransform,
 } from 'cc';
 import type {
@@ -18,9 +20,9 @@ import {
   createIconButton,
   createLabel,
   createUiNode,
-  renderButtonBackground,
+  drawRounded,
 } from '../utils/uiFactory';
-import { createShopCard, TITLE_COLOR } from '../components/shop/ShopCard';
+import { createShopCard } from '../components/shop/ShopCard';
 
 export interface ShopViewModel {
   readonly economy: EconomySnapshot;
@@ -76,7 +78,7 @@ export class ShopView {
       GAME_CONFIG.art.collectionBackground,
       model.uiWidth,
       model.uiHeight,
-      new Color(255, 246, 220, 255),
+      COLORS.pageCream,
     );
 
     const headerY = model.uiHeight / 2 - model.topInset - 48;
@@ -90,7 +92,7 @@ export class ShopView {
     back.setPosition(-model.uiWidth / 2 + 60, headerY);
     parent.addChild(back);
 
-    const title = createLabel('装饰商店', 50, TITLE_COLOR, 390, 72, 'display');
+    const title = createLabel('装饰商店', 50, COLORS.title, 390, 72, 'display');
     title.node.setPosition(0, headerY + 2);
     parent.addChild(title.node);
 
@@ -107,6 +109,7 @@ export class ShopView {
       const tab = createButton(CATEGORY_LABELS[category], TAB_WIDTH, TAB_HEIGHT,
         category === this.category ? COLORS.teal : COLORS.cream,
         () => {
+          if (this.category === category) return;
           this.category = category;
           this.refreshTabs();
           this.renderContent();
@@ -115,18 +118,35 @@ export class ShopView {
       tabs.addChild(tab);
     });
 
-    const contentTop = headerY - 74 - TAB_HEIGHT / 2 - TAB_CONTENT_GAP;
-    const contentBottom = -model.uiHeight / 2 + model.bottomInset + 32;
-    const contentHeight = Math.max(280, contentTop - contentBottom);
+    // 商品区改为 ScrollView：商品数量增长后可滚动浏览，不再依赖固定两行。
+    const viewportTop = headerY - 74 - TAB_HEIGHT / 2 - TAB_CONTENT_GAP;
+    const viewportBottom = -model.uiHeight / 2 + model.bottomInset + 32;
+    const viewportHeight = Math.max(280, viewportTop - viewportBottom);
 
-    this.content = createUiNode('ShopContent', model.uiWidth - 42, contentHeight);
-    this.content.setPosition(0, (contentTop + contentBottom) / 2);
-    parent.addChild(this.content);
+    const scroll = createUiNode('ShopScroll', model.uiWidth - 42, viewportHeight);
+    scroll.setPosition(0, (viewportTop + viewportBottom) / 2);
+    parent.addChild(scroll);
+
+    const viewport = createUiNode('ShopViewport', model.uiWidth - 42, viewportHeight);
+    viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+    scroll.addChild(viewport);
+
+    this.content = createUiNode('ShopContent', model.uiWidth - 42, viewportHeight);
+    this.content.setPosition(0, 0);
+    viewport.addChild(this.content);
+
+    const scrollView = scroll.addComponent(ScrollView);
+    scrollView.horizontal = false;
+    scrollView.vertical = true;
+    scrollView.inertia = true;
+    scrollView.content = this.content;
+
     this.refreshTabs();
     this.renderContent();
   }
 
   public refresh(model: ShopViewModel): void {
+    const previousCategory = this.category;
     const parent = this.parent;
     const actions = this.actions;
     this.model = model;
@@ -134,6 +154,7 @@ export class ShopView {
     for (const child of [...parent.children]) child.destroy();
     this.content = null;
     this.wallet = null;
+    this.category = previousCategory;
     this.build(parent, model, actions);
   }
 
@@ -150,7 +171,11 @@ export class ShopView {
     if (!this.tabs) return;
     this.tabs.children.forEach((tab, index) => {
       const selected = CATEGORIES[index] === this.category;
-      renderButtonBackground(tab, TAB_WIDTH, TAB_HEIGHT, selected ? COLORS.teal : COLORS.cream);
+      const background = tab.getChildByName('ButtonBackground');
+      const size = tab.getComponent(UITransform)?.contentSize;
+      if (!background || !size) return;
+      drawRounded(background, size.width, size.height, selected ? COLORS.teal : COLORS.cream, 24,
+        { color: COLORS.ink, width: 5 });
     });
   }
 
@@ -165,7 +190,21 @@ export class ShopView {
     const cardWidth = Math.min(300, (model.uiWidth - 104) / 2);
     const cardHeight = Math.round(cardWidth * 1.3);
     const rowGap = 18;
-    const contentHeight = content.getComponent(UITransform)?.contentSize.height ?? cardHeight;
+    const columnGap = 28;
+
+    const rowCount = Math.ceil(items.length / 2);
+    const rowsHeight = rowCount > 0
+      ? rowCount * cardHeight + (rowCount - 1) * rowGap
+      : cardHeight;
+    const contentPadding = 24;
+    // 内容高度不足一屏时撑满视口（保证可点击区域与居中），超出则自然滚动。
+    // 注意 contentSize 挂在 UITransform 组件上，Node 上没有该属性。
+    const contentTransform = content.getComponent(UITransform)!;
+    const viewportHeight = contentTransform.contentSize.height || rowsHeight;
+    contentTransform.setContentSize(contentTransform.width,
+      Math.max(viewportHeight, rowsHeight + contentPadding * 2));
+    const contentHeight = contentTransform.contentSize.height;
+
     items.forEach((item, index) => {
       const card = createShopCard(item, {
         economy: model.economy,
@@ -178,8 +217,8 @@ export class ShopView {
       });
       const col = index % 2;
       const row = Math.floor(index / 2);
-      card.setPosition(-cardWidth / 2 - 14 + col * (cardWidth + 28),
-        contentHeight / 2 - 12 - cardHeight / 2 - row * (cardHeight + rowGap));
+      card.setPosition(-cardWidth / 2 - columnGap / 2 + col * (cardWidth + columnGap),
+        contentHeight / 2 - contentPadding - cardHeight / 2 - row * (cardHeight + rowGap));
       content.addChild(card);
     });
 

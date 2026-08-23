@@ -3,6 +3,7 @@ import type { DailyTaskItem, DailyTaskSnapshot } from '../../features/tasks/dail
 import type { ArtRepository } from '../utils/ArtRepository';
 import { ModalView } from './ModalView';
 import {
+  COLORS,
   createLabel,
   createUiNode,
 } from '../utils/uiFactory';
@@ -18,7 +19,9 @@ const PANEL_HEIGHT = 790;
 const ROW_STEP = 130;
 const ROW_START_Y = 150;
 
-const MUTED_TEXT = new Color(104, 91, 82, 255);
+const MUTED_TEXT = COLORS.textMuted;
+/** 任务奖励提示文字的绿色（原内联值 61,154,123）。 */
+const TASK_REWARD_GREEN = new Color(61, 154, 123, 255);
 
 export class TaskPanelView {
   private rowsRoot: Node | null = null;
@@ -79,7 +82,7 @@ export class TaskPanelView {
     refresh.node.setPosition(-106, 240);
     header.addChild(refresh.node);
 
-    const reward = createLabel('完成任务领金币', 22, new Color(61, 154, 123, 255), 190, 38, 'body');
+    const reward = createLabel('完成任务领金币', 22, TASK_REWARD_GREEN, 190, 38, 'body');
     reward.horizontalAlign = Label.HorizontalAlign.LEFT;
     reward.node.setPosition(100, 240);
     header.addChild(reward.node);

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import math
 import struct
 import wave
@@ -12,7 +11,6 @@ from pathlib import Path
 from fontTools import subset
 from fontTools.ttLib import TTFont
 from PIL import Image
-from PIL import ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "resources" / "art-generation" / "images"
@@ -23,7 +21,6 @@ OUTPUT = ROOT / "packages" / "game" / "assets" / "resources" / "game"
 FONT_SOURCE = ROOT / "resources" / "art-generation" / "fonts" / "ZCOOLKuaiLe-Regular.ttf"
 FONT_OUTPUT = OUTPUT / "fonts"
 DISPLAY_FONT = FONT_OUTPUT / "display.ttf"
-NUMBER_FONT_CHARACTERS = "0123456789Lv.+×"
 DISPLAY_FONT_ALLOWLIST = (
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz "
     ".,+-:;!?/×★·↶›，。！？、：；（）《》【】“”‘’…—"
@@ -91,67 +88,10 @@ def generate_display_font() -> None:
     font.save(DISPLAY_FONT)
 
 
-def generate_number_font() -> None:
-    """Generate a compact BMFont atlas for score and level labels."""
-    font_size = 72
-    padding = 5
-    columns = 8
-    font = ImageFont.truetype(str(FONT_SOURCE), font_size)
-    metrics: list[tuple[str, tuple[int, int, int, int], int]] = []
-    cell_width = 0
-    cell_height = 0
-    for character in NUMBER_FONT_CHARACTERS:
-        bbox = font.getbbox(character, stroke_width=1)
-        advance = max(1, round(font.getlength(character)))
-        metrics.append((character, bbox, advance))
-        cell_width = max(cell_width, bbox[2] - bbox[0] + padding * 2)
-        cell_height = max(cell_height, bbox[3] - bbox[1] + padding * 2)
-    rows = math.ceil(len(metrics) / columns)
-    atlas = Image.new("RGBA", (cell_width * columns, cell_height * rows), (255, 255, 255, 0))
-    draw = ImageDraw.Draw(atlas)
-    glyph_lines: list[str] = []
-    for index, (character, bbox, advance) in enumerate(metrics):
-        column = index % columns
-        row = index // columns
-        cell_x = column * cell_width
-        cell_y = row * cell_height
-        glyph_width = bbox[2] - bbox[0]
-        glyph_height = bbox[3] - bbox[1]
-        x = cell_x + padding
-        y = cell_y + padding
-        draw.text(
-            (x - bbox[0], y - bbox[1]),
-            character,
-            font=font,
-            fill=(255, 255, 255, 255),
-            stroke_width=1,
-            stroke_fill=(255, 255, 255, 255),
-        )
-        glyph_lines.append(
-            f"char id={ord(character)} x={x} y={y} width={glyph_width} height={glyph_height} "
-            f"xoffset={bbox[0]} yoffset={bbox[1]} xadvance={advance} page=0 chnl=15"
-        )
-    atlas_path = FONT_OUTPUT / "score.png"
-    atlas.save(atlas_path, format="PNG", optimize=True)
-    descriptor = "\n".join([
-        f'info face="ZCOOL KuaiLe Score" size={font_size} bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1',
-        f"common lineHeight={font_size + 10} base={font_size} scaleW={atlas.width} scaleH={atlas.height} pages=1 packed=0",
-        'page id=0 file="score.png"',
-        f"chars count={len(glyph_lines)}",
-        *glyph_lines,
-        "kernings count=0",
-        "",
-    ])
-    (FONT_OUTPUT / "score.fnt").write_text(descriptor, encoding="utf-8")
-
-
 def prepare_fonts() -> None:
     generate_display_font()
-    generate_number_font()
     if DISPLAY_FONT.stat().st_size >= 96 * 1024:
         raise ValueError(f"Display font subset is unexpectedly large: {DISPLAY_FONT.stat().st_size} bytes")
-    if (FONT_OUTPUT / "score.png").stat().st_size >= 64 * 1024:
-        raise ValueError("Number font atlas is unexpectedly large")
 
 
 def trim_and_square(image: Image.Image, size: int, margin: float = 0.05) -> Image.Image:
@@ -266,9 +206,8 @@ def validate() -> dict[str, str]:
           for theme in ["wood", "pink", "star"]),
         *(OUTPUT / "ui" / "common" / name for name in [
             "tile_empty.png", "tile_selected.png", "close.png", "back.png", "home.png",
-            "locked.png", "check.png", "share.png", "reward_video.png", "sound_on.png",
-            "sound_off.png", "settings.png", "info.png", "level_locked.png",
-            "level_current.png", "level_complete.png", "daily.png", "weekly.png",
+            "locked.png", "share.png", "sound_on.png",
+            "sound_off.png", "settings.png", "info.png",
             "classic_mode.png", "collection.png", "undo.png", "remove_lowest.png", "coin.png",
         ]),
         *(OUTPUT / "effects" / "classic" / name for name in [
@@ -311,9 +250,8 @@ def main() -> int:
                      {2: "sparkle_small", 3: "merge_sparkle", 4: "merge_burst", 5: "max_halo"},
                      "effects/classic", 256)
     slice_grid("sheet_utility.png", 4, 4,
-               ["close", "back", "home", "locked", "check", "share", "reward_video", "sound_on",
-                 "sound_off", "settings", "info", "level_locked", "level_current", "level_complete",
-                 "daily", "weekly"], "ui/common", 160)
+               ["close", "back", "home", "locked", "share", "sound_on",
+                 "sound_off", "settings", "info"], "ui/common", 160)
     slice_grid_cells("sheet_navigation.png", 3, 2,
                      {0: "classic_mode", 2: "collection"}, "ui/common", 160)
     slice_grid_cells("sheet_economy.png", 4, 2,
@@ -336,7 +274,6 @@ def main() -> int:
     generate_tone("merge", [523.25, 659.25, 783.99], 0.18)
     generate_tone("game_over", [293.66, 246.94, 196.00], 0.42, 0.18)
     mapping = validate()
-    (OUTPUT / "asset-map.json").write_text(json.dumps(mapping, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Prepared fonts and validated {len(mapping)} required runtime assets in {OUTPUT}")
     return 0
 

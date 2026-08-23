@@ -3,7 +3,6 @@ import {
   capsuleBottomInset,
   gameLayout,
   homeActionDockPositions,
-  homeContentShift,
   safeInsetsFromRect,
   spriteCropTransform,
 } from '../assets/scripts/ui/styles/layout';
@@ -20,11 +19,6 @@ describe('portrait layout', () => {
 
   it('converts the WeChat capsule from window pixels to design units', () => {
     expect(capsuleBottomInset(750, { windowWidth: 375 }, { bottom: 56 })).toBe(128);
-  });
-
-  it('moves home content into the center of tall-screen free space', () => {
-    expect(homeContentShift(1600, 128, 28)).toBeGreaterThan(180);
-    expect(homeContentShift(1100, 128, 28)).toBe(0);
   });
 
   it('places a one-hand board and item bar between the HUD and bottom safe area', () => {

@@ -38,11 +38,6 @@ export interface SpriteCropTransform {
   y: number;
 }
 
-const HOME_CONTENT_TOP = 64;
-const HOME_CONTENT_BOTTOM = 815;
-const HOME_DOCK_TOP_FROM_BOTTOM = 138;
-const HOME_DOCK_GAP = 24;
-
 /** Scales and offsets a source image so the requested crop fills a square masked viewport. */
 export function spriteCropTransform(viewSize: number, sourceWidth: number, sourceHeight: number,
   crop: SpriteCropRect): SpriteCropTransform {
@@ -76,15 +71,6 @@ export function capsuleBottomInset(uiWidth: number, system: MiniGameSystemInfoLi
   const bottom = menu?.bottom;
   if (!Number.isFinite(windowWidth) || !Number.isFinite(bottom) || (windowWidth ?? 0) <= 0) return 0;
   return (bottom as number) * uiWidth / (windowWidth as number) + 16;
-}
-
-/** Centers the home content in the free region above the bottom action dock. */
-export function homeContentShift(uiHeight: number, topInset: number, bottomInset: number): number {
-  const dockTop = uiHeight - bottomInset - HOME_DOCK_TOP_FROM_BOTTOM;
-  const availableHeight = Math.max(0, dockTop - topInset);
-  const centeredShift = (availableHeight - (HOME_CONTENT_TOP + HOME_CONTENT_BOTTOM)) / 2;
-  const maxShift = Math.max(0, availableHeight - HOME_CONTENT_BOTTOM - HOME_DOCK_GAP);
-  return Math.max(0, Math.min(maxShift, centeredShift));
 }
 
 /** Returns evenly spaced x positions centered around the home action dock. */

@@ -14,6 +14,7 @@ import {
   createSpriteNode,
   createUiNode,
   drawRounded,
+  withAlpha,
 } from '../utils/uiFactory';
 import { formatScore } from '../utils/format';
 import { CAPTION_COLOR, PAPER_BORDER, ROW_HEIGHT, renderPaperSurface } from '../components/leaderboard/RankItem';
@@ -36,8 +37,8 @@ export interface LeaderboardViewActions {
   readonly onRetry: () => void;
 }
 
-const TITLE_COLOR = new Color(91, 49, 31, 255);
-const SUMMARY_BACKGROUND = new Color(255, 250, 234, 245);
+const TITLE_COLOR = COLORS.title;
+const SUMMARY_BACKGROUND = new Color(255, 250, 234, 245); // 比纸面底色更亮一档
 const SUMMARY_BORDER = new Color(126, 79, 52, 105);
 const SUMMARY_SHADOW = new Color(105, 61, 40, 32);
 const STATE_WELL_BACKGROUND = new Color(255, 244, 214, 235);
@@ -86,7 +87,7 @@ export class LeaderboardView {
       GAME_CONFIG.art.collectionBackground,
       model.uiWidth,
       model.uiHeight,
-      new Color(255, 246, 220, 255),
+      COLORS.pageCream,
     );
 
     const headerY = this.headerY(model);
@@ -213,23 +214,23 @@ export class LeaderboardView {
       renderPaperSurface(row, width - 12, ROW_HEIGHT, false, this.art);
       row.setPosition(0, region.top - 92 - index * 100);
       const rank = createUiNode(`LeaderboardLoadingRank:${index}`, 42, 42);
-      drawRounded(rank, 42, 42, new Color(226, 214, 194, 255), 21,
+      drawRounded(rank, 42, 42, COLORS.skeleton, 21,
         { color: PAPER_BORDER, width: 2 });
       rank.setPosition(-(width - 12) / 2 + 36, 0);
       row.addChild(rank);
       const name = createUiNode(`LeaderboardLoadingName:${index}`, 180, 16);
-      drawRounded(name, 180, 16, new Color(226, 214, 194, 255), 8,
-        { color: new Color(105, 61, 40, 50), width: 1 });
+      drawRounded(name, 180, 16, COLORS.skeleton, 8,
+        { color: withAlpha(COLORS.edgeBrown, 50), width: 1 });
       name.setPosition(-80, 13);
       row.addChild(name);
       const detail = createUiNode(`LeaderboardLoadingDetail:${index}`, 112, 12);
       drawRounded(detail, 112, 12, new Color(236, 226, 208, 255), 6,
-        { color: new Color(105, 61, 40, 40), width: 1 });
+        { color: withAlpha(COLORS.edgeBrown, 40), width: 1 });
       detail.setPosition(-114, -18);
       row.addChild(detail);
       const score = createUiNode(`LeaderboardLoadingScore:${index}`, 116, 40);
       drawRounded(score, 116, 40, new Color(244, 235, 216, 255), 20,
-        { color: new Color(105, 61, 40, 50), width: 1 });
+        { color: withAlpha(COLORS.edgeBrown, 50), width: 1 });
       score.setPosition((width - 12) / 2 - 82, 0);
       row.addChild(score);
       parent.addChild(row);

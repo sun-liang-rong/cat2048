@@ -1,5 +1,5 @@
 import { Color, Node, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
-import { COLORS, createButton, createLabel, createUiNode, drawRounded } from '../utils/uiFactory';
+import { COLORS, createButton, createLabel, createUiNode, drawRounded, withAlpha } from '../utils/uiFactory';
 import { MODAL_FILL } from '../panels/ModalView';
 
 export class TutorialView {
@@ -13,7 +13,7 @@ export class TutorialView {
     this.swipeOverlay = overlay;
     parent.addChild(overlay);
 
-    const shade = new Color(39, 29, 35, 175);
+    const shade = withAlpha(COLORS.overlay, 175);
     const topEdge = boardY + boardSize / 2;
     const bottomEdge = boardY - boardSize / 2;
     this.addShade(overlay, 'GuideShadeTop', uiWidth, Math.max(0, uiHeight / 2 - topEdge), 0,

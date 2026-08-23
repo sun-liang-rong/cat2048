@@ -3,8 +3,6 @@ import {
   Mask,
   Node,
   ScrollView,
-  tween,
-  Vec3,
 } from 'cc';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
@@ -13,6 +11,7 @@ import { addCoverBackground } from '../styles/background';
 import { collectionLayout } from '../styles/collectionLayout';
 import {
   COLORS,
+  bindTapFeedback,
   createIconButton,
   createLabel,
   createSpriteNode,
@@ -38,10 +37,9 @@ export interface CollectionActions {
 
 type CatDefinition = (typeof GAME_CONFIG.cats)[number];
 
-const TITLE_COLOR = new Color(91, 49, 31, 255);
-const LOCKED_TEXT_COLOR = new Color(244, 228, 196, 255);
+const LOCKED_TEXT_COLOR = COLORS.textLocked;
 const PROGRESS_TRACK_COLOR = new Color(241, 224, 191, 245);
-const PROGRESS_BORDER_COLOR = new Color(105, 61, 40, 255);
+const PROGRESS_BORDER_COLOR = COLORS.edgeBrown;
 
 // The generated card textures include transparent padding around the painted
 // frame. Keep the content inside that painted area instead of positioning it
@@ -67,7 +65,7 @@ export class CollectionView {
       GAME_CONFIG.art.collectionBackground,
       model.uiWidth,
       model.uiHeight,
-      new Color(255, 246, 220, 255),
+      COLORS.pageCream,
     );
 
     const layout = collectionLayout(
@@ -88,7 +86,7 @@ export class CollectionView {
     back.setPosition(-model.uiWidth / 2 + 60, layout.headerY);
     parent.addChild(back);
 
-    const title = createLabel('猫咪图鉴', 50, TITLE_COLOR, 390, 72, 'display');
+    const title = createLabel('猫咪图鉴', 50, COLORS.title, 390, 72, 'display');
     title.node.setPosition(0, layout.headerY + 2);
     parent.addChild(title.node);
 
@@ -157,7 +155,7 @@ export class CollectionView {
       );
       // 卡片整体可点击：点击回调交给上层（弹窗控制器）决定展示什么。
       // 未解锁也允许点击，方便玩家提前看到解锁条件。
-      this.attachTapFeedback(card, () => actions.onCardTap(cat, cardUnlocked));
+      bindTapFeedback(card, () => actions.onCardTap(cat, cardUnlocked), 0.94);
       content.addChild(card);
     });
   }
@@ -173,7 +171,7 @@ export class CollectionView {
         card,
         width,
         height,
-        unlocked ? new Color(255, 248, 224, 250) : new Color(125, 113, 98, 248),
+        unlocked ? COLORS.surfacePaper : new Color(125, 113, 98, 248),
         24,
         { color: PROGRESS_BORDER_COLOR, width: 4 },
       );
@@ -185,16 +183,6 @@ export class CollectionView {
   }
 
   /** 为卡片附加点击缩放反馈，与 `createIconButton` 风格保持一致。 */
-  private attachTapFeedback(card: Node, onTap: () => void): void {
-    card.on(Node.EventType.TOUCH_START, () =>
-      tween(card).to(0.05, { scale: new Vec3(0.94, 0.94, 1) }).start());
-    card.on(Node.EventType.TOUCH_CANCEL, () =>
-      tween(card).to(0.08, { scale: Vec3.ONE }).start());
-    card.on(Node.EventType.TOUCH_END, () => {
-      tween(card).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
-    });
-  }
-
   private renderUnlockedCat(card: Node, cat: CatDefinition, width: number, height: number): void {
     const catFrame = this.cosmetics.catFrame(cat.level);
     if (catFrame) {
@@ -205,10 +193,10 @@ export class CollectionView {
     }
 
     const labelWidth = Math.max(1, width - CARD_LABEL_WIDTH_INSET);
-    const level = createLabel(`Lv.${cat.level}`, 18, TITLE_COLOR, labelWidth, CARD_LEVEL_HEIGHT, 'display');
+    const level = createLabel(`Lv.${cat.level}`, 18, COLORS.title, labelWidth, CARD_LEVEL_HEIGHT, 'display');
     level.node.setPosition(0, -height / 2 + CARD_LEVEL_Y_OFFSET);
     card.addChild(level.node);
-    const name = createLabel(cat.name, 18, TITLE_COLOR, labelWidth, CARD_NAME_HEIGHT, 'display');
+    const name = createLabel(cat.name, 18, COLORS.title, labelWidth, CARD_NAME_HEIGHT, 'display');
     name.node.setPosition(0, -height / 2 + CARD_NAME_Y_OFFSET);
     card.addChild(name.node);
   }

@@ -2,7 +2,7 @@
  * 棋盘棋子（Tile）渲染组件（从 BoardView 拆出）。
  * 纯函数组件：创建单个棋子节点、播放合并特效。
  */
-import { Color, Node, tween, Vec3 } from 'cc';
+import { Color, Node, tween, Tween, Vec3 } from 'cc';
 import type { MergeRecord, Position, Tile } from '../../../core/types';
 import { GAME_CONFIG } from '../../../core/config/gameConfig';
 import type { ArtRepository } from '../../utils/ArtRepository';
@@ -63,6 +63,8 @@ export function createTileNode(tile: Tile, layer: Node, ctx: TileViewContext,
     if (haloFrame) {
       const halo = createSpriteNode('MaxLevelHalo', haloFrame, CELL_SIZE * 1.08, CELL_SIZE * 1.08);
       surface.addChild(halo);
+      // 停止已有动画，避免重复创建
+      Tween.stopAllByTarget(halo);
       tween(halo).by(7, { angle: 360 }).repeatForever().start();
     }
   }
@@ -85,8 +87,13 @@ export function createTileNode(tile: Tile, layer: Node, ctx: TileViewContext,
 /** 播放一次合并动画：销毁源棋子、创建结果棋子并播放闪光/爆炸特效。 */
 export function playMergeAnimation(merge: MergeRecord, layer: Node, ctx: TileViewContext,
   tileNodes: Map<string, Node>): void {
+  // 销毁源节点前停止所有动画
   for (const id of merge.sourceIds) {
-    tileNodes.get(id)?.destroy();
+    const node = tileNodes.get(id);
+    if (node) {
+      Tween.stopAllByTarget(node);
+      node.destroy();
+    }
     tileNodes.delete(id);
   }
   const resultTile: Tile = {

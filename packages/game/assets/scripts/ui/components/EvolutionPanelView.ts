@@ -8,10 +8,11 @@ import {
   createSpriteNode,
   createUiNode,
   drawRounded,
+  withAlpha,
 } from '../utils/uiFactory';
 
 const PANEL_FILL = new Color(255, 249, 232, 238);
-const PANEL_EDGE = new Color(139, 91, 59, 125);
+const PANEL_EDGE = withAlpha(COLORS.softBrown, 125);
 
 export interface EvolutionPanelActions {
   readonly isLocked: () => boolean;
@@ -134,7 +135,7 @@ export class EvolutionPanelView {
     if (!compact) {
       const trackWidth = 570;
       const track = createUiNode('EvolutionProgressTrack', trackWidth, 14);
-      drawRounded(track, trackWidth, 14, new Color(226, 207, 171, 210), 7);
+      drawRounded(track, trackWidth, 14, new Color(226, 207, 171, 210), 7); // 进化进度轨道沙色
       track.setPosition(0, -panelHeight / 2 + 18);
       panel.addChild(track);
       const progressLimit = challenge?.targetLevel ?? GAME_CONFIG.cats.length;

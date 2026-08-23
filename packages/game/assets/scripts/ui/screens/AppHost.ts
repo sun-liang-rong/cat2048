@@ -458,7 +458,6 @@ export class AppHost implements GameFlowHost {
   private toggleSound(): void {
     this.saveValue = { ...this.saveValue, soundEnabled: !this.saveValue.soundEnabled };
     runtimeStorage.save(this.saveValue); this.svc.audio.enabled = this.saveValue.soundEnabled;
-    this.svc.homeView.setSoundEnabled(this.saveValue.soundEnabled);
   }
 
   private applyEconomySnapshot(snapshot: EconomySnapshot): void {

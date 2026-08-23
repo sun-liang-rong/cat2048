@@ -10,7 +10,7 @@ import {
   tween,
 } from 'cc';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
-import { createButton, createLabel, createSpriteNode, createUiNode, drawRounded } from '../utils/uiFactory';
+import { COLORS, createButton, createLabel, createSpriteNode, createUiNode, drawRounded } from '../utils/uiFactory';
 
 const DESIGN_HEIGHT = 1334;
 const LOGO_SIZE = 388;
@@ -18,12 +18,12 @@ const TRACK_WIDTH = 468;
 const TRACK_HEIGHT = 24;
 const TRACK_INSET = 4;
 
-const BACKGROUND = new Color(255, 244, 222, 255);
-const TRACK = new Color(235, 216, 190, 255);
-const TRACK_EDGE = new Color(154, 103, 72, 210);
-const PROGRESS = new Color(239, 100, 83, 255);
-const TEXT = new Color(103, 67, 48, 255);
-const MUTED_TEXT = new Color(143, 100, 75, 255);
+const BACKGROUND = new Color(255, 244, 222, 255); // 比 pageCream 略暖（无背景图时的启动页）
+const TRACK = COLORS.trackSand;
+const TRACK_EDGE = new Color(154, 103, 72, 210); // 轨道描边
+const PROGRESS = COLORS.coral;
+const TEXT = COLORS.textBody;
+const MUTED_TEXT = new Color(143, 100, 75, 255); // 次级说明文字
 
 export class LoadingView {
   private fill: Node | null = null;

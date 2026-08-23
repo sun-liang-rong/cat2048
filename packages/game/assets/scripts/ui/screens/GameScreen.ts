@@ -26,6 +26,7 @@ import {
   createLabel,
   createUiNode,
   drawRounded,
+  withAlpha,
 } from '../utils/uiFactory';
 
 const BOTTOM_EDGE_ICON_CROP = { x: 4, y: 0, width: 144, height: 144 } as const;
@@ -187,8 +188,8 @@ export class GameScreen {
 
   private createHudCard(titleText: string, valueText: string): { node: Node; value: Label } {
     const node = createUiNode(`Hud:${titleText}`, 176, 84);
-    drawRounded(node, 176, 84, new Color(255, 249, 232, 242), 20,
-      { color: new Color(139, 91, 59, 145), width: 2 });
+    drawRounded(node, 176, 84, COLORS.surfaceWarm, 20,
+      { color: withAlpha(COLORS.softBrown, 145), width: 2 });
     const title = createLabel(titleText, 18, COLORS.teal, 148, 26, 'display');
     title.node.setPosition(0, 22);
     node.addChild(title.node);

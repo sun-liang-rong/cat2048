@@ -57,7 +57,7 @@ export class DailyRewardView {
     panel.addChild(bonus.node);
 
     const claim = createButton(model.canClaimDaily ? '立即领取' : '明日 00:00 可领取',
-      290, 74, model.canClaimDaily ? COLORS.coral : new Color(157, 148, 135, 210),
+      290, 74, model.canClaimDaily ? COLORS.coral : COLORS.disabledSurface,
       () => { if (model.canClaimDaily) actions.onClaim(); }, 27, coinFrame);
     claim.setPosition(0, -155);
     panel.addChild(claim);

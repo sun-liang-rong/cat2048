@@ -21,6 +21,7 @@ import {
   createSpriteNode,
   createUiNode,
   drawRounded,
+  withAlpha,
 } from '../../utils/uiFactory';
 import { displayNameOf, formatDateText, formatScore, initialOf } from '../../utils/format';
 
@@ -30,13 +31,13 @@ const MEDAL_COLORS = [
   new Color(182, 196, 205, 255),
   new Color(200, 138, 96, 255),
 ] as const;
-export const PAPER_BORDER = new Color(105, 61, 40, 255);
-export const CAPTION_COLOR = new Color(148, 118, 106, 255);
-const PAPER_FALLBACK = new Color(255, 248, 224, 250);
+export const PAPER_BORDER = COLORS.edgeBrown;
+export const CAPTION_COLOR = COLORS.textMuted;
+const PAPER_FALLBACK = COLORS.surfacePaper;
 const CARD_HIGHLIGHT = new Color(255, 233, 205, 250);
-const ROW_SHADOW = new Color(105, 61, 40, 70);
+const ROW_SHADOW = withAlpha(COLORS.edgeBrown, 70);
 const PILL_BG = new Color(255, 247, 230, 255);
-const PILL_BORDER = new Color(105, 61, 40, 150);
+const PILL_BORDER = withAlpha(COLORS.edgeBrown, 150);
 const PAPER_INSET_X = 0.22;
 const PAPER_INSET_Y = 0.16;
 

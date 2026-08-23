@@ -27,9 +27,9 @@ export interface CatDetailModalActions {
 const PANEL_WIDTH = 580;
 const PANEL_HEIGHT = 700;
 const IMAGE_SIZE = 320;
-const LOCKED_TEXT_COLOR = new Color(244, 228, 196, 255);
-const HINT_COLOR = new Color(120, 96, 76, 255);
-const NAME_COLOR = new Color(91, 53, 39, 255);
+const LOCKED_TEXT_COLOR = COLORS.textLocked;
+const HINT_COLOR = new Color(120, 96, 76, 255); // 详情提示文字
+const NAME_COLOR = COLORS.heading;
 
 export class CatDetailModal {
   private readonly modal: ModalView;

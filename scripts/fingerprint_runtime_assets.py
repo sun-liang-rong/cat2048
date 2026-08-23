@@ -50,11 +50,6 @@ def main() -> int:
             manifest[relative] = fingerprint_png(path)
         elif path.suffix == ".wav":
             manifest[relative] = fingerprint_wav(path)
-        elif path.name == "asset-map.json":
-            manifest[relative] = {
-                "kind": "json",
-                "value": json.loads(path.read_text(encoding="utf-8")),
-            }
     if not manifest:
         raise FileNotFoundError(f"No runtime assets found in {ASSET_ROOT}")
     print(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True))

@@ -9,6 +9,7 @@ export class ArtRepository {
   private readonly fonts = new Map<string, Font>();
   private readonly frameLoads = new Map<string, Promise<SpriteFrame>>();
   private readonly imageLoads = new Map<string, Promise<string | undefined>>();
+  private readonly highLevelAssetsLoaded = new Set<string>();
 
   public async preload(
     equipped: EquippedCosmetics = DEFAULT_EQUIPPED,
@@ -56,6 +57,30 @@ export class ArtRepository {
     }).finally(() => this.imageLoads.delete(path));
     this.imageLoads.set(path, promise);
     return promise;
+  }
+
+  /** 懒加载高级资源（5-12 级猫咪） */
+  public async loadHighLevelAssets(skinId: string): Promise<void> {
+    if (this.highLevelAssetsLoaded.has(skinId)) {
+      return; // 已加载，跳过
+    }
+
+    const skin = allCosmetics().find((item) => item.id === skinId);
+    if (!skin?.levelAssets) {
+      console.warn(`[ArtRepository] Skin not found: ${skinId}`);
+      return;
+    }
+
+    // 仅加载 5-12 级（索引 4-11）
+    const highLevels = skin.levelAssets.slice(4);
+
+    try {
+      await this.loadFrames(highLevels);
+      this.highLevelAssetsLoaded.add(skinId);
+      console.log(`[ArtRepository] High-level assets loaded for ${skinId}`);
+    } catch (error) {
+      console.error(`[ArtRepository] Failed to load high-level assets:`, error);
+    }
   }
 
   private async loadFrame(path: string): Promise<SpriteFrame> {
@@ -170,9 +195,12 @@ export class ArtRepository {
       // 排行榜空状态插图（Lv1 橘猫），不随装备皮肤变化。
       cats[0].asset,
     ]);
-    // 当前装备的猫咪皮肤需要全部等级，游戏中任意等级都可能出现。
+    // 当前装备的猫咪皮肤：仅预加载前 4 个等级（1-4 级），5-12 级懒加载
     const equippedSkin = allCosmetics().find((item) => item.id === equipped.catSkin);
-    if (equippedSkin?.levelAssets) for (const path of equippedSkin.levelAssets) paths.add(path);
+    if (equippedSkin?.levelAssets) {
+      const eagerLevels = equippedSkin.levelAssets.slice(0, 4); // 仅加载 1-4 级
+      for (const path of eagerLevels) paths.add(path);
+    }
     const equippedBoard = allCosmetics().find((item) => item.id === equipped.board);
     if (equippedBoard?.boardAsset) paths.add(equippedBoard.boardAsset);
     const equippedEffect = allCosmetics().find((item) => item.id === equipped.effect);

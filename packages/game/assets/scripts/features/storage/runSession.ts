@@ -61,11 +61,51 @@ export function normalizeSavedRun(value: unknown): SavedRun | null {
 }
 
 export class RunSessionStore {
+  private saveTimer: number | null = null;
+  private pendingSave: SavedRun | null = null;
+  private readonly DEBOUNCE_MS = 500;
+
   public constructor(private readonly storage: KeyValueStorage) {}
 
   public save(run: SavedRun): void {
+    this.pendingSave = run;
+
+    if (this.saveTimer !== null) {
+      clearTimeout(this.saveTimer);
+    }
+
+    // 使用全局 setTimeout（Node.js 和浏览器都支持）
+    this.saveTimer = setTimeout(() => {
+      if (this.pendingSave) {
+        this.persistNow(this.pendingSave);
+        this.pendingSave = null;
+      }
+      this.saveTimer = null;
+    }, this.DEBOUNCE_MS) as unknown as number;
+  }
+
+  /** 立即保存（游戏结束或页面卸载时调用） */
+  public flush(): void {
+    if (this.saveTimer !== null) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
+    if (this.pendingSave) {
+      this.persistNow(this.pendingSave);
+      this.pendingSave = null;
+    }
+  }
+
+  private persistNow(run: SavedRun): void {
+    const normalized = normalizeSavedRun(run);
+    if (!normalized) {
+      console.error('[RunSessionStore] Invalid run data, skipping save');
+      return;
+    }
+
     try {
-      this.storage.setItem(RUN_SESSION_SAVE_KEY, JSON.stringify(run));
+      this.storage.setItem(RUN_SESSION_SAVE_KEY, JSON.stringify(normalized));
     } catch (error) {
       console.warn('[Cat2048] Failed to save run session.', error);
     }

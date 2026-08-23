@@ -29,6 +29,21 @@ export * from './graphics';
 export * from './typography';
 
 const MIN_TOUCH_TARGET = 88;
+/** 统一按下反馈的缩放比例。 */
+const TAP_SCALE = 0.94;
+
+/**
+ * 统一的按压反馈：按下轻微缩小，松开回弹后触发回调。
+ * 所有可点击控件都应使用本函数，保证全应用手感一致。
+ */
+export function bindTapFeedback(node: Node, onTap: () => void, scale = TAP_SCALE): void {
+  node.on(Node.EventType.TOUCH_START, () =>
+    tween(node).to(0.05, { scale: new Vec3(scale, scale, 1) }).start());
+  node.on(Node.EventType.TOUCH_CANCEL, () =>
+    tween(node).to(0.08, { scale: Vec3.ONE }).start());
+  node.on(Node.EventType.TOUCH_END, () =>
+    tween(node).to(0.08, { scale: Vec3.ONE }).call(onTap).start());
+}
 
 /** 创建精灵节点（设置自定义尺寸）。 */
 export function createSpriteNode(name: string, frame: SpriteFrame, width: number, height: number): Node {
@@ -76,11 +91,7 @@ export function createButton(text: string, width: number, height: number, color:
   const label = createLabel(text, fontSize, COLORS.white, icon ? width - height - 24 : width - 30, height - 12, 'display');
   if (icon) label.node.setPosition(height * 0.36, 0);
   node.addChild(label.node);
-  node.on(Node.EventType.TOUCH_START, () => tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start());
-  node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
-  node.on(Node.EventType.TOUCH_END, () => {
-    tween(node).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
-  });
+  bindTapFeedback(node, onTap);
   addExpandedTouchTarget(node, width, height);
   return node;
 }
@@ -149,12 +160,10 @@ export function createToggle(name: string, enabled: boolean, onChange: (enabled:
   };
 
   render(false);
-  node.on(Node.EventType.TOUCH_START, () => tween(node).to(0.05, { scale: new Vec3(0.96, 0.96, 1) }).start());
-  node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
-  node.on(Node.EventType.TOUCH_END, () => {
+  bindTapFeedback(node, () => {
     current = !current;
     render(true);
-    tween(node).to(0.08, { scale: Vec3.ONE }).call(() => onChange(current)).start();
+    onChange(current);
   });
   addExpandedTouchTarget(node, 110, 58);
   return node;
@@ -189,10 +198,6 @@ export function createIconButton(name: string, frame: SpriteFrame | undefined, f
     const label = createLabel(fallback, size * 0.5, COLORS.ink, size * 0.8, size * 0.8);
     visual.addChild(label.node);
   }
-  node.on(Node.EventType.TOUCH_START, () => tween(node).to(0.05, { scale: new Vec3(0.9, 0.9, 1) }).start());
-  node.on(Node.EventType.TOUCH_CANCEL, () => tween(node).to(0.08, { scale: Vec3.ONE }).start());
-  node.on(Node.EventType.TOUCH_END, () => {
-    tween(node).to(0.08, { scale: Vec3.ONE }).call(onTap).start();
-  });
+  bindTapFeedback(node, onTap, 0.9);
   return node;
 }

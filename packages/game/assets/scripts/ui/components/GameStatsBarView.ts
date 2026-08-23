@@ -7,6 +7,7 @@ import {
   createSpriteNode,
   createUiNode,
   drawRounded,
+  withAlpha,
 } from '../utils/uiFactory';
 
 export interface GameStats {
@@ -48,7 +49,7 @@ export class GameStatsBarView {
     for (const column of STAT_COLUMNS) {
       const stat = createUiNode(`GameStatsBar:${column.kind}`, STAT_WIDTH, BAR_HEIGHT - 4);
       drawRounded(stat, STAT_WIDTH, BAR_HEIGHT - 4, new Color(255, 248, 228, 225), 20,
-        { color: new Color(139, 91, 59, 85), width: 1 });
+        { color: withAlpha(COLORS.softBrown, 85), width: 1 });
       stat.setPosition(column.x, 0);
       bar.addChild(stat);
 

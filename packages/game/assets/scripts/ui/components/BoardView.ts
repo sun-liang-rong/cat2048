@@ -1,4 +1,4 @@
-import { Color, Node, tween, Tween, Vec3 } from 'cc';
+import { Color, Graphics, Mask, Node, tween, Tween, Vec3 } from 'cc';
 import type { BoardSnapshot, MergeRecord, MoveResult, Position, Tile } from '../../core/types';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
@@ -24,6 +24,9 @@ import {
 } from '../utils/uiFactory';
 import { createTileNode, playMergeAnimation } from './board/TileView';
 
+/** 棋盘背景外轮廓圆角（与格子 22 同级，略大以体现由外到内的收束）。 */
+const BOARD_CORNER_RADIUS = 30;
+
 export interface BoardFeedback {
   onMerge(): void;
   onMove(): void;
@@ -48,9 +51,26 @@ export class BoardView {
     parent.addChild(board);
     this.boardRoot = board;
 
+    // 背景图用圆角模板直接裁出外轮廓（切图自身圆角偏小且带直角边）。
+    const background = createUiNode('BoardBackground', boardPixels, boardPixels);
+    const stencil = background.addComponent(Mask);
+    stencil.type = Mask.Type.GRAPHICS_STENCIL;
+    const graphics = background.getComponent(Graphics)!;
+    graphics.roundRect(-boardPixels / 2, -boardPixels / 2, boardPixels, boardPixels,
+      BOARD_CORNER_RADIUS);
+    graphics.fill();
+    board.addChild(background);
+
     const boardFrame = this.cosmetics.boardFrame();
-    if (boardFrame) board.addChild(createSpriteNode('BoardBackground', boardFrame, boardPixels, boardPixels));
-    else drawRounded(board, boardPixels, boardPixels, new Color(224, 172, 100, 255), 38);
+    if (boardFrame) {
+      background.addChild(createSpriteNode('BoardBackground:Art', boardFrame,
+        boardPixels, boardPixels));
+    } else {
+      const fallback = createUiNode('BoardBackground:Fallback', boardPixels, boardPixels);
+      drawRounded(fallback, boardPixels, boardPixels, new Color(224, 172, 100, 255),
+        BOARD_CORNER_RADIUS);
+      background.addChild(fallback);
+    }
 
     this.createGrid(board);
     this.tileLayer = createUiNode('Tiles', boardPixels, boardPixels);
@@ -60,6 +80,12 @@ export class BoardView {
 
   public unmount(): void {
     this.clearTouchHighlight();
+    // 停止所有瓦片节点的动画
+    if (this.tileLayer) {
+      this.tileLayer.children.forEach(child => {
+        Tween.stopAllByTarget(child);
+      });
+    }
     this.tileNodes.clear();
     this.tileLayer = null;
     this.boardRoot = null;
@@ -76,7 +102,13 @@ export class BoardView {
 
   public rebuild(snapshot: BoardSnapshot, animate = true): void {
     if (!this.tileLayer) return;
-    for (const child of [...this.tileLayer.children]) child.destroy();
+    // 倒序删除并停止所有动画，避免数组拷贝和内存泄漏
+    const children = this.tileLayer.children;
+    for (let i = children.length - 1; i >= 0; i--) {
+      const child = children[i];
+      Tween.stopAllByTarget(child);
+      child.destroy();
+    }
     this.tileNodes.clear();
     snapshot.tiles.forEach((tile) => {
       const node = createTileNode(tile, this.tileLayer!, this.tileContext(), this.tileNodes);

@@ -89,6 +89,7 @@ export class GameFlowController {
   private newRecordThisRun = false;
   private movesCount = 0;
   private mergesCount = 0;
+  private hasTriggeredHighLevelLoad = false;
 
   public constructor(private readonly deps: GameFlowDeps) {
     this.boardView = new BoardView(deps.art, deps.cosmetics);
@@ -120,6 +121,7 @@ export class GameFlowController {
     this.newRecordThisRun = false;
     this.movesCount = 0;
     this.mergesCount = 0;
+    this.hasTriggeredHighLevelLoad = false;
     this.registerBoardCats(this.game.start());
   }
 
@@ -182,6 +184,20 @@ export class GameFlowController {
     const completedDailyChallenge = this.completeDailyChallengeIfNeeded(result.board);
     this.persistRun();
     if (!this.deps.host.getSave().tutorial.swipeGuideCompleted) this.completeSwipeGuide();
+
+    // 懒加载高级资源：当首次达到 5 级时触发
+    if (!this.hasTriggeredHighLevelLoad) {
+      const maxLevel = Math.max(...result.board.tiles.map(t => t.level));
+      if (maxLevel >= 5) {
+        this.hasTriggeredHighLevelLoad = true;
+        const currentSkin = this.deps.host.getSave().economy.equipped.catSkin;
+        // 异步加载，不阻塞游戏
+        this.deps.art.loadHighLevelAssets(currentSkin).catch(err => {
+          console.error('[GameFlow] Failed to preload high-level assets:', err);
+        });
+      }
+    }
+
     const token = this.sessionToken;
     this.deps.host.lockInput();
     await this.boardView.animateMove(
@@ -358,11 +374,15 @@ export class GameFlowController {
     this.boardView.unmount();
     this.gameScreen.clear();
     this.gameRoot = null;
+    // 确保在页面离开时保存状态
+    this.deps.runSession.flush();
   }
 
   private showGameOver(): void {
     if (this.gameOverOverlay?.isValid || this.gameOverSettlementInProgress) return;
     this.gameOverSettlementInProgress = true;
+    // 立即保存游戏状态
+    this.deps.runSession.flush();
     this.deps.runSession.clear();
     this.deps.host.lockInput();
     this.updateScore(this.game.score);

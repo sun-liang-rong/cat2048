@@ -182,13 +182,24 @@ export class EconomyPanelsController {
 
   private async openShop(): Promise<void> {
     const token = this.deps.getSceneToken();
+    // 商店预览需要全量皮肤目录（30+ 张大图），同步等完会让打开明显卡顿。
+    // 改为立即渲染：卡片先显示彩色占位底，图片后台加载完后整页刷新上屏。
+    this.renderShop();
     try {
       await this.deps.art.loadFrames(cosmeticAssetPaths(this.deps.getEconomySnapshot().catalog));
     } catch (error) {
       console.warn('[Cat2048] Failed to load shop assets, showing fallbacks.', error);
     }
     if (token !== this.deps.getSceneToken()) return;
-    this.renderShop();
+    if (this.deps.getCurrentScreen() === 'shop') {
+      this.deps.shopView.refresh({
+        economy: this.deps.getEconomySnapshot(),
+        uiWidth: this.deps.getSize().width,
+        uiHeight: this.deps.getSize().height,
+        topInset: this.deps.topInset(),
+        bottomInset: this.deps.bottomInset(),
+      });
+    }
   }
 
   private renderShop(): void {
@@ -260,10 +271,10 @@ export class EconomyPanelsController {
   private async openCollection(origin: CollectionOrigin): Promise<void> {
     const token = this.deps.getSceneToken();
     try {
-      await this.deps.art.loadFrames([
-        ...cosmeticAssetPaths(this.deps.getEconomySnapshot().catalog),
-        ...collectionAssetPaths(),
-      ]);
+      // 图鉴只显示当前装备皮肤的猫咪（启动时已预加载），这里只需补齐
+      // 图鉴自身的 UI 素材；全量皮肤目录由商店打开时按需加载，避免
+      // 每次进图鉴都同步解码 30+ 张猫咪大图导致明显卡顿。
+      await this.deps.art.loadFrames(collectionAssetPaths());
     } catch (error) {
       console.warn('[Cat2048] Failed to load collection assets, showing fallbacks.', error);
     }

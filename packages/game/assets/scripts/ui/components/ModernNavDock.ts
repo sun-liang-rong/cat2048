@@ -1,9 +1,17 @@
 import { Color, Node, tween, Vec3 } from 'cc';
 import type { ArtRepository } from '../utils/ArtRepository';
-import { createLabel, createSpriteNode, createUiNode, drawRounded } from '../utils/uiFactory';
+import {
+  COLORS,
+  createLabel,
+  createSpriteNode,
+  createUiNode,
+  drawRounded,
+  bindTapFeedback,
+} from '../utils/uiFactory';
+import { withAlpha } from '../utils/colors';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
+import { NAV_DOCK_HEIGHT } from '../styles/tokens';
 
-const DOCK_HEIGHT = 168;
 const ICON_SIZE = 92;
 // 间距根据屏幕宽度动态计算，4 个图标均匀铺开
 const MAX_ICON_SPACING = 184;
@@ -38,12 +46,12 @@ export class ModernNavDock {
       onSettings: () => void;
     }
   ): Node {
-    const dockY = -uiHeight / 2 + bottomInset + DOCK_HEIGHT / 2;
-    const dock = createUiNode('ModernNavDock', uiWidth, DOCK_HEIGHT);
+    const dockY = -uiHeight / 2 + bottomInset + NAV_DOCK_HEIGHT / 2;
+    const dock = createUiNode('ModernNavDock', uiWidth, NAV_DOCK_HEIGHT);
     dock.setPosition(0, dockY);
 
     // 背景
-    this.drawModernBackground(dock, uiWidth, DOCK_HEIGHT);
+    this.drawModernBackground(dock, uiWidth, NAV_DOCK_HEIGHT);
 
     // 导航项
     const items: NavItem[] = [
@@ -65,7 +73,7 @@ export class ModernNavDock {
       dock.addChild(button);
 
       // 标签
-      const label = createLabel(item.label, 22, new Color(103, 67, 48, 255), 120, 34, 'display');
+      const label = createLabel(item.label, 22, COLORS.textBody, 120, 34, 'display');
       label.node.setPosition(x, -46);
       dock.addChild(label.node);
 
@@ -84,34 +92,16 @@ export class ModernNavDock {
   }
 
   private drawModernBackground(node: Node, width: number, height: number): void {
-    // 主背景 - 温暖的木质色调
+    // 主背景
     const base = createUiNode('DockBg:Base', width, height);
     drawRounded(base, width, height, new Color(252, 237, 203, 255), 28);
     node.addChild(base);
 
-    // 顶部装饰性高光
-    const highlight = createUiNode('DockBg:Highlight', width - 40, 48);
-    drawRounded(highlight, width - 40, 48, new Color(255, 250, 235, 100), 20);
-    highlight.setPosition(0, height / 2 - 32);
-    node.addChild(highlight);
-
-    // 精致边框
+    // 边框（原高光、分隔线、内阴影装饰层合并省略，降低 Graphics 节点数）
     const border = createUiNode('DockBg:Border', width, height);
     drawRounded(border, width, height, new Color(0, 0, 0, 0), 28,
-      { color: new Color(169, 123, 80, 220), width: 4 });
+      { color: withAlpha(new Color(169, 123, 80, 255), 220), width: 4 });
     node.addChild(border);
-
-    // 顶部分隔线
-    const divider = createUiNode('DockBg:Divider', width - 60, 3);
-    drawRounded(divider, width - 60, 3, new Color(169, 123, 80, 80), 1.5);
-    divider.setPosition(0, height / 2 - 10);
-    node.addChild(divider);
-
-    // 底部内阴影效果
-    const innerShadow = createUiNode('DockBg:InnerShadow', width - 20, 20);
-    drawRounded(innerShadow, width - 20, 20, new Color(139, 84, 50, 30), 10);
-    innerShadow.setPosition(0, -height / 2 + 16);
-    node.addChild(innerShadow);
   }
 
   private createNavButton(name: string, iconName: string, onTap: () => void): Node {
@@ -120,13 +110,6 @@ export class ModernNavDock {
     // 按钮背景 - 圆形容器
     const bgSize = 74;
     const background = createUiNode(`${name}:Bg`, bgSize, bgSize);
-    
-    // 外发光效果
-    const glow = createUiNode(`${name}:Glow`, bgSize + 8, bgSize + 8);
-    drawRounded(glow, bgSize + 8, bgSize + 8, new Color(255, 243, 210, 80), (bgSize + 8) / 2);
-    background.addChild(glow);
-    
-    // 主背景
     drawRounded(background, bgSize, bgSize, new Color(255, 250, 238, 255), bgSize / 2,
       { color: new Color(209, 163, 110, 150), width: 3 });
     container.addChild(background);
@@ -138,13 +121,13 @@ export class ModernNavDock {
       tasks: GAME_CONFIG.art.homeTasks,
       settings: GAME_CONFIG.art.homeSettings,
     };
-    
+
     const iconPath = iconPathMap[iconName];
     if (!iconPath) {
       console.warn(`[ModernNavDock] 未定义的图标名称: ${iconName}`);
       return container;
     }
-    
+
     const iconFrame = this.art.frame(iconPath);
     if (iconFrame) {
       const icon = createSpriteNode(`${name}:Icon`, iconFrame, ICON_SIZE_UI, ICON_SIZE_UI);
@@ -156,27 +139,25 @@ export class ModernNavDock {
 
     // 悬浮动画
     this.addHoverAnimation(container);
-    this.bindTap(container, onTap);
-    
+    bindTapFeedback(container, onTap, 0.92);
+
     return container;
   }
 
-
-
   private createBadge(): Node {
     const badge = createUiNode('TaskBadge', 32, 32);
-    
+
     // 外发光
     const glow = createUiNode('Badge:Glow', 36, 36);
-    drawRounded(glow, 36, 36, new Color(255, 124, 82, 60), 18);
+    drawRounded(glow, 36, 36, withAlpha(COLORS.coral, 60), 18);
     badge.addChild(glow);
-    
+
     // 主体
-    drawRounded(badge, 32, 32, new Color(255, 107, 74, 255), 16,
-      { color: new Color(255, 248, 232, 255), width: 3 });
-    
+    drawRounded(badge, 32, 32, COLORS.coral, 16,
+      { color: COLORS.textLight, width: 3 });
+
     // 感叹号
-    const icon = createLabel('!', 20, new Color(255, 248, 232, 255), 24, 28, 'display');
+    const icon = createLabel('!', 20, COLORS.textLight, 24, 28, 'display');
     icon.node.setPosition(0, 1);
     badge.addChild(icon.node);
 
@@ -199,27 +180,6 @@ export class ModernNavDock {
       .union()
       .repeatForever()
       .start();
-  }
-
-  private bindTap(node: Node, onTap: () => void): void {
-    node.on(Node.EventType.TOUCH_START, () => {
-      tween(node)
-        .to(0.08, { scale: new Vec3(0.92, 0.92, 1) }, { easing: 'quadOut' })
-        .start();
-    });
-
-    node.on(Node.EventType.TOUCH_CANCEL, () => {
-      tween(node)
-        .to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' })
-        .start();
-    });
-
-    node.on(Node.EventType.TOUCH_END, () => {
-      tween(node)
-        .to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' })
-        .call(onTap)
-        .start();
-    });
   }
 
   public setTaskBadge(visible: boolean): void {

@@ -16,9 +16,9 @@ import {
   drawRounded,
 } from '../../utils/uiFactory';
 
-export const TITLE_COLOR = new Color(91, 49, 31, 255);
-const PANEL_BORDER = new Color(105, 61, 40, 255);
-const CARD_COLOR = new Color(255, 249, 231, 250);
+export const TITLE_COLOR = COLORS.title;
+const PANEL_BORDER = COLORS.edgeBrown;
+const CARD_COLOR = new Color(255, 249, 231, 250); // 商品卡底色，比纸面偏黄
 
 export interface ShopCardOptions {
   readonly economy: EconomySnapshot;
@@ -68,7 +68,7 @@ export function createShopCard(item: CosmeticDefinition, options: ShopCardOption
   const actionText = equipped ? '已装备' : owned ? '装备' : `购买 ${item.price}`;
   const canBuy = owned || economy.coins >= item.price;
   const action = createButton(actionText, width - 38, 54,
-    equipped ? COLORS.teal : canBuy ? COLORS.coral : new Color(156, 148, 136, 210),
+    equipped ? COLORS.teal : canBuy ? COLORS.coral : COLORS.disabledSurface,
     () => {
       if (!canBuy || equipped) return;
       if (owned) onEquip(item.id);

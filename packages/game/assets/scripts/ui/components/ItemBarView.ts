@@ -16,6 +16,7 @@ import {
   createUiNode,
   drawRounded,
   setLabelText,
+  withAlpha,
 } from '../utils/uiFactory';
 
 interface ItemButtonView {
@@ -77,8 +78,8 @@ export class ItemBarView {
 
   private createItemButton(kind: ItemKind, name: string, titleText: string, iconText: string): ItemButtonView {
     const node = createUiNode(name, 310, 88);
-    drawRounded(node, 310, 88, new Color(255, 248, 228, 242), 22,
-      { color: new Color(139, 91, 59, 145), width: 2 });
+    drawRounded(node, 310, 88, COLORS.surfaceSoft, 22,
+      { color: withAlpha(COLORS.softBrown, 145), width: 2 });
 
     const icon = createUiNode(`${name}:Icon`, 60, 60);
     drawRounded(icon, 60, 60, new Color(247, 226, 188, 245), 18,
