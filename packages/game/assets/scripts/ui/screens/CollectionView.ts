@@ -56,9 +56,16 @@ const CARD_LEVEL_HEIGHT = 22;
 const CARD_NAME_HEIGHT = 22;
 
 export class CollectionView {
+  private content: Node | null = null;
+  private model: CollectionViewModel | null = null;
+  private actions: CollectionActions | null = null;
+  private layout: ReturnType<typeof collectionLayout> | null = null;
+
   public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
   public build(parent: Node, model: CollectionViewModel, actions: CollectionActions): void {
+    this.model = model;
+    this.actions = actions;
     addCoverBackground(
       parent,
       this.art,
@@ -75,6 +82,7 @@ export class CollectionView {
       model.bottomInset,
       GAME_CONFIG.cats.length,
     );
+    this.layout = layout;
 
     const back = createIconButton(
       'CollectionBack',
@@ -134,6 +142,7 @@ export class CollectionView {
     const content = createUiNode('CollectionContent', model.uiWidth, layout.contentHeight);
     content.setPosition(0, (layout.viewportHeight - layout.contentHeight) / 2);
     viewport.addChild(content);
+    this.content = content;
 
     const scrollView = scroll.addComponent(ScrollView);
     scrollView.horizontal = false;
@@ -158,6 +167,27 @@ export class CollectionView {
       bindTapFeedback(card, () => actions.onCardTap(cat, cardUnlocked), 0.94);
       content.addChild(card);
     });
+  }
+
+  /** 纹理批次加载完成后，仅替换对应卡片，避免重建页面和重置滚动位置。 */
+  public refreshCards(levels: readonly number[]): void {
+    const content = this.content;
+    const model = this.model;
+    const actions = this.actions;
+    const layout = this.layout;
+    if (!content || !model || !actions || !layout) return;
+    const unlocked = new Set(model.unlockedLevels);
+    for (const level of new Set(levels)) {
+      const cat = GAME_CONFIG.cats[level - 1];
+      const previous = content.getChildByName(`CollectionCard:${level}`);
+      if (!cat || !previous) continue;
+      const cardUnlocked = unlocked.has(level);
+      const replacement = this.createCard(cat, cardUnlocked, layout.cardWidth, layout.cardHeight);
+      replacement.setPosition(previous.position);
+      bindTapFeedback(replacement, () => actions.onCardTap(cat, cardUnlocked), 0.94);
+      previous.destroy();
+      content.addChild(replacement);
+    }
   }
 
   private createCard(cat: CatDefinition, unlocked: boolean, width: number, height: number): Node {

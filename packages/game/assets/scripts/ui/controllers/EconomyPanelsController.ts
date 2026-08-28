@@ -18,7 +18,14 @@ import type { ShopView } from '../screens/ShopView';
 import type { CollectionView } from '../screens/CollectionView';
 import type { SaveDataV3 } from '../../features/storage/saveTypes';
 import type { SavedRunMode } from '../../features/storage/runSession';
-import { cosmeticAssetPaths, collectionAssetPaths } from '../utils/assetPaths';
+import type { CosmeticCategory } from '../../features/economy/catalog';
+import { GAME_CONFIG } from '../../core/config/gameConfig';
+import {
+  collectionAssetPaths,
+  collectionCatAssets,
+  equippedCosmeticAssetPaths,
+  shopPreviewAssetPaths,
+} from '../utils/assetPaths';
 import { economyErrorText } from '../../features/economy/errors';
 
 export type ScreenName = 'loading' | 'home' | 'game' | 'collection' | 'shop' | 'leaderboard';
@@ -65,6 +72,8 @@ export class EconomyPanelsController {
   private dailyPromptShown = false;
   private collectionOrigin: CollectionOrigin = 'home';
   private catDetailOverlay: Node | null = null;
+  private shopLoadGeneration = 0;
+  private collectionLoadGeneration = 0;
 
   public constructor(private readonly deps: EconomyPanelsDeps) {}
 
@@ -75,6 +84,8 @@ export class EconomyPanelsController {
     this.catDetailOverlay = null;
     this.taskClaimInProgress = false;
     this.dailyClaimInProgress = false;
+    this.shopLoadGeneration += 1;
+    this.collectionLoadGeneration += 1;
   }
 
   /** 首页展示时，若每日奖励可领取则弹出（每会话一次）。 */
@@ -181,24 +192,23 @@ export class EconomyPanelsController {
   }
 
   private async openShop(): Promise<void> {
-    const token = this.deps.getSceneToken();
-    // 商店预览需要全量皮肤目录（30+ 张大图），同步等完会让打开明显卡顿。
-    // 改为立即渲染：卡片先显示彩色占位底，图片后台加载完后整页刷新上屏。
     this.renderShop();
+    const token = this.deps.getSceneToken();
+    await this.loadShopCategory(this.deps.shopView.selectedCategory, token);
+  }
+
+  private async loadShopCategory(category: CosmeticCategory, token: number): Promise<void> {
+    const generation = ++this.shopLoadGeneration;
+    const paths = shopPreviewAssetPaths(this.deps.getEconomySnapshot().catalog, category);
     try {
-      await this.deps.art.loadFrames(cosmeticAssetPaths(this.deps.getEconomySnapshot().catalog));
-    } catch (error) {
-      console.warn('[Cat2048] Failed to load shop assets, showing fallbacks.', error);
-    }
-    if (token !== this.deps.getSceneToken()) return;
-    if (this.deps.getCurrentScreen() === 'shop') {
-      this.deps.shopView.refresh({
-        economy: this.deps.getEconomySnapshot(),
-        uiWidth: this.deps.getSize().width,
-        uiHeight: this.deps.getSize().height,
-        topInset: this.deps.topInset(),
-        bottomInset: this.deps.bottomInset(),
+      await this.deps.art.loadFramesBatched(paths, 2, () => {
+        if (generation !== this.shopLoadGeneration || token !== this.deps.getSceneToken()) return;
+        if (this.deps.getCurrentScreen() !== 'shop'
+          || this.deps.shopView.selectedCategory !== category) return;
+        this.deps.shopView.refreshContent();
       });
+    } catch (error) {
+      console.warn(`[Cat2048] Failed to load ${category} shop previews, showing fallbacks.`, error);
     }
   }
 
@@ -217,6 +227,9 @@ export class EconomyPanelsController {
       onDailyReward: () => this.showDailyReward(),
       onPurchase: (itemId) => { void this.purchaseCosmetic(itemId); },
       onEquip: (itemId) => { void this.equipCosmetic(itemId); },
+      onCategoryChange: (category) => {
+        void this.loadShopCategory(category, this.deps.getSceneToken());
+      },
     });
   }
 
@@ -245,11 +258,20 @@ export class EconomyPanelsController {
     try {
       const result = await this.deps.economy.equip(itemId);
       this.deps.applyEconomyResult(result);
-      this.deps.unlockInput();
       if (!result.ok) {
+        this.deps.unlockInput();
         this.deps.showNotice('该装饰尚未拥有');
         return;
       }
+      try {
+        await this.deps.art.loadFramesBatched(
+          equippedCosmeticAssetPaths(this.deps.getEconomySnapshot().catalog, itemId),
+          2,
+        );
+      } catch (error) {
+        console.warn(`[Cat2048] Failed to warm equipped cosmetic ${itemId}.`, error);
+      }
+      this.deps.unlockInput();
       this.showShop();
     } catch (error) {
       this.deps.unlockInput();
@@ -269,20 +291,30 @@ export class EconomyPanelsController {
   }
 
   private async openCollection(origin: CollectionOrigin): Promise<void> {
+    // 页面先显示已缓存图片和占位卡，缺失立绘在后台逐批补齐。
+    this.renderCollection(origin);
     const token = this.deps.getSceneToken();
+    const generation = ++this.collectionLoadGeneration;
+    const isCurrent = (): boolean => generation === this.collectionLoadGeneration
+      && token === this.deps.getSceneToken()
+      && this.deps.getCurrentScreen() === 'collection';
+    const snapshot = this.deps.getEconomySnapshot();
+    const unlockedLevels = this.deps.getSave().unlockedCatLevels;
+    const skinId = this.deps.getSave().economy.equipped.catSkin;
+    const catAssets = collectionCatAssets(snapshot.catalog, skinId, unlockedLevels);
+    const levelsByPath = new Map(catAssets.map((asset) => [asset.path, asset.level]));
     try {
-      // 图鉴只显示当前装备皮肤的猫咪。Tier2 启动后台加载已覆盖高等级立绘；
-      // 若用户在 Tier2 完成前就打开图鉴，这里并行补齐，避免 Lv5+ 已解锁卡缺立绘。
-      const skinId = this.deps.getSave().economy.equipped.catSkin;
-      await Promise.all([
-        this.deps.art.loadFrames(collectionAssetPaths()),
-        this.deps.art.loadHighLevelAssets(skinId),
-      ]);
+      await this.deps.art.loadFramesBatched(collectionAssetPaths(), 3);
+      if (isCurrent()) this.deps.collectionView.refreshCards(GAME_CONFIG.cats.map((cat) => cat.level));
+      await this.deps.art.loadFramesBatched(catAssets.map((asset) => asset.path), 2, (loadedPaths) => {
+        if (!isCurrent()) return;
+        this.deps.collectionView.refreshCards(loadedPaths
+          .map((path) => levelsByPath.get(path))
+          .filter((level): level is number => level !== undefined));
+      });
     } catch (error) {
       console.warn('[Cat2048] Failed to load collection assets, showing fallbacks.', error);
     }
-    if (token !== this.deps.getSceneToken()) return;
-    this.renderCollection(origin);
   }
 
   private renderCollection(origin: CollectionOrigin): void {
@@ -308,7 +340,7 @@ export class EconomyPanelsController {
    * 打开猫咪详情弹窗。同屏只会存在一个详详情弹窗，避免多层遮罩堆叠。
    * `lockInput` / `unlockInput` 由弹窗生命周期控制。
    */
-  public showCatDetail(cat: { readonly level: number; readonly name: string; readonly description: string },
+  public showCatDetail(cat: (typeof GAME_CONFIG.cats)[number],
     unlocked: boolean): void {
     const screenRoot = this.deps.getScreenRoot();
     if (!screenRoot || this.catDetailOverlay?.isValid) return;

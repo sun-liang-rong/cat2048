@@ -88,8 +88,10 @@ export function createButton(text: string, width: number, height: number, color:
     iconNode.setPosition(-width / 2 + height * 0.5, 0);
     node.addChild(iconNode);
   }
-  const label = createLabel(text, fontSize, COLORS.white, icon ? width - height - 24 : width - 30, height - 12, 'display');
-  if (icon) label.node.setPosition(height * 0.36, 0);
+  const labelWidth = icon ? width - height - 12 : width - 30;
+  const labelX = icon ? height * 0.3 : 0;
+  const label = createLabel(text, fontSize, COLORS.white, labelWidth, height - 12, 'display');
+  label.node.setPosition(labelX, 0);
   node.addChild(label.node);
   bindTapFeedback(node, onTap);
   addExpandedTouchTarget(node, width, height);

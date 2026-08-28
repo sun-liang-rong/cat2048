@@ -45,14 +45,10 @@ export class ArtRepository {
 
   /**
    * 次级资源后台预载（Tier 2）：功能页（图鉴/商店/排行榜）界面图、
-   * 设置/任务图标、剩余音效。首页可交互后调用；分片加载让出主线程。
+   * 设置/任务图标与 BGM。猫咪高等级立绘留到对局预热或图鉴按需加载。
    */
-  /**
-   * 次级资源后台预载（Tier 2）：功能页（图鉴/商店/排行榜）界面图、
-   * 设置/任务图标、装备皮肤高等级立绘与 BGM。首页可交互后调用；分片加载让出主线程。
-   */
-  public async preloadSecondary(equipped: EquippedCosmetics = DEFAULT_EQUIPPED): Promise<void> {
-    await this.loadFramesChunked(this.secondaryFramePaths(equipped));
+  public async preloadSecondary(_equipped: EquippedCosmetics = DEFAULT_EQUIPPED): Promise<void> {
+    await this.loadFramesChunked(this.secondaryFramePaths());
     const audioNames = ['bgm'];
     await Promise.all(audioNames.map(async (name) => {
       const path = `game/audio/${name}`;
@@ -79,6 +75,25 @@ export class ArtRepository {
 
   public async loadFrames(paths: readonly string[]): Promise<void> {
     await Promise.all(paths.map((path) => this.loadFrame(path)));
+  }
+
+  /**
+   * 去重后按小批次加载纹理，并在每批完成时让出事件循环，避免连续图片解码卡住 UI。
+   * 已缓存的路径会直接跳过；回调只包含本批新加载完成的路径。
+   */
+  public async loadFramesBatched(
+    paths: readonly string[],
+    batchSize = 2,
+    onBatch?: (loadedPaths: readonly string[]) => void,
+  ): Promise<void> {
+    const pending = Array.from(new Set(paths)).filter((path) => !this.frames.has(path));
+    const size = Math.max(1, Math.floor(batchSize));
+    for (let index = 0; index < pending.length; index += size) {
+      const batch = pending.slice(index, index + size);
+      await this.loadFrames(batch);
+      onBatch?.(batch);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   }
 
   public async loadShareImagePath(path: string): Promise<string | undefined> {
@@ -109,7 +124,7 @@ export class ArtRepository {
     const highLevels = skin.levelAssets.slice(4);
 
     try {
-      await this.loadFrames(highLevels);
+      await this.loadFramesBatched(highLevels, 2);
       this.highLevelAssetsLoaded.add(skinId);
       console.log(`[ArtRepository] High-level assets loaded for ${skinId}`);
     } catch (error) {
@@ -223,8 +238,8 @@ export class ArtRepository {
     return Array.from(paths);
   }
 
-  /** 次级路径（Tier 2）：功能页界面图、设置/任务图标、皮肤高等级立绘与装饰资源。 */
-  private secondaryFramePaths(equipped: EquippedCosmetics): string[] {
+  /** 次级路径（Tier 2）：功能页界面图、设置/任务图标与共享装饰资源。 */
+  private secondaryFramePaths(): string[] {
     const cats = GAME_CONFIG.cats;
     const art = GAME_CONFIG.art;
     const paths = new Set<string>([
@@ -255,11 +270,6 @@ export class ArtRepository {
       cats[cats.length - 1].asset,
       cats[0].asset,
     ]);
-    // 装备皮肤 5-12 级立绘：图鉴已解锁卡与续玩棋盘在首次移动前就需要。
-    const equippedSkin = allCosmetics().find((item) => item.id === equipped.catSkin);
-    if (equippedSkin?.levelAssets) {
-      for (const path of equippedSkin.levelAssets.slice(4)) paths.add(path);
-    }
     return Array.from(paths);
   }
 }

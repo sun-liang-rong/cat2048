@@ -1,5 +1,6 @@
 import {
   Color,
+  Label,
   Mask,
   Node,
   ScrollView,
@@ -20,7 +21,6 @@ import {
   createIconButton,
   createLabel,
   createUiNode,
-  drawRounded,
 } from '../utils/uiFactory';
 import { createShopCard } from '../components/shop/ShopCard';
 
@@ -37,6 +37,7 @@ export interface ShopViewActions {
   readonly onDailyReward: () => void;
   readonly onPurchase: (itemId: string) => void;
   readonly onEquip: (itemId: string) => void;
+  readonly onCategoryChange: (category: CosmeticCategory) => void;
 }
 
 const CATEGORY_LABELS: Readonly<Record<CosmeticCategory, string>> = {
@@ -46,12 +47,15 @@ const CATEGORY_LABELS: Readonly<Record<CosmeticCategory, string>> = {
 };
 
 const CATEGORIES: readonly CosmeticCategory[] = ['cat-skin', 'board', 'effect'];
-const TAB_CONTENT_GAP = 25;
+const TAB_CONTENT_GAP = 48;
 const TAB_WIDTH = 166;
 const TAB_HEIGHT = 58;
-const TAB_GAP = 8;
+const TAB_GAP = 12;
 const TAB_ROW_WIDTH = TAB_WIDTH * CATEGORIES.length + TAB_GAP * (CATEGORIES.length - 1);
 const TAB_START_X = -TAB_ROW_WIDTH / 2 + TAB_WIDTH / 2;
+const TAB_ACTIVE_COLOR = new Color(59, 130, 246, 255);      // 蓝色激活标签
+const TAB_ACTIVE_SHADOW = new Color(29, 78, 216, 40);       // 激活标签光晕
+const TAB_INACTIVE_COLOR = new Color(248, 246, 242, 255);   // 暖白未激活标签
 
 export class ShopView {
   private category: CosmeticCategory = 'cat-skin';
@@ -96,24 +100,44 @@ export class ShopView {
     title.node.setPosition(0, headerY + 2);
     parent.addChild(title.node);
 
-    this.wallet = createButton(`金币 ${model.economy.coins}`, 205, 64, COLORS.mustard,
+    this.wallet = createButton(`金币 ${model.economy.coins}`, 220, 64, COLORS.mustard,
       () => actions.onDailyReward(), 22, this.art.frame(GAME_CONFIG.art.coin));
-    this.wallet.setPosition(model.uiWidth / 2 - 130, headerY + 4);
+    this.wallet.setPosition(model.uiWidth / 2 - 137, headerY + 4);
     parent.addChild(this.wallet);
 
-    const tabs = createUiNode('ShopTabs', model.uiWidth - 42, 68);
-    tabs.setPosition(0, headerY - 74);
+    const tabs = createUiNode('ShopTabs', model.uiWidth - 42, 72);
+    tabs.setPosition(0, headerY - 76);
     parent.addChild(tabs);
     this.tabs = tabs;
     CATEGORIES.forEach((category, index) => {
+      const isActive = category === this.category;
+
+      // 为激活标签添加光晕
+      if (isActive) {
+        const glow = createButton('', TAB_WIDTH + 8, TAB_HEIGHT + 8, TAB_ACTIVE_SHADOW,
+          () => {}, 19);
+        glow.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
+        tabs.addChild(glow);
+      }
+
       const tab = createButton(CATEGORY_LABELS[category], TAB_WIDTH, TAB_HEIGHT,
-        category === this.category ? COLORS.teal : COLORS.cream,
+        isActive ? TAB_ACTIVE_COLOR : TAB_INACTIVE_COLOR,
         () => {
           if (this.category === category) return;
           this.category = category;
           this.refreshTabs();
           this.renderContent();
-        }, 19);
+          actions.onCategoryChange(category);
+        }, 20);
+
+      // 激活标签的文字用白色，未激活用深灰色
+      const textColor = isActive ? new Color(255, 255, 255, 255) : new Color(75, 85, 99, 255);
+      const label = tab.getComponentInChildren(Label);
+      if (label) {
+        label.color = textColor;
+        label.isBold = isActive;
+      }
+
       tab.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
       tabs.addChild(tab);
     });
@@ -126,6 +150,8 @@ export class ShopView {
     const scroll = createUiNode('ShopScroll', model.uiWidth - 42, viewportHeight);
     scroll.setPosition(0, (viewportTop + viewportBottom) / 2);
     parent.addChild(scroll);
+    // Keep the tab row above the scroll content if a rounded card reaches the viewport edge.
+    tabs.setSiblingIndex(parent.children.length - 1);
 
     const viewport = createUiNode('ShopViewport', model.uiWidth - 42, viewportHeight);
     viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
@@ -167,15 +193,51 @@ export class ShopView {
     this.wallet = null;
   }
 
+  public get selectedCategory(): CosmeticCategory {
+    return this.category;
+  }
+
+  /** 新一批预览图完成后只刷新商品区，保留页头、分类和滚动容器。 */
+  public refreshContent(): void {
+    this.renderContent();
+  }
+
   private refreshTabs(): void {
     if (!this.tabs) return;
-    this.tabs.children.forEach((tab, index) => {
-      const selected = CATEGORIES[index] === this.category;
-      const background = tab.getChildByName('ButtonBackground');
-      const size = tab.getComponent(UITransform)?.contentSize;
-      if (!background || !size) return;
-      drawRounded(background, size.width, size.height, selected ? COLORS.teal : COLORS.cream, 24,
-        { color: COLORS.ink, width: 5 });
+    // 清空并重建标签，以正确显示光晕效果
+    for (const child of [...this.tabs.children]) child.destroy();
+
+    CATEGORIES.forEach((category, index) => {
+      const isActive = category === this.category;
+
+      // 为激活标签添加光晕
+      if (isActive) {
+        const glow = createButton('', TAB_WIDTH + 8, TAB_HEIGHT + 8, TAB_ACTIVE_SHADOW,
+          () => {}, 20);
+        glow.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
+        this.tabs.addChild(glow);
+      }
+
+      const tab = createButton(CATEGORY_LABELS[category], TAB_WIDTH, TAB_HEIGHT,
+        isActive ? TAB_ACTIVE_COLOR : TAB_INACTIVE_COLOR,
+        () => {
+          if (this.category === category) return;
+          this.category = category;
+          this.refreshTabs();
+          this.renderContent();
+          if (this.actions) this.actions.onCategoryChange(category);
+        }, 20);
+
+      const label = tab.getComponentInChildren(Label);
+      if (label) {
+        label.color = isActive
+          ? new Color(255, 255, 255, 255)
+          : new Color(75, 85, 99, 255);
+        label.isBold = isActive;
+      }
+
+      tab.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
+      this.tabs.addChild(tab);
     });
   }
 
@@ -188,17 +250,16 @@ export class ShopView {
 
     const items = model.economy.catalog.filter((item) => item.category === this.category);
     const cardWidth = Math.min(300, (model.uiWidth - 104) / 2);
-    const cardHeight = Math.round(cardWidth * 1.3);
-    const rowGap = 18;
+    // Reserve enough vertical room for the price row and the button margin.
+    const cardHeight = Math.round(cardWidth * 1.43);
+    const rowGap = 22;
     const columnGap = 28;
 
     const rowCount = Math.ceil(items.length / 2);
     const rowsHeight = rowCount > 0
       ? rowCount * cardHeight + (rowCount - 1) * rowGap
       : cardHeight;
-    const contentPadding = 24;
-    // 内容高度不足一屏时撑满视口（保证可点击区域与居中），超出则自然滚动。
-    // 注意 contentSize 挂在 UITransform 组件上，Node 上没有该属性。
+    const contentPadding = 28;
     const contentTransform = content.getComponent(UITransform)!;
     const viewportHeight = contentTransform.contentSize.height || rowsHeight;
     contentTransform.setContentSize(contentTransform.width,
@@ -214,7 +275,7 @@ export class ShopView {
         isEquipped: (candidate) => this.isEquipped(candidate),
         onPurchase: actions.onPurchase,
         onEquip: actions.onEquip,
-      });
+      }, index);
       const col = index % 2;
       const row = Math.floor(index / 2);
       card.setPosition(-cardWidth / 2 - columnGap / 2 + col * (cardWidth + columnGap),
@@ -223,7 +284,7 @@ export class ShopView {
     });
 
     if (items.length === 0) {
-      const empty = createLabel('暂无商品', 26, COLORS.ink, 360, 60, 'display');
+      const empty = createLabel('暂无商品', 26, new Color(100, 116, 139, 255), 360, 60, 'display');
       content.addChild(empty.node);
     }
   }
