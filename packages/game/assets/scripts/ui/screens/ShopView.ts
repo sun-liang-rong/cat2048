@@ -4,7 +4,9 @@ import {
   Mask,
   Node,
   ScrollView,
+  tween,
   UITransform,
+  Vec3,
 } from 'cc';
 import type {
   CosmeticCategory,
@@ -17,10 +19,12 @@ import type { CosmeticRuntime } from '../components/CosmeticRuntime';
 import { addCoverBackground } from '../styles/background';
 import {
   COLORS,
+  bindTapFeedback,
   createButton,
   createIconButton,
   createLabel,
   createUiNode,
+  drawRounded,
 } from '../utils/uiFactory';
 import { createShopCard } from '../components/shop/ShopCard';
 
@@ -47,15 +51,18 @@ const CATEGORY_LABELS: Readonly<Record<CosmeticCategory, string>> = {
 };
 
 const CATEGORIES: readonly CosmeticCategory[] = ['cat-skin', 'board', 'effect'];
-const TAB_CONTENT_GAP = 48;
+// 分类标签：胶囊分段控件（暖橙滑动指示块），与全局暖色主题一致
 const TAB_WIDTH = 166;
-const TAB_HEIGHT = 58;
+const TAB_HEIGHT = 56;
 const TAB_GAP = 12;
 const TAB_ROW_WIDTH = TAB_WIDTH * CATEGORIES.length + TAB_GAP * (CATEGORIES.length - 1);
-const TAB_START_X = -TAB_ROW_WIDTH / 2 + TAB_WIDTH / 2;
-const TAB_ACTIVE_COLOR = new Color(59, 130, 246, 255);      // 蓝色激活标签
-const TAB_ACTIVE_SHADOW = new Color(29, 78, 216, 40);       // 激活标签光晕
-const TAB_INACTIVE_COLOR = new Color(248, 246, 242, 255);   // 暖白未激活标签
+const TAB_CONTAINER_WIDTH = TAB_ROW_WIDTH + 20;
+const TAB_CONTAINER_HEIGHT = 68;
+const TAB_ACTIVE_COLOR = new Color(255, 159, 74, 255);      // 暖橙激活段
+const TAB_CONTAINER_COLOR = new Color(255, 248, 236, 255);  // 胶囊奶油底
+const TAB_CONTAINER_STROKE = new Color(240, 228, 208, 255); // 胶囊细描边
+const TAB_ACTIVE_TEXT = new Color(255, 255, 255, 255);      // 激活段白字
+const TAB_INACTIVE_TEXT = new Color(138, 122, 106, 255);    // 未激活棕灰字
 
 export class ShopView {
   private category: CosmeticCategory = 'cat-skin';
@@ -63,6 +70,8 @@ export class ShopView {
   private actions: ShopViewActions | null = null;
   private parent: Node | null = null;
   private tabs: Node | null = null;
+  private tabIndicator: Node | null = null;
+  private segmentLabels: Label[] = [];
   private content: Node | null = null;
   private wallet: Node | null = null;
 
@@ -105,45 +114,38 @@ export class ShopView {
     this.wallet.setPosition(model.uiWidth / 2 - 137, headerY + 4);
     parent.addChild(this.wallet);
 
-    const tabs = createUiNode('ShopTabs', model.uiWidth - 42, 72);
+    const tabs = createUiNode('ShopTabs', TAB_CONTAINER_WIDTH, TAB_CONTAINER_HEIGHT);
     tabs.setPosition(0, headerY - 76);
     parent.addChild(tabs);
     this.tabs = tabs;
-    CATEGORIES.forEach((category, index) => {
-      const isActive = category === this.category;
 
-      // 为激活标签添加光晕
-      if (isActive) {
-        const glow = createButton('', TAB_WIDTH + 8, TAB_HEIGHT + 8, TAB_ACTIVE_SHADOW,
-          () => {}, 19);
-        glow.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
-        tabs.addChild(glow);
-      }
+    // 胶囊底
+    drawRounded(tabs, TAB_CONTAINER_WIDTH, TAB_CONTAINER_HEIGHT, TAB_CONTAINER_COLOR, 34,
+      { color: TAB_CONTAINER_STROKE, width: 2 });
 
-      const tab = createButton(CATEGORY_LABELS[category], TAB_WIDTH, TAB_HEIGHT,
-        isActive ? TAB_ACTIVE_COLOR : TAB_INACTIVE_COLOR,
-        () => {
-          if (this.category === category) return;
-          this.category = category;
-          this.refreshTabs();
-          this.renderContent();
-          actions.onCategoryChange(category);
-        }, 20);
+    // 滑动指示块（切换分类时平移过去）
+    const indicator = createUiNode('ShopTabIndicator', TAB_WIDTH, TAB_HEIGHT);
+    drawRounded(indicator, TAB_WIDTH, TAB_HEIGHT, TAB_ACTIVE_COLOR, 22);
+    indicator.setPosition(this.tabX(this.category), 0);
+    tabs.addChild(indicator);
+    this.tabIndicator = indicator;
 
-      // 激活标签的文字用白色，未激活用深灰色
-      const textColor = isActive ? new Color(255, 255, 255, 255) : new Color(75, 85, 99, 255);
-      const label = tab.getComponentInChildren(Label);
-      if (label) {
-        label.color = textColor;
-        label.isBold = isActive;
-      }
-
-      tab.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
-      tabs.addChild(tab);
+    // 透明分段：只提供点击与文字，视觉由指示块承担
+    this.segmentLabels = [];
+    CATEGORIES.forEach((category) => {
+      const segment = createUiNode(`ShopTab:${category}`, TAB_WIDTH, TAB_HEIGHT);
+      const label = createLabel(CATEGORY_LABELS[category], 20, TAB_INACTIVE_TEXT,
+        TAB_WIDTH - 16, TAB_HEIGHT - 12, 'display');
+      segment.addChild(label.node);
+      bindTapFeedback(segment, () => this.switchTab(category), 0.96);
+      segment.setPosition(this.tabX(category), 0);
+      tabs.addChild(segment);
+      this.segmentLabels.push(label);
     });
+    this.highlightActiveTab();
 
     // 商品区改为 ScrollView：商品数量增长后可滚动浏览，不再依赖固定两行。
-    const viewportTop = headerY - 74 - TAB_HEIGHT / 2 - TAB_CONTENT_GAP;
+    const viewportTop = headerY - 74 - TAB_HEIGHT / 2 - 48;
     const viewportBottom = -model.uiHeight / 2 + model.bottomInset + 32;
     const viewportHeight = Math.max(280, viewportTop - viewportBottom);
 
@@ -167,7 +169,6 @@ export class ShopView {
     scrollView.inertia = true;
     scrollView.content = this.content;
 
-    this.refreshTabs();
     this.renderContent();
   }
 
@@ -189,6 +190,8 @@ export class ShopView {
     this.actions = null;
     this.parent = null;
     this.tabs = null;
+    this.tabIndicator = null;
+    this.segmentLabels = [];
     this.content = null;
     this.wallet = null;
   }
@@ -202,43 +205,37 @@ export class ShopView {
     this.renderContent();
   }
 
-  private refreshTabs(): void {
-    if (!this.tabs) return;
-    // 清空并重建标签，以正确显示光晕效果
-    for (const child of [...this.tabs.children]) child.destroy();
+  /** 切换分类：指示块平移 + 文字重着色，商品区增量刷新。 */
+  private switchTab(category: CosmeticCategory): void {
+    if (this.category === category) return;
+    this.category = category;
+    this.animateTabs();
+    this.renderContent();
+    if (this.actions) this.actions.onCategoryChange(category);
+  }
 
-    CATEGORIES.forEach((category, index) => {
-      const isActive = category === this.category;
+  private tabX(category: CosmeticCategory): number {
+    const index = CATEGORIES.indexOf(category);
+    const startX = -TAB_ROW_WIDTH / 2 + TAB_WIDTH / 2;
+    return startX + index * (TAB_WIDTH + TAB_GAP);
+  }
 
-      // 为激活标签添加光晕
-      if (isActive) {
-        const glow = createButton('', TAB_WIDTH + 8, TAB_HEIGHT + 8, TAB_ACTIVE_SHADOW,
-          () => {}, 20);
-        glow.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
-        this.tabs.addChild(glow);
-      }
-
-      const tab = createButton(CATEGORY_LABELS[category], TAB_WIDTH, TAB_HEIGHT,
-        isActive ? TAB_ACTIVE_COLOR : TAB_INACTIVE_COLOR,
-        () => {
-          if (this.category === category) return;
-          this.category = category;
-          this.refreshTabs();
-          this.renderContent();
-          if (this.actions) this.actions.onCategoryChange(category);
-        }, 20);
-
-      const label = tab.getComponentInChildren(Label);
-      if (label) {
-        label.color = isActive
-          ? new Color(255, 255, 255, 255)
-          : new Color(75, 85, 99, 255);
-        label.isBold = isActive;
-      }
-
-      tab.setPosition(TAB_START_X + index * (TAB_WIDTH + TAB_GAP), 0);
-      this.tabs.addChild(tab);
+  private highlightActiveTab(): void {
+    this.segmentLabels.forEach((label, index) => {
+      const isActive = CATEGORIES[index] === this.category;
+      label.color = isActive ? TAB_ACTIVE_TEXT : TAB_INACTIVE_TEXT;
+      label.isBold = isActive;
     });
+  }
+
+  private animateTabs(): void {
+    if (this.tabIndicator) {
+      tween(this.tabIndicator)
+        .to(0.18, { position: new Vec3(this.tabX(this.category), 0, 0) },
+          { easing: 'cubicOut' })
+        .start();
+    }
+    this.highlightActiveTab();
   }
 
   private renderContent(): void {
@@ -249,11 +246,11 @@ export class ShopView {
     for (const child of [...content.children]) child.destroy();
 
     const items = model.economy.catalog.filter((item) => item.category === this.category);
-    const cardWidth = Math.min(300, (model.uiWidth - 104) / 2);
-    // Reserve enough vertical room for the price row and the button margin.
-    const cardHeight = Math.round(cardWidth * 1.43);
-    const rowGap = 22;
-    const columnGap = 28;
+    const cardWidth = Math.min(300, (model.uiWidth - 100) / 2);
+    // 紧凑比例：预览舞台 + 名称价格行 + 单按钮，一屏可见更多商品
+    const cardHeight = Math.round(cardWidth * 1.26);
+    const rowGap = 16;
+    const columnGap = 24;
 
     const rowCount = Math.ceil(items.length / 2);
     const rowsHeight = rowCount > 0

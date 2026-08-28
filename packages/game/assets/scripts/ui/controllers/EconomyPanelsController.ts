@@ -241,7 +241,10 @@ export class EconomyPanelsController {
       this.deps.applyEconomyResult(result);
       this.deps.unlockInput();
       if (!result.ok) {
-        this.deps.showNotice(economyErrorText(result));
+        // 金币不足时给出赚取引导，其余情况沿用通用错误文案
+        this.deps.showNotice(result.reason === 'insufficient-coins'
+          ? '金币不足，完成每日任务可赚金币哦'
+          : economyErrorText(result));
         return;
       }
       this.showShop();
