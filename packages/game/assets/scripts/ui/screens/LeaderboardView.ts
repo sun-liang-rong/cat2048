@@ -37,12 +37,12 @@ export interface LeaderboardViewActions {
   readonly onRetry: () => void;
 }
 
-const TITLE_COLOR = COLORS.title;
-const SUMMARY_BACKGROUND = new Color(255, 250, 234, 245); // 比纸面底色更亮一档
-const SUMMARY_BORDER = new Color(126, 79, 52, 105);
-const SUMMARY_SHADOW = new Color(105, 61, 40, 32);
-const STATE_WELL_BACKGROUND = new Color(255, 244, 214, 235);
-const STATUS_PILL_BACKGROUND = new Color(255, 248, 226, 225);
+const TITLE_COLOR = new Color(45, 45, 45, 255);              // 深色标题
+const SUMMARY_BACKGROUND = new Color(255, 250, 242, 255);     // 我的排名背景
+const SUMMARY_BORDER = new Color(220, 210, 195, 255);         // 我的排名边框
+const SUMMARY_SHADOW = new Color(0, 0, 0, 20);                // 自然阴影
+const STATE_WELL_BACKGROUND = new Color(255, 248, 240, 255);  // 状态图标背景
+const STATUS_PILL_BACKGROUND = new Color(255, 250, 245, 255); // 状态胶囊背景
 const MY_RANK_HEIGHT = 86;
 const MY_RANK_CENTER_OFFSET = 105;
 const LIST_TOP_GAP = 28;
@@ -146,12 +146,12 @@ export class LeaderboardView {
     parent.addChild(strip);
 
     const shadow = createUiNode('LeaderboardMyRankShadow', width - 4, MY_RANK_HEIGHT - 2);
-    drawRounded(shadow, width - 4, MY_RANK_HEIGHT - 2, SUMMARY_SHADOW, 30);
-    shadow.setPosition(0, -4);
+    drawRounded(shadow, width - 4, MY_RANK_HEIGHT - 2, SUMMARY_SHADOW, 32);
+    shadow.setPosition(0, -3);
     strip.addChild(shadow);
 
     const surface = createUiNode('LeaderboardMyRankSurface', width, MY_RANK_HEIGHT);
-    drawRounded(surface, width, MY_RANK_HEIGHT, SUMMARY_BACKGROUND, 30,
+    drawRounded(surface, width, MY_RANK_HEIGHT, SUMMARY_BACKGROUND, 32,
       { color: SUMMARY_BORDER, width: 2 });
     strip.addChild(surface);
 
@@ -163,17 +163,21 @@ export class LeaderboardView {
         ? `${formatScore(model.localHighScore)} 分 · 等待同步`
         : '完成一局后加入排行榜';
 
-    const badge = createUiNode('MyRankBadge', 154, 46);
-    drawRounded(badge, 154, 46, me ? COLORS.coral : COLORS.mustard, 23);
-    const badgeLabel = createLabel(badgeText, 20, COLORS.white, 136, 40, 'display');
+    const badge = createUiNode('MyRankBadge', 160, 48);
+    const badgeColor = me
+      ? new Color(255, 152, 102, 255)   // 已上榜：珊瑚橙
+      : new Color(255, 193, 7, 255);    // 未上榜：金黄色
+    drawRounded(badge, 160, 48, badgeColor, 24);
+    const badgeLabel = createLabel(badgeText, 21, COLORS.white, 140, 42, 'display');
+    badgeLabel.isBold = true;
     badge.addChild(badgeLabel.node);
-    badge.setPosition(-width / 2 + 95, 0);
+    badge.setPosition(-width / 2 + 98, 0);
     surface.addChild(badge);
 
-    const detailWidth = Math.max(1, width - 202);
-    const detail = createLabel(detailText, 21, COLORS.teal, detailWidth, 44);
+    const detailWidth = Math.max(1, width - 210);
+    const detail = createLabel(detailText, 22, new Color(72, 179, 174, 255), detailWidth, 44);
     detail.isBold = true;
-    detail.node.setPosition(83, 0);
+    detail.node.setPosition(90, 0);
     surface.addChild(detail.node);
   }
 
@@ -269,30 +273,31 @@ export class LeaderboardView {
 
   private renderStateCat(parent: Node, name: string, centerY: number, accent: Color,
     showStatusBadge: boolean): void {
-    const shadow = createUiNode(`${name}CatShadow`, 150, 150);
-    drawRounded(shadow, 150, 150, SUMMARY_SHADOW, 75);
-    shadow.setPosition(0, centerY - 5);
+    const shadow = createUiNode(`${name}CatShadow`, 160, 160);
+    drawRounded(shadow, 160, 160, new Color(0, 0, 0, 15), 80);
+    shadow.setPosition(0, centerY - 4);
     parent.addChild(shadow);
 
-    const catWell = createUiNode(`${name}CatWell`, 150, 150);
-    drawRounded(catWell, 150, 150, STATE_WELL_BACKGROUND, 75,
-      { color: accent, width: 2 });
+    const catWell = createUiNode(`${name}CatWell`, 160, 160);
+    drawRounded(catWell, 160, 160, STATE_WELL_BACKGROUND, 80,
+      { color: accent, width: 3 });
     const catFrame = this.art.frame(GAME_CONFIG.cats[0].asset);
     if (catFrame) {
-      const cat = createSpriteNode(`${name}Cat`, catFrame, 126, 126);
-      cat.setPosition(0, 5);
+      const cat = createSpriteNode(`${name}Cat`, catFrame, 136, 136);
+      cat.setPosition(0, 6);
       catWell.addChild(cat);
     }
     catWell.setPosition(0, centerY);
     parent.addChild(catWell);
 
     if (!showStatusBadge) return;
-    const badge = createUiNode(`${name}Badge`, 42, 42);
-    drawRounded(badge, 42, 42, COLORS.coral, 21,
+    const badge = createUiNode(`${name}Badge`, 46, 46);
+    drawRounded(badge, 46, 46, COLORS.coral, 23,
       { color: COLORS.white, width: 3 });
-    const mark = createLabel('!', 24, COLORS.white, 34, 34, 'display');
+    const mark = createLabel('!', 26, COLORS.white, 40, 40, 'display');
+    mark.isBold = true;
     badge.addChild(mark.node);
-    badge.setPosition(58, centerY + 54);
+    badge.setPosition(62, centerY + 58);
     parent.addChild(badge);
   }
 

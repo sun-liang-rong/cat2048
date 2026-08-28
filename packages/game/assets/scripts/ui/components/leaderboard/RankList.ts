@@ -15,7 +15,7 @@ import { createRankItem, ROW_HEIGHT } from './RankItem';
 
 const ROW_STEP = 100;
 const HEADER_HEIGHT = 42;
-const CAPTION_COLOR = new Color(148, 118, 106, 255);
+const CAPTION_COLOR = new Color(156, 136, 126, 255);  // 柔和的辅助文字颜色
 
 export interface RankListOptions {
   readonly entries: readonly LeaderboardEntry[];
@@ -64,21 +64,21 @@ export function createRankList(parent: Node, options: RankListOptions, art: ArtR
 }
 
 function renderColumnHeader(header: Node, width: number): void {
-  const rankLabel = createLabel('名次', 17, CAPTION_COLOR, 70, 30);
-  rankLabel.node.setPosition(-width / 2 + 34, 0);
+  const rankLabel = createLabel('名次', 18, CAPTION_COLOR, 70, 30);
+  rankLabel.node.setPosition(-width / 2 + 36, 0);
   header.addChild(rankLabel.node);
 
-  const playerLabel = createLabel('玩家', 17, CAPTION_COLOR, 130, 30);
+  const playerLabel = createLabel('玩家', 18, CAPTION_COLOR, 130, 30);
   playerLabel.horizontalAlign = Label.HorizontalAlign.LEFT;
   playerLabel.node.setPosition(-width / 2 + 148 + 65, 0);
   header.addChild(playerLabel.node);
 
-  const scoreLabel = createLabel('最高分', 17, CAPTION_COLOR, 130, 30);
-  scoreLabel.node.setPosition(width / 2 - 90, 0);
+  const scoreLabel = createLabel('最高分', 18, CAPTION_COLOR, 130, 30);
+  scoreLabel.node.setPosition(width / 2 - 92, 0);
   header.addChild(scoreLabel.node);
 
-  const rule = createUiNode('LeaderboardHeaderRule', width - 40, 2);
-  drawRounded(rule, width - 40, 2, new Color(105, 61, 40, 60), 1);
+  const rule = createUiNode('LeaderboardHeaderRule', width - 40, 1);
+  drawRounded(rule, width - 40, 1, new Color(220, 210, 195, 255), 0.5);
   rule.setPosition(0, -HEADER_HEIGHT / 2 + 1);
   header.addChild(rule);
 }
