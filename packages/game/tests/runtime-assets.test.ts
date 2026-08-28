@@ -15,7 +15,11 @@ const filesBelow = (directory: string): string[] => readdirSync(directory, { wit
     return entry.isDirectory() ? filesBelow(path) : [path];
   });
 
-const catImagePaths = ['classic', 'sunny', 'aurora'].reduce<string[]>((paths, theme) => {
+const catImagePaths = [
+  'classic', 'sunny',
+  'garden', 'fantasy', 'adventure',
+  'costume', 'ocean', 'dream', 'jiguang',
+].reduce<string[]>((paths, theme) => {
   const levels = 12;
   for (let index = 1; index <= levels; index += 1) {
     paths.push(`cats/${theme}/cat_${index < 10 ? '0' : ''}${index}.png`);

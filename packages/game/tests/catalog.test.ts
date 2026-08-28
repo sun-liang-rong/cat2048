@@ -5,13 +5,21 @@ import {
   DEFAULT_EQUIPPED,
   SHOP_ITEMS,
 } from '../assets/scripts/features/economy/catalog';
+import {
+  collectionCatAssets,
+  equippedCosmeticAssetPaths,
+  shopPreviewAssetPaths,
+} from '../assets/scripts/ui/utils/assetPaths';
 
 describe('cosmetic catalog', () => {
   it('contains the three planned cosmetic categories and stable prices', () => {
     expect(SHOP_ITEMS.map((item) => item.category)).toEqual([
-      'cat-skin', 'cat-skin', 'board', 'board', 'effect', 'effect',
+      'cat-skin', 'cat-skin', 'cat-skin', 'cat-skin', 'cat-skin',
+      'board', 'board', 'effect', 'effect',
     ]);
-    expect(SHOP_ITEMS.map((item) => item.price)).toEqual([800, 1200, 250, 500, 300, 600]);
+    expect(SHOP_ITEMS.map((item) => item.price)).toEqual([
+      800, 900, 1000, 1500, 1800, 250, 500, 300, 600,
+    ]);
   });
 
   it('starts with one owned and equipped default per category', () => {
@@ -43,7 +51,36 @@ describe('cosmetic catalog', () => {
   it('exposes twelve levels for every cat skin family', () => {
     const catSkins = allCosmetics().filter((item) => item.category === 'cat-skin');
 
-    expect(catSkins).toHaveLength(3);
+    expect(catSkins).toHaveLength(6);
     expect(catSkins.every((item) => item.levelAssets?.length === 12)).toBe(true);
+  });
+
+  it('loads only card previews for the selected shop category', () => {
+    const paths = shopPreviewAssetPaths(allCosmetics(), 'cat-skin');
+    const skinCount = allCosmetics().filter((item) => item.category === 'cat-skin').length;
+
+    expect(paths).toHaveLength(skinCount);
+    expect(paths.every((path) => path.endsWith('/cat_01/texture'))).toBe(true);
+    expect(paths.some((path) => path.includes('/cat_02/'))).toBe(false);
+  });
+
+  it('loads only unlocked collection cats from the equipped skin', () => {
+    expect(collectionCatAssets(allCosmetics(), 'cat-skin.dream', [8, 2, 2, 99])).toEqual([
+      { level: 2, path: 'game/cats/dream/cat_02/texture' },
+      { level: 8, path: 'game/cats/dream/cat_08/texture' },
+    ]);
+  });
+
+  it('warms only the minimum runtime assets after equipping', () => {
+    expect(equippedCosmeticAssetPaths(allCosmetics(), 'cat-skin.ocean')).toEqual([
+      'game/cats/ocean/cat_01/texture',
+      'game/cats/ocean/cat_02/texture',
+      'game/cats/ocean/cat_03/texture',
+      'game/cats/ocean/cat_04/texture',
+    ]);
+    expect(equippedCosmeticAssetPaths(allCosmetics(), 'effect.stars')).toEqual([
+      'game/effects/stars/stars_sparkle/texture',
+      'game/effects/stars/stars_burst/texture',
+    ]);
   });
 });

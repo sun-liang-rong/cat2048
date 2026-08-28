@@ -155,4 +155,26 @@ describe('LocalEconomyRepository', () => {
     expect(duplicate.reason).toBe('already-owned');
     expect((await repository.load()).coins).toBe(1000 - item.price);
   });
+
+  it('purchases and equips every pifu cat skin from the decoration shop', async () => {
+    const pifuSkinIds = [
+      'cat-skin.costume',
+      'cat-skin.ocean',
+      'cat-skin.dream',
+      'cat-skin.jiguang',
+    ] as const;
+
+    for (const itemId of pifuSkinIds) {
+      const storage = new MemoryStorage();
+      storage.setItem(SAVE_KEY, JSON.stringify({
+        ...DEFAULT_SAVE,
+        economy: { ...DEFAULT_ECONOMY, coins: 5000 },
+      }));
+      const repository = new LocalEconomyRepository(storage);
+
+      expect((await repository.purchase(itemId)).ok).toBe(true);
+      expect((await repository.equip(itemId)).ok).toBe(true);
+      expect((await repository.load()).equipped.catSkin).toBe(itemId);
+    }
+  });
 });

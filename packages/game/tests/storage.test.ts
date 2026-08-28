@@ -126,6 +126,25 @@ describe('LocalGameStorage', () => {
     expect(loaded.economy.equipped.board).toBe('board.wood');
   });
 
+  it('removes the retired aurora skin from saves and equips the default skin', () => {
+    const memory = new MemoryStorage();
+    memory.setItem(SAVE_KEY, JSON.stringify({
+      ...DEFAULT_SAVE,
+      economy: {
+        ...DEFAULT_SAVE.economy,
+        ownedItemIds: [...DEFAULT_SAVE.economy.ownedItemIds, 'cat-skin.aurora'],
+        equipped: {
+          ...DEFAULT_SAVE.economy.equipped,
+          catSkin: 'cat-skin.aurora',
+        },
+      },
+    }));
+
+    const loaded = new LocalGameStorage(memory).load();
+    expect(loaded.economy.ownedItemIds).not.toContain('cat-skin.aurora');
+    expect(loaded.economy.equipped.catSkin).toBe('cat-skin.default');
+  });
+
   it.each([null, '{bad', '{}', '{"schemaVersion":2}', '{"schemaVersion":1,"highScore":"9","soundEnabled":true}'])
     ('repairs missing or malformed data: %s', (raw) => {
       const memory = new MemoryStorage();
