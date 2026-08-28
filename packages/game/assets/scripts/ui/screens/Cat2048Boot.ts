@@ -30,6 +30,7 @@ import type { Direction } from '../../core/types';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import { HapticController } from '../../infrastructure/HapticController';
 import { ResultShareController } from '../../infrastructure/ResultShareController';
+import { configureWechatHomeShare } from '../../infrastructure/WechatShare';
 import { runtimeStorage } from '../../features/storage/runtime';
 import { createWechatLeaderboardClient } from '../../features/leaderboard/leaderboard';
 import { ArtRepository } from '../utils/ArtRepository';
@@ -64,6 +65,7 @@ export class Cat2048Boot extends Component {
 
   protected override onLoad(): void {
     this.setupCanvas();
+    configureWechatHomeShare();
     const save = runtimeStorage.load();
 
     // 创建所有服务

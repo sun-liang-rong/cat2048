@@ -15,6 +15,7 @@
     "assets/scripts/ui/utils/startupSequence.ts",
     "assets/scripts/ui/utils/settingsNavigation.ts",
     "assets/scripts/infrastructure/HapticController.ts",
+    "assets/scripts/infrastructure/WechatShare.ts",
     "assets/scripts/features/leaderboard/leaderboard.ts",
     "assets/scripts/infrastructure/ResultShareController.ts",
     "assets/scripts/features/storage/storage.ts",
