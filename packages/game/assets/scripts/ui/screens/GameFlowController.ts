@@ -460,6 +460,7 @@ export class GameFlowController {
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
     }, {
+      onClose: () => this.deps.host.unlockInput(),
       onHome: () => { void this.finishGameOver(() => this.deps.actions.onHome()); },
       onReplay: () => { void this.finishGameOver(() => this.deps.actions.onReplay()); },
       onShareScore: () => { void this.finishGameOver(() => {
@@ -549,6 +550,7 @@ export class GameFlowController {
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
     }, {
+      onClose: () => this.deps.host.unlockInput(),
       onHome: () => this.deps.actions.onHome(),
       onReplay: () => this.deps.actions.onReplay(),
       onShareScore: () => { void this.shareResult(); },
@@ -640,10 +642,14 @@ export class GameFlowController {
 
   private updateScore(score: number): void {
     const save = this.deps.host.getSave();
-    if (score > save.highScore) {
+    // 最高分会在突破时立即更新；用本局标记阻止后续每次合成都重复提示。
+    if (!this.newRecordThisRun && score > save.highScore) {
       this.newRecordThisRun = true;
       this.deps.host.commitSave({ ...save, highScore: score });
       this.deps.host.showNotice('新纪录！');
+    } else if (score > save.highScore) {
+      // 仍需持续保存本局的新最高分，但不再重复弹出提示。
+      this.deps.host.commitSave({ ...save, highScore: score });
     }
     this.gameScreen.updateScore(score, this.deps.host.getSave().highScore);
   }

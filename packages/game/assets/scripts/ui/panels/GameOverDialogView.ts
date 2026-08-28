@@ -33,6 +33,8 @@ export interface GameOverDialogModel {
 }
 
 export interface GameOverDialogActions {
+  /** 关闭右上角关闭按钮后触发。 */
+  readonly onClose?: () => void;
   readonly onHome: () => void;
   readonly onReplay: () => void;
   readonly onShareScore: () => void;
@@ -66,6 +68,7 @@ export class GameOverDialogView {
       overlayHeight: model.uiHeight,
       title: '猫咪挤满啦',
       titleSize: 46,
+      onClose: actions.onClose,
     });
 
     const titleY = 232 * (panelHeight / REFERENCE_HEIGHT);

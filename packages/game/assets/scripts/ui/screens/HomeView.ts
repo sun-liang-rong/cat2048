@@ -150,11 +150,11 @@ export class HomeView {
   }
 
   private addTitle(root: Node, model: HomeViewModel): void {
-    const shadow = createLabel('猫咪合成 2048', 65, withAlpha(COLORS.frameBrown, 120), 700, 94, 'display');
+    const shadow = createLabel('猫咪2048', 65, withAlpha(COLORS.frameBrown, 120), 700, 94, 'display');
     shadow.node.setPosition(0, this.fromTop(model, TITLE_TOP) - 6);
     root.addChild(shadow.node);
 
-    const title = createLabel('猫咪合成 2048', 65, new Color(169, 100, 60, 255), 700, 94, 'display');
+    const title = createLabel('猫咪2048', 65, new Color(169, 100, 60, 255), 700, 94, 'display');
     title.node.setPosition(0, this.fromTop(model, TITLE_TOP));
     root.addChild(title.node);
   }
