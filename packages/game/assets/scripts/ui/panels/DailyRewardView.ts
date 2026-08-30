@@ -1,4 +1,4 @@
-import { Color, Node, Sprite } from 'cc';
+import { Color, Label, Node, Sprite } from 'cc';
 import type { EconomySnapshot } from '../../features/economy/economy';
 import { calculateDailyReward } from '../../features/economy/economy';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
@@ -9,6 +9,7 @@ import {
   createButton,
   createLabel,
   createSpriteNode,
+  renderButtonBackground,
 } from '../utils/uiFactory';
 
 export interface DailyRewardViewActions {
@@ -24,10 +25,26 @@ const TEXT_GOLD = new Color(202, 124, 44, 255);
 export class DailyRewardView {
   private readonly modal: ModalView;
   private readonly art: ArtRepository;
+  private claimButton: Node | null = null;
+  private claimButtonLabel: Label | null = null;
+  private claimEnabled = false;
 
   public constructor(art: ArtRepository) {
     this.art = art;
     this.modal = new ModalView(art, () => ({ width: 0, height: 0 }));
+  }
+
+  /** 更新弹窗内领取按钮，避免请求完成前仍可重复点击。 */
+  public setClaimEnabled(enabled: boolean): void {
+    this.claimEnabled = enabled;
+    const button = this.claimButton;
+    if (!button?.isValid) return;
+    renderButtonBackground(button, 300, 76, enabled ? COLORS.coral : COLORS.disabledSurface);
+    const label = this.claimButtonLabel ?? button.getComponentInChildren(Label);
+    if (label) {
+      label.string = enabled ? '立即领取' : '已领取';
+      label.color = enabled ? COLORS.white : COLORS.textDisabled;
+    }
   }
 
   public show(parent: Node, model: EconomySnapshot, width: number, height: number,
@@ -64,9 +81,16 @@ export class DailyRewardView {
     streak.node.setPosition(0, -58);
     panel.addChild(streak.node);
 
+    this.claimEnabled = model.canClaimDaily;
     const claim = createButton(model.canClaimDaily ? '立即领取' : '明日 00:00 可领取',
       300, 76, model.canClaimDaily ? COLORS.coral : COLORS.disabledSurface,
-      () => { if (model.canClaimDaily) actions.onClaim(); }, 27);
+      () => {
+        if (!this.claimEnabled) return;
+        this.setClaimEnabled(false);
+        actions.onClaim();
+      }, 27);
+    this.claimButton = claim;
+    this.claimButtonLabel = claim.getComponentInChildren(Label);
     claim.setPosition(0, -140);
     panel.addChild(claim);
 

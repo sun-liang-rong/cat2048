@@ -136,18 +136,21 @@ export class EconomyPanelsController {
       const result = await this.deps.economy.claimDailyReward();
       this.deps.applyEconomyResult(result);
       if (!result.ok) {
+        this.deps.dailyRewardView.setClaimEnabled(false);
         this.closeDailyReward();
         this.refreshDailyRewardHost();
         this.deps.showNotice(result.reason === 'already-claimed' ? '今日奖励已领取' : '每日奖励不可领取');
         return;
       }
       // mutation 已返回服务端最新快照，不再用可能过期的本地缓存覆盖它。
+      this.deps.dailyRewardView.setClaimEnabled(false);
       this.closeDailyReward();
       this.refreshDailyRewardHost();
       // 先完成遮罩移除/页面刷新，再显示成功反馈，避免提示被旧节点覆盖。
       this.deps.showNotice(`领取成功：+${result.awardedCoins} 金币`);
     } catch (error) {
       console.warn('[Cat2048] Failed to claim daily reward.', error);
+      this.deps.dailyRewardView.setClaimEnabled(true);
       this.deps.unlockInput();
       this.deps.showNotice('每日奖励领取失败');
     } finally {

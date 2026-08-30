@@ -1,4 +1,4 @@
-import { Color, Label, Node, Sprite, tween, Tween, Vec3 } from 'cc';import { GAME_CONFIG } from '../../core/config/gameConfig';
+import { Color, Label, Node, tween, Tween, Vec3 } from 'cc';import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
 import { addCoverBackground } from '../styles/background';
 import { NAV_DOCK_HEIGHT } from '../styles/tokens';
@@ -62,11 +62,6 @@ export class HomeView {
   private mainPlayButton: Node | null = null;
   private mainPlayLabel: Label | null = null;
   private dailyRewardBadge: Node | null = null;
-  private dailyRewardAction: Node | null = null;
-  private dailyRewardSurface: Node | null = null;
-  private dailyRewardIcon: Node | null = null;
-  private dailyRewardLabel: Label | null = null;
-  private dailyRewardAvailable = true;
   private modernNavDock: ModernNavDock | null = null;
   private readonly tweens: Tween<Node>[] = [];
 
@@ -109,7 +104,6 @@ export class HomeView {
     if (this.dailyRewardBadge) {
       this.dailyRewardBadge.active = model.canClaimDaily;
     }
-    this.updateDailyRewardState(model.canClaimDaily);
 
     if (this.modernNavDock) {
       this.modernNavDock.setTaskBadge(model.taskClaimable);
@@ -234,7 +228,6 @@ export class HomeView {
     onTap: () => void,
     rewardAvailable?: boolean,
   ): void {
-    const available = rewardAvailable ?? true;
     const node = createUiNode(`HomeUtilityAction:${name}`,
       UTILITY_ACTION_WIDTH, UTILITY_ACTION_HEIGHT);
     node.setPosition(x, this.fromTop(model, WALLET_TOP));
@@ -249,7 +242,7 @@ export class HomeView {
     const surface = createUiNode(`${node.name}:Surface`,
       UTILITY_ACTION_WIDTH, UTILITY_ACTION_HEIGHT);
     drawRounded(surface, UTILITY_ACTION_WIDTH, UTILITY_ACTION_HEIGHT,
-      available ? new Color(255, 248, 228, 246) : COLORS.disabledSurface, 22,
+      new Color(255, 248, 228, 246), 22,
       { color: withAlpha(COLORS.softBrown, 155), width: 2 });
     node.addChild(surface);
 
@@ -257,28 +250,16 @@ export class HomeView {
     if (frame) {
       const icon = createSpriteNode(`${node.name}:Icon`, frame, 46, 46);
       icon.setPosition(-51, 1);
-      const sprite = icon.getComponent(Sprite);
-      if (sprite && !available) sprite.color = COLORS.textDisabled;
       surface.addChild(icon);
-      if (name === 'Checkin') this.dailyRewardIcon = icon;
     } else {
-      const icon = createLabel(fallback, 25, available ? COLORS.mustard : COLORS.textDisabled, 44, 44, 'display');
+      const icon = createLabel(fallback, 25, COLORS.mustard, 44, 44, 'display');
       icon.node.setPosition(-51, 1);
       surface.addChild(icon.node);
-      if (name === 'Checkin') this.dailyRewardIcon = icon.node;
     }
 
-    const label = createLabel(text, 20, available ? new Color(113, 72, 49, 255) : COLORS.textDisabled,
-      82, 40, 'display');
+    const label = createLabel(text, 20, new Color(113, 72, 49, 255), 82, 40, 'display');
     label.node.setPosition(27, 0);
     surface.addChild(label.node);
-
-    if (name === 'Checkin') {
-      this.dailyRewardAvailable = available;
-      this.dailyRewardAction = node;
-      this.dailyRewardSurface = surface;
-      this.dailyRewardLabel = label;
-    }
 
     if (typeof rewardAvailable === 'boolean') {
       const badge = createUiNode('DailyRewardBadge', 22, 22);
@@ -291,23 +272,7 @@ export class HomeView {
     }
 
     root.addChild(node);
-    bindTapFeedback(node, () => {
-      if (name !== 'Checkin' || this.dailyRewardAvailable) onTap();
-    });
-  }
-
-  private updateDailyRewardState(available: boolean): void {
-    this.dailyRewardAvailable = available;
-    if (!this.dailyRewardAction || !this.dailyRewardSurface || !this.dailyRewardLabel) return;
-    drawRounded(this.dailyRewardSurface, UTILITY_ACTION_WIDTH, UTILITY_ACTION_HEIGHT,
-      available ? new Color(255, 248, 228, 246) : COLORS.disabledSurface, 22,
-      { color: withAlpha(COLORS.softBrown, 155), width: 2 });
-    this.dailyRewardLabel.color = available ? new Color(113, 72, 49, 255) : COLORS.textDisabled;
-    const sprite = this.dailyRewardIcon?.getComponent(Sprite);
-    if (sprite) sprite.color = available ? Color.WHITE : COLORS.textDisabled;
-    const fallbackLabel = this.dailyRewardIcon?.getComponent(Label);
-    if (fallbackLabel) fallbackLabel.color = available ? COLORS.mustard : COLORS.textDisabled;
-    if (this.dailyRewardBadge) this.dailyRewardBadge.active = available;
+    bindTapFeedback(node, onTap);
   }
 
   private addPlayButton(root: Node, model: HomeViewModel, actions: HomeViewActions): void {
