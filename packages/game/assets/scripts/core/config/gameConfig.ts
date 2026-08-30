@@ -13,7 +13,7 @@ export const GAME_CONFIG = {
   cats: CAT_DEFINITIONS,
   network: {
     // 排行榜服务地址：接入新环境时只需改这里（或替换为环境配置）。
-    leaderboardBaseUrl: 'http://localhost:3408',
+    leaderboardBaseUrl: 'https://hongshu.sale/wx_server',
   },
   art: {
     logo: 'game/ui/common/logo/texture',
