@@ -655,6 +655,9 @@ export class AppHost implements GameFlowHost {
       },
     };
     this.svc.cosmetics.setEquipped(this.saveValue.economy.equipped);
+    if (this.currentScreen === 'home' && this.homeRoot?.isValid) {
+      this.svc.homeView.refresh(this.homeViewModel());
+    }
   }
 
   private equippedKey(equipped: SaveDataV3['economy']['equipped']): string {

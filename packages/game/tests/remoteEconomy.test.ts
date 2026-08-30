@@ -123,4 +123,43 @@ describe('RemoteEconomyRepository', () => {
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBe(keys[1]);
   });
+
+  it('keeps a successful daily claim when an older bootstrap finishes afterwards', async () => {
+    const storage = new MemoryStorage();
+    const stale = remoteSnapshot(1).data;
+    const claimed = {
+      ...stale,
+      version: stale.version + 1,
+      coins: stale.coins + 30,
+      daily: {
+        ...stale.daily,
+        canClaim: false,
+        streak: stale.daily.streak + 1,
+        lastClaimDate: '2026-08-30',
+      },
+    };
+    let releaseBootstrap!: (value: unknown) => void;
+    const bootstrap = new Promise<unknown>((resolve) => { releaseBootstrap = resolve; });
+    const api: EconomyApiClient = {
+      request: vi.fn(async (_method, path) => {
+        if (path.endsWith('bootstrap')) return bootstrap as never;
+        return { data: { ok: true, awardedCoins: 30, snapshot: claimed } } as never;
+      }),
+    };
+    const repository = new RemoteEconomyRepository(api, storage);
+    const sync = repository.sync();
+
+    await expect(repository.claimDailyReward()).resolves.toMatchObject({
+      ok: true,
+      canClaimDaily: false,
+      coins: claimed.coins,
+    });
+    releaseBootstrap({ data: stale });
+    await sync;
+
+    await expect(repository.load()).resolves.toMatchObject({
+      canClaimDaily: false,
+      coins: claimed.coins,
+    });
+  });
 });

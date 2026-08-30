@@ -106,11 +106,27 @@ export class EconomyPanelsController {
         onClaim: () => { void this.claimDailyReward(); },
         onClose: () => {
           if (this.dailyClaimInProgress) return;
-          this.dailyRewardOverlay?.destroy();
-          this.dailyRewardOverlay = null;
-          this.deps.unlockInput();
+          this.closeDailyReward();
         },
       });
+  }
+
+  /** 立即移除每日奖励遮罩，避免等待页面重建或下一帧才解除输入锁。 */
+  private closeDailyReward(): void {
+    const overlay = this.dailyRewardOverlay;
+    this.dailyRewardOverlay = null;
+    if (overlay?.isValid) {
+      overlay.removeFromParent();
+      overlay.destroy();
+    }
+    this.deps.unlockInput();
+  }
+
+  private refreshDailyRewardHost(): void {
+    const screen = this.deps.getCurrentScreen();
+    if (screen === 'shop') this.showShop();
+    else if (screen === 'home') this.deps.refreshHome();
+    else this.deps.showHome();
   }
 
   public async claimDailyReward(): Promise<void> {
@@ -120,17 +136,15 @@ export class EconomyPanelsController {
       const result = await this.deps.economy.claimDailyReward();
       this.deps.applyEconomyResult(result);
       if (!result.ok) {
-        this.deps.unlockInput();
-        this.deps.showNotice('今日奖励已领取');
+        this.closeDailyReward();
+        this.refreshDailyRewardHost();
+        this.deps.showNotice(result.reason === 'already-claimed' ? '今日奖励已领取' : '每日奖励不可领取');
         return;
       }
-      this.deps.applyEconomySnapshot(await this.deps.economy.load());
-      this.dailyRewardOverlay?.destroy();
-      this.dailyRewardOverlay = null;
-      this.deps.unlockInput();
-      if (this.deps.getCurrentScreen() === 'shop') this.showShop();
-      else this.deps.showHome();
-      // 页面切换会销毁旧节点，必须在切换完成后再显示成功反馈。
+      // mutation 已返回服务端最新快照，不再用可能过期的本地缓存覆盖它。
+      this.closeDailyReward();
+      this.refreshDailyRewardHost();
+      // 先完成遮罩移除/页面刷新，再显示成功反馈，避免提示被旧节点覆盖。
       this.deps.showNotice(`领取成功：+${result.awardedCoins} 金币`);
     } catch (error) {
       console.warn('[Cat2048] Failed to claim daily reward.', error);

@@ -54,6 +54,7 @@ export class RemoteEconomyRepository implements EconomyRepository {
   private syncInFlight: Promise<EconomySnapshot> | null = null;
   private listener: ((snapshot: EconomySnapshot) => void) | null = null;
   private latestAdCounterDate: string | null = null;
+  private latestRemoteVersion: number | null = null;
   private readonly local: LocalEconomyRepository;
   private readonly saveStorage: LocalGameStorage;
 
@@ -66,7 +67,7 @@ export class RemoteEconomyRepository implements EconomyRepository {
   }
 
   public load(): Promise<EconomySnapshot> {
-    return this.local.load();
+    return this.latest ? Promise.resolve(this.latest) : this.local.load();
   }
 
   /** 后台登录并执行 bootstrap/一次性本地迁移。失败时保留本地缓存，下次继续重试。 */
@@ -160,7 +161,7 @@ export class RemoteEconomyRepository implements EconomyRepository {
       return this.latest ?? accepted;
     } catch (error) {
       console.warn('[Cat2048] Economy sync failed; keeping local cache.', error);
-      return this.local.load();
+      return this.latest ?? await this.local.load();
     }
   }
 
@@ -262,7 +263,12 @@ export class RemoteEconomyRepository implements EconomyRepository {
   private accept(remote: RemoteSnapshot): EconomySnapshot {
     const current = this.saveStorage.load();
     const snapshot = this.toSnapshot(remote, current.economy.settledRunIds);
+    // 后台 bootstrap 可能晚于一次 mutation 返回；旧版本不能覆盖刚提交的状态。
+    if (this.latest && this.latestRemoteVersion !== null && remote.version < this.latestRemoteVersion) {
+      return this.latest;
+    }
     this.latestAdCounterDate = remote.daily.counterDate;
+    this.latestRemoteVersion = remote.version;
     this.persist(snapshot);
     this.latest = snapshot;
     this.listener?.(snapshot);
