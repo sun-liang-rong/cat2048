@@ -1,8 +1,10 @@
 # 猫咪2048 项目总览
 
+> 本文以当前代码实现为准（2026-08 校对）。模块路径均相对 `packages/game/assets/scripts/`。
+
 ## 项目概述
 
-这是一个基于 **Cocos Creator 3.8.8** 开发的微信小游戏项目，实现了经典2048玩法的猫咪主题变体。项目已完成首个可玩垂直切片，包含完整的核心玩法、道具系统、经济系统、每日任务和图鉴收集功能。
+基于 **Cocos Creator 3.8.8** 开发的微信小游戏，经典 2048 玩法的猫咪主题变体。已实现完整的核心玩法、道具系统、经济系统、每日任务与签到、每日挑战、图鉴收集、装饰品商店、排行榜联网同步，以及微信首页分享与结算/复活分享卡片。
 
 ## 技术栈
 
@@ -10,8 +12,8 @@
 - **游戏引擎**: Cocos Creator 3.8.8
 - **开发语言**: TypeScript
 - **目标平台**: 微信小游戏 + 浏览器预览
-- **设计分辨率**: 750×1334（竖屏）
-- **环境要求**: Node.js 20+
+- **设计分辨率**: 750×1334（竖屏，运行时适配安全区）
+- **环境要求**: Node.js 20+（`.nvmrc`）
 
 ### 后端（排行榜服务）
 - **框架**: NestJS
@@ -22,343 +24,233 @@
 ## 项目结构
 
 ```
-cat2048/
-├── game/                          # Cocos Creator 项目目录
-│   ├── assets/
-│   │   ├── main.scene            # 主场景（启动场景）
-│   │   ├── scripts/
-│   │   │   ├── core/             # 核心游戏逻辑（2048算法）
-│   │   │   │   ├── Game2048.ts   # 游戏主控制器
-│   │   │   │   ├── Board.ts      # 棋盘数据结构
-│   │   │   │   └── types.ts      # 类型定义
-│   │   │   ├── presentation/     # UI层和视图控制
-│   │   │   │   ├── GameScreen.ts
-│   │   │   │   ├── BoardView.ts
-│   │   │   │   ├── CollectionView.ts
-│   │   │   │   └── DailyRewardView.ts
-│   │   │   ├── infrastructure/   # 基础设施层
-│   │   │   │   ├── gameConfig.ts # 游戏配置（猫咪、美术资源）
-│   │   │   │   ├── storage.ts    # 本地存储
-│   │   │   │   ├── dailyTasks.ts # 每日任务
-│   │   │   │   └── leaderboard.ts
-│   │   │   └── economy/          # 经济系统
-│   │   │       ├── economy.ts    # 金币、道具、奖励计算
-│   │   │       └── catalog.ts    # 装饰品商店
-│   │   └── resources/game/       # 运行时资源
-│   │       ├── cats/             # 猫咪立绘（12级 × 多套皮肤）
-│   │       ├── backgrounds/      # 背景图
-│   │       ├── ui/               # UI元素
-│   │       ├── effects/          # 特效
-│   │       ├── audio/            # 音效
-│   │       └── fonts/            # 字体
-│   ├── package.json
-│   └── README.md
-│
-├── server/                        # NestJS后端（排行榜）
-│   ├── src/
-│   │   ├── auth/                 # 微信登录认证
-│   │   ├── players/              # 玩家资料
-│   │   ├── leaderboard/          # 排行榜API
-│   │   └── prisma/               # 数据库层
-│   ├── prisma/                   # 数据库schema
-│   └── package.json
-│
-├── doc.md                         # 完整产品需求文档（PRD）
-├── home_redesign_notes.md        # 首页UI设计说明
-└── UI_REDESIGN_SUMMARY.md        # UI重设计总结
+cat2048/                                # npm monorepo（根 package.json 提供 verify 聚合命令）
+├── packages/
+│   ├── game/                          # Cocos Creator 游戏项目
+│   │   ├── assets/
+│   │   │   ├── main.scene             # 启动场景
+│   │   │   ├── scripts/
+│   │   │   │   ├── core/              # 纯游戏逻辑（引擎无关，可单测）
+│   │   │   │   │   ├── Game2048.ts    # 对局主控制器（移动/道具/复活/存档）
+│   │   │   │   │   ├── Board.ts       # 棋盘数据结构与移动算法
+│   │   │   │   │   ├── types.ts       # 快照/结果类型定义
+│   │   │   │   │   └── config/        # gameConfig / catDefinitions / constants / gameRules
+│   │   │   │   ├── features/          # 领域服务层
+│   │   │   │   │   ├── economy/       # economy.ts（金币/道具/购买/装备/广告获取）、catalog.ts（饰品目录）
+│   │   │   │   │   ├── tasks/         # dailyTasks.ts（每日任务）
+│   │   │   │   │   ├── gameplay/      # dailyChallenge.ts、collectionProgress.ts、runItems.ts
+│   │   │   │   │   ├── leaderboard/   # leaderboard.ts、pendingQueue.ts（离线队列）、wechatTransport.ts
+│   │   │   │   │   └── storage/       # storage.ts（SaveDataV3）、runSession.ts（对局会话）、validate.ts
+│   │   │   │   ├── ui/                # 表现层（全部代码化构建 UI，无预制体）
+│   │   │   │   │   ├── screens/       # Cat2048Boot（入口）、AppHost（导航）、HomeView、GameScreen、
+│   │   │   │   │   │                  # ShopView、CollectionView、LeaderboardView、LoadingView、
+│   │   │   │   │   │                  # GameFlowController（对局流程）
+│   │   │   │   │   ├── controllers/   # EconomyPanelsController、LeaderboardController
+│   │   │   │   │   ├── panels/        # ModalView、DailyRewardView、TaskPanelView、SettingsPanel、
+│   │   │   │   │   │                  # GameOverDialogView、CatDetailModal、modalDecorations
+│   │   │   │   │   ├── components/    # BoardView/TileView、ItemBarView、EvolutionPanelView、
+│   │   │   │   │   │                  # GameStatsBarView、ModernNavDock、TutorialView、SwipeInput、
+│   │   │   │   │   │                  # AudioController、CosmeticRuntime、shop/ leaderboard/ tasks/ 子目录
+│   │   │   │   │   ├── utils/         # uiFactory、ArtRepository、resourceLoading、startupSequence 等
+│   │   │   │   │   └── styles/        # layout、tokens、boardGeometry、fontPolicy 等
+│   │   │   │   └── infrastructure/    # 平台能力：WechatShare、ResultShareController（分享卡片）、
+│   │   │   │                          # HapticController、StartupMetrics
+│   │   │   └── resources/game/        # 运行时资源：cats/ backgrounds/ ui/ effects/ audio/ fonts/
+│   │   ├── tests/                     # vitest 单测（27 个文件，覆盖 core/features/UI 纯逻辑）
+│   │   └── package.json               # verify = typecheck:core + vitest
+│   ├── server/                        # NestJS 后端
+│   │   ├── src/
+│   │   │   ├── auth/                  # POST v1/auth/wechat（微信登录换 JWT）
+│   │   │   ├── players/               # v1/players/me（玩家资料）
+│   │   │   ├── leaderboard/           # POST v1/leaderboard/scores、scores/batch、GET v1/leaderboard
+│   │   │   ├── prisma/                # Prisma Service
+│   │   │   └── common/                # 全局异常过滤器
+│   │   └── prisma/schema.prisma       # Player + ScoreSubmission（runId 幂等）
+│   └── shared/                        # 占位
+├── scripts/                           # 资源处理与构建脚本（Python/Node，见 scripts/README.md）
+└── docs/                              # 文档中心（PRD/API/DEVELOPMENT/本文）
 ```
 
 ## 核心功能实现情况
 
-### ✅ 已实现功能
+### 1. 核心玩法
+- **4×4 猫咪 2048**: 滑动合并，`MoveResult` 携带 motions/merges 记录驱动视图动画
+- **12 级猫咪进化链**: Lv1 橘猫 → Lv12 创世极光猫（详见文末配置表）
+- **计分**: 合并得分 = 2^等级（Lv1 合并得 2 分）
+- **随机生成**: 90% Lv1 橘猫，10% Lv2 蓝白英短（`SPAWN_LEVEL_*_PROBABILITY`）
+- **游戏结束**: 棋盘满且无可合并方向时触发，弹出结算弹窗
+- **操作**: 触屏滑动（`SwipeInput`）+ 键盘方向键/WASD
+- **运行模式**: `classic` 经典无尽 / `daily-challenge` 每日挑战（目标合成 Lv.5，进化条切换为挑战展示）
 
-#### 1. 核心玩法
-- **4×4标准2048玩法**: 滑动合并，完整的移动、碰撞、合并逻辑
-- **12级猫咪进化链**: 从Lv1橘猫到Lv12创世极光猫
-- **计分系统**: 合并得分 = 2^等级
-- **随机生成**: 90% Lv1橘猫，10% Lv2蓝白英短
-- **游戏结束检测**: 无可移动空间时触发
-- **操作支持**: 触屏滑动 + 键盘方向键/WASD
+### 2. 道具系统（4 种道具）
+| 道具 | 效果 | 每局限用 | 持有上限 | 每日广告获取上限 |
+|------|------|---------|---------|----------------|
+| undo 撤回一步 | 撤销最近一次有效移动（回退棋盘+分数） | 1 | 5 | 3 |
+| erase 消除猫咪 | 移除 1 只等级最低的猫咪（目标选择为临时方案，暂取最低） | 1 | 2 | 1 |
+| spawn 刷新 | 在随机空格生成 Lv1/Lv2 猫咪 | 1 | 3 | 3 |
+| shuffle 洗牌 | 重排棋盘猫咪 | 1 | 2 | 2 |
 
-#### 2. 道具系统
-- **撤回功能**: 每局1次，可撤销最近一次有效移动
-- **消除道具**: 每局1次，按等级消除最低的3只猫咪
-- **道具持有量**: 本地记录撤回和消除道具的剩余次数
-- **补充机制**: 每种道具可补充1次（对应PRD中的"看广告补充"接口）
+- **每局总限制**: 每局最多使用 2 次道具（`ITEM_PER_GAME_MAX = 2`，不限种类组合）
+- **对局内道具栏**: 经典模式挂载撤回 + 消除两个按钮（spawn/shuffle 逻辑已实现，UI 未挂载）
+- **库存**: 金币/道具持久化在本地存档，对局消耗走 `economy.consumeItems`
+- **游戏结束救援**: 结算弹窗提供「撤回一步 / 消除最低级猫咪」救援按钮（消耗对应库存）
+- **已知差异**: 旧文档描述的"消除 3 只最低猫咪"已过时，当前实现只移除 1 只
 
-#### 3. 经济系统
-- **猫爪金币**: 完整的金币获取、消费、存储
-- **奖励计算**:
-  - 对局奖励: 基础分数/100 + 等级加成（Lv5+10, Lv7+20, Lv9+50, Lv11+35, Lv12+35）
-  - 每日奖励: 30 + 连续签到天数×10（上限100）
-- **装饰品商店**: 
-  - 3套猫咪皮肤（经典/阳光/极光）
-  - 3套棋盘背景（木质/粉色/星空）
-  - 3套合成特效（经典/极光/星屑）
-- **已拥有物品追踪**: 防止重复购买
-- **装备切换**: 可切换已购买的皮肤和背景
+### 3. 经济系统
+- **猫爪金币**: 获取、消费、持久化（`features/economy/economy.ts`）
+- **对局奖励**（`calculateRunReward`）: `min(150, max(5, floor(分数/100)) + 等级加成)`
+  - 等级加成: 最高级 ≥Lv5 +10、≥Lv7 +20、≥Lv9 +50、≥Lv11 +35、≥Lv12 +35（叠加）
+- **每日签到**（`calculateDailyReward`）: `min(100, 30 + 连续天数×10)`
+- **装饰品商店**（`features/economy/catalog.ts`，共 12 件）:
+  - 猫咪皮肤 ×6: 经典猫咪(0，默认) / 装扮猫咪(800) / 糖果派对(900) / 海洋奇遇(1000) / 梦幻花园(1500) / 极光星河(1800)
+  - 棋盘背景 ×3: 木质猫窝(0，默认) / 粉色猫窝(250) / 星空猫窝(500)
+  - 合成特效 ×3: 经典合成(0，默认) / 极光合成(300) / 星屑合成(600)
+- **购买**: 商店点击「购买」直接扣款（无二次确认），按钮状态在 使用中/装备/购买 间流转
+- **装备**: 皮肤/背景/特效即时生效并持久化（`CosmeticRuntime` 管理运行时换装）
+- **广告获取道具**: `canGrantViaAd` / `grantViaAd` 已实现（含每日上限校验），等待前端接微信广告 SDK
 
-#### 4. 每日任务系统
-- **4项每日任务**:
-  - 完成3局游戏（30金币）
-  - 单局合成Lv.5猫咪（30金币）
-  - 使用道具2次（20金币）
-  - 分享游戏1次（20金币）
-- **进度追踪**: 自动记录并在每日0点重置
-- **奖励领取**: 完成后可领取金币奖励
-- **日期识别**: 基于本地时间判断是否跨天
+### 4. 每日任务系统
+- 4 项任务（`features/tasks/dailyTasks.ts`）:
+  - 完成 3 局游戏（30 金币）
+  - 单局合成 Lv.5 猫咪（30 金币）
+  - 使用道具 2 次（20 金币）
+  - 分享游戏 1 次（20 金币）
+- 进度自动记录、跨天重置（本地日期）、完成后领取；首页任务入口有可领取角标
 
-#### 5. 图鉴系统
-- **12种猫咪收集**: 记录已解锁的猫咪品种
-- **展示页面**: CollectionView显示所有猫咪卡片
-- **锁定/解锁状态**: 未合成过的猫咪显示为灰色锁定状态
-- **查看详情**: 可查看每只猫咪的名称、描述
+### 5. 图鉴系统
+- 12 种猫咪收集进度（已解锁数/12）、未解锁显示剪影+锁
+- 点击卡片弹出详情弹窗（大图、简介、合并得分；未解锁显示解锁提示）
 
-#### 6. 本地持久化
-- **存档系统**: 基于localStorage/微信存储
-- **保存内容**:
-  - 当前游戏状态（棋盘、分数、道具数量）
-  - 最高分记录
-  - 经济数据（金币、已购物品、装备配置）
-  - 每日任务进度
-  - 图鉴解锁记录
-- **数据恢复**: 启动时自动加载上次游戏状态
+### 6. 本地持久化与对局会话
+- **存档** `SaveDataV3`（`features/storage/`）: 棋局、最高分、经济（金币/库存/已购/装备）、每日任务、图鉴、设置项；启动自动恢复
+- **对局会话** `runSession.ts`: 对局中退出时自动保存（含 runId、模式、步数、合成数），首页显示「继续游戏」
+- **数据校验** `validate.ts`: 读档时修复损坏数据
 
-#### 7. 排行榜（联网功能）
-- **微信好友排行榜**: 接入微信开放平台API
-- **后端API**: NestJS服务提供排行榜查询和上传
-- **认证系统**: 微信登录 + JWT token
-- **离线队列**: 网络异常时成绩保存在本地待重试
+### 7. 排行榜（联网）
+- 微信好友排行榜 + 后端排行（`features/leaderboard/`）
+- 微信登录换 JWT（`POST v1/auth/wechat`）；成绩提交以 `(playerId, runId)` 幂等
+- **离线队列** `pendingQueue.ts`: 网络异常时成绩本地暂存待重试；排行榜页有离线态与「重新连接」
 
-#### 8. UI/UX
-- **首页重设计**: 温馨可爱的猫咪主题风格
-- **响应式布局**: 适配不同屏幕尺寸和横竖屏
-- **动画反馈**: 移动、合并、出生动画
-- **音效开关**: 可关闭音效
-- **单手友好**: 下置棋盘设计
+### 8. 分享（已接入，非广告路径）
+- **首页分享**: `infrastructure/WechatShare.ts` 通过 `wx.onShareAppMessage` 挂载原生菜单分享
+- **结算分享**: `ResultShareController` 用 Canvas 生成成绩分享卡片（purpose: `score`）
+- **分享复活**: 游戏结束弹窗「分享复活」→ 分享成功回调后 `game.revive()`（移除 2 只最低级猫咪）
+- 分享行为会记录「分享 1 次」每日任务进度
+
+### 9. UI/UX
+- 代码化 UI（`uiFactory`），统一弹窗骨架（`ModalView`）、按压反馈、色板 token
+- 首页场景立绘 + 底部导航坞（图鉴/商店/任务/设置）、新手引导（可跳过）
+- 对局 HUD: 本局/最高分卡、进化路线条（或今日挑战）、步数/合成/空位统计条、道具栏
+- 音效/音乐/震动三开关（设置面板），触感反馈（`HapticController`）
+- 启动序列: 微信首屏 → 加载页（`LoadingView`）→ 首页；`StartupMetrics` 埋点启动耗时
+- 竖屏设计，运行时适配安全区（刘海/胶囊）
 
 ### 🚧 部分实现/待完善
 
-#### 1. 广告系统（接口预留）
-- ✅ 道具补充机制已实现（`refillItem`接口）
-- ✅ 复活功能已实现（`revive`接口，移除2个最低等级猫咪）
-- ⚠️ 微信激励视频广告SDK调用未集成
-- ⚠️ 插屏广告未集成
-- **对接方式**: 调用`wx.createRewardedVideoAd()`后，在回调中调用已有接口
+1. **广告系统**: `grantViaAd`/`canGrantViaAd` 接口就绪（含每日上限），微信激励视频 SDK 未接
+2. **结算弹窗**: 功能完整；「新纪录」提示、救援/分享复活/再玩一局均已实现
+3. **道具目标选择**: 消除道具暂自动选取最低级猫咪（代码注释标注 TODO）
 
-#### 2. 分享功能
-- ✅ 每日任务中有"分享1次"任务项
-- ✅ 分享计数逻辑已实现（`recordEvent('share-once')`）
-- ⚠️ 微信分享卡片生成和`wx.shareAppMessage`调用未集成
+### ❌ 未实现（PRD 提及）
+- 图鉴 8 关闯关模式
+- 成就系统、每周任务
+- 头像框、棋盘格子底纹装饰
+- 背景解锁条件（当前全部可直接购买）
 
-#### 3. 图鉴闯关模式
-- ✅ 图鉴展示和收集逻辑完整
-- ❌ PRD中的8关闯关模式未实现
-- **缺失内容**: 
-  - 关卡列表和进度UI
-  - 预设初始棋盘的关卡配置
-  - 通关判定和奖励发放
+## 核心模块说明
 
-### ❌ 未实现功能（PRD提及但未开发）
-
-1. **成就系统**: PRD第7.4节提到的成就列表和奖励
-2. **每周任务**: PRD第8.2节的每周限定头像框
-3. **棋盘背景解锁条件**: 
-   - 粉色少女卧室：完成10个每日任务
-   - 星空猫爪：集齐12种猫咪
-   - 当前所有背景可直接购买
-4. **头像框系统**: 装饰品类型中未实现头像框
-5. **猫咪小屋装饰商店**: 当前只有皮肤、背景、特效，无头像框和棋盘格子底纹
-
-## 核心代码模块说明
-
-### Game2048.ts - 游戏核心
+### core/Game2048.ts — 对局核心
 ```typescript
-// 主要接口
-start(initialUndoRemaining, initialRemoveLowestRemaining): BoardSnapshot
-move(direction: Direction): MoveResult  // 执行移动，自动生成新猫
-undo(): UndoResult                      // 撤回操作
-removeLowestTiles(count: number): RemoveTilesResult  // 消除道具
-revive(): ReviveResult                  // 复活（移除2个最低等级）
-refillItem(kind: ItemKind): ItemRefillResult  // 补充道具
-exportState() / restore(state)          // 存档/读档
+start(): BoardSnapshot                    // 开局（2 个初始猫咪）
+move(direction): MoveResult               // 移动+合并+自动生成
+undo(): UndoResult                        // 撤回（回退棋盘与分数，每局 1 次）
+spawn(): SpawnResult                      // 刷新道具
+shuffle(): ShuffleResult                  // 洗牌道具
+erase(position): EraseResult              // 消除道具（移除指定格猫咪）
+revive(): ReviveResult                    // 分享复活（移除 2 只最低级）
+loadFixture(levels, score?): BoardSnapshot // 测试/关卡夹具
+exportState() / restore(state)            // 对局存档
+canUseItem(kind) / markItemUsed(kind)     // 局内道具限制（总数 2、每种 1）
 ```
 
-**关键数值**:
-- `BOARD_SIZE = 4`
-- `MAX_LEVEL = 12`
-- 生成概率：90% Lv1，10% Lv2
-- 每局撤回1次，消除1次，复活1次
-
-### economy.ts - 经济系统
+### features/economy/economy.ts — 经济仓库
 ```typescript
-// 主要接口
-claimDailyReward(): 每日签到奖励
-settleRun(request): 结算对局奖励
-grantCoins(amount): 发放金币
-grantItem(kind, amount): 发放道具
-consumeItems(kind, amount): 消耗道具
-purchase(itemId): 购买装饰品
-equip(itemId): 装备装饰品
+claimDailyReward(): 签到（30 + 连续天数×10，上限 100）
+settleRun(request): 对局结算奖励
+grantCoins / grantItem / consumeItems
+purchase(itemId) / equip(itemId)
+canGrantViaAd(kind, today) / grantViaAd(kind)   // 广告获取道具（待接 SDK）
+getItemCount(kind) / hasItem(kind)
 ```
 
-**奖励公式**:
-- 对局奖励 = min(150, floor(score/100) + levelBonus)
-- 每日奖励 = min(100, 30 + streak×10)
-
-### dailyTasks.ts - 每日任务
+### features/tasks/dailyTasks.ts — 每日任务
 ```typescript
-// 任务类型
-'play-runs'    // 完成N局游戏
-'reach-lv5'    // 单局合成Lv.5
-'use-items'    // 使用道具N次
-'share-once'   // 分享1次
-
-// 主要接口
-recordEvent(kind, amount): 记录任务进度
-claim(taskId): 领取任务奖励
+recordEvent(kind, amount?)   // play-runs / reach-lv5 / use-items / share-once
+claim(taskId)                // 领取奖励
+snapshot()                   // 任务面板数据
 ```
 
-### gameConfig.ts - 配置中心
-包含：
-- 12级猫咪定义（名称、描述、美术资源路径）
-- 所有UI元素的资源路径映射
-- 网络配置（排行榜服务器地址）
-- 动画时长配置
+### ui 层职责
+- `Cat2048Boot`: Cocos 生命周期、Canvas/安全区、键盘、服务装配 → 注入 `AppHost`
+- `AppHost`: 屏幕导航与宿主服务（lockInput、notice、分享等）
+- `GameFlowController`: 对局全流程（滑动处理、道具、复活、结算、存档、新手引导）
+- `EconomyPanelsController` / `LeaderboardController`: 商店/签到/任务/图鉴与排行榜的屏幕装配
+
+### 后端接口
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/v1/auth/wechat` | 微信 code 登录，换 JWT |
+| GET  | `/v1/players/me` | 玩家资料（昵称/头像/最高分） |
+| POST | `/v1/leaderboard/scores` | 提交单条成绩（runId 幂等） |
+| POST | `/v1/leaderboard/scores/batch` | 批量补交离线成绩 |
+| GET  | `/v1/leaderboard` | 查询排行榜 |
 
 ## 开发与构建
 
-### 本地开发
 ```bash
-# 安装依赖
-cd game
-npm install
-
-# 类型检查
-npm run typecheck:core
-
-# 运行测试
-npm test
-
-# 验证（类型检查+测试）
+# 根目录聚合验证（游戏 + 后端）
 npm run verify
+
+# 游戏端
+cd packages/game
+npm run typecheck:core   # 核心逻辑类型检查
+npm test                 # vitest（27 个测试文件）
+npm run verify           # 类型检查 + 测试
+
+# 后端
+cd packages/server
+npm test
 ```
 
-### 微信小游戏构建
-1. 用Cocos Creator 3.8.8打开`game/`目录
-2. 确保`assets/main.scene`为启动场景
-3. 项目 -> 构建 -> 选择微信小游戏平台
-4. 构建设置：
-   - 竖屏模式
-   - 关闭`useSplashScreen`
-   - 关闭`wechatgame.separateEngine`
-5. 构建完成后用微信开发者工具打开`build/wechatgame`
+微信构建：Cocos Creator 打开 `packages/game/` → 构建微信小游戏（竖屏）→
+`npm run customize:wechat-loading` 定制首屏 → `npm run verify:wechat-build` 校验产物 →
+微信开发者工具打开 `packages/game/build/wechatgame`。
 
-### 后端部署
-```bash
-cd server
-npm install
+## 与 PRD 的差异速览
 
-# 配置环境变量（.env）
-DATABASE_URL="mysql://..."
-WECHAT_APP_ID="..."
-WECHAT_APP_SECRET="..."
-JWT_SECRET="..."
+| PRD 章节 | 状态 | 实现位置 |
+|---------|------|---------|
+| 3. 核心玩法/12 级进化/计分 | ✅ | `core/` |
+| 4.1 经典模式 | ✅ | `ui/screens/GameScreen.ts` + `GameFlowController.ts` |
+| 4.2 闯关模式 | ❌ 未实现 | — |
+| 5. 道具系统 | ✅ 逻辑完整（4 种） | `core/Game2048.ts`、`ui/components/ItemBarView.ts` |
+| 6. 经济系统 | ✅ | `features/economy/` |
+| 7.1-7.2 图鉴 | ✅ | `ui/screens/CollectionView.ts`、`ui/panels/CatDetailModal.ts` |
+| 7.3 背景皮肤 | ✅ 可购买装备（无解锁条件） | `features/economy/catalog.ts` |
+| 7.4 成就 / 8.2 每周任务 | ❌ 未实现 | — |
+| 8.1 每日任务 | ✅ | `features/tasks/dailyTasks.ts` |
+| 9. 广告 | ⚠️ 仅缺 SDK 调用 | `economy.grantViaAd` 就绪 |
+| 11. 微信接口 | ⚠️ 分享已接、广告未接、排行榜 ✅ | `infrastructure/WechatShare.ts`、`ResultShareController.ts` |
 
-# 数据库迁移
-npm run prisma:deploy
+## 已知问题与技术债务（2026-08 预览实测）
 
-# 启动服务
-npm run start:dev  # 开发环境
-npm run start:prod # 生产环境
-```
+1. **弹窗右上角关闭按钮疑似命中失效**: 猫咪详情弹窗与每日奖励弹窗的 × 在浏览器预览中精确点击无响应（任务面板同款按钮正常）。可疑点为 `ModalView` 关闭按钮与面板 `Mask`（GRAPHICS_STENCIL）的命中测试交互，需真机复测并代码排查。
+2. **撤回不回退统计**: `GameFlowController.useUndoItem()` 恢复棋盘与分数，但 `movesCount`/`mergesCount` 未回退，撤回后统计条与分数不一致。
+3. **消除道具与旧文档不一致**: 实现只移除 1 只最低级猫咪（目标选择 TODO），历史文档写"3 只"。
+4. **重排版路径不解锁输入**: 弹窗被外部销毁（如屏幕重排版）时 `onClose` 不触发，`inputLocked` 保持 true，后续购买/领取会被静默拦截。
+5. 广告 SDK 未集成；闯关模式未实现；UI 层自动化测试偏少（当前以纯逻辑单测为主）。
 
-## PRD对照与差异
-
-### 完全符合PRD的部分
-- ✅ 3.1-3.3 核心玩法与规则
-- ✅ 3.2 猫咪进化链路（12级）
-- ✅ 3.3 计分规则
-- ✅ 3.4 失败与复活逻辑
-- ✅ 4.1 经典无尽模式
-- ✅ 5.1 道具列表（功能实现，UI待接广告）
-- ✅ 6.1-6.2 经济系统
-- ✅ 7.1-7.2 图鉴系统
-- ✅ 8.1 每日任务
-
-### 与PRD有差异的部分
-1. **道具获取方式**: PRD要求"看广告获取"，当前为直接补充接口，需前端调用广告SDK
-2. **图鉴闯关模式**: PRD 4.2节的8关闯关完全未实现
-3. **成就系统**: PRD 7.4节未实现
-4. **每周任务**: PRD 8.2节未实现
-5. **装饰品种类**: 缺少头像框、棋盘格子底纹
-6. **背景解锁条件**: 当前所有背景可直接购买，PRD要求特定条件+看广告
-
-### 技术实现与PRD的映射
-
-| PRD章节 | 实现状态 | 对应代码模块 |
-|---------|---------|-------------|
-| 3. 核心玩法 | ✅ 完整 | `core/Game2048.ts`, `core/Board.ts` |
-| 4.1 经典模式 | ✅ 完整 | `presentation/GameScreen.ts` |
-| 4.2 闯关模式 | ❌ 未实现 | - |
-| 5. 道具系统 | ✅ 逻辑完整 | `Game2048.ts`: `undo()`, `removeLowestTiles()`, `refillItem()` |
-| 6. 经济系统 | ✅ 完整 | `economy/economy.ts`, `economy/catalog.ts` |
-| 7.1-7.2 图鉴 | ✅ 完整 | `presentation/CollectionView.ts` |
-| 7.3 背景皮肤 | ⚠️ 部分 | `catalog.ts`: 可购买，但未实现PRD的解锁条件 |
-| 7.4 成就 | ❌ 未实现 | - |
-| 8.1 每日任务 | ✅ 完整 | `infrastructure/dailyTasks.ts` |
-| 8.2 每周任务 | ❌ 未实现 | - |
-| 9. 广告 | ⚠️ 接口预留 | `refillItem()`, `revive()` 已实现，缺广告SDK调用 |
-| 10. 美术资源 | ✅ 完整 | `assets/resources/game/` |
-| 11. 微信接口 | ⚠️ 部分 | 排行榜✅，广告❌，分享❌ |
-
-## 下一步开发建议
-
-### 高优先级（完成PRD核心）
-1. **集成微信广告SDK**
-   - 在道具补充UI调用`wx.createRewardedVideoAd()`
-   - 成功回调后调用`game.refillItem(kind)`
-   - 复活时同样处理
-   
-2. **实现分享功能**
-   - 对局结束时生成分享卡片
-   - 调用`wx.shareAppMessage()`
-   - 成功回调后调用`dailyTasks.recordEvent('share-once')`
-
-3. **图鉴闯关模式**（工作量大）
-   - 创建关卡配置表（8关预设棋盘）
-   - 实现关卡选择UI
-   - 实现通关判定和奖励发放
-
-### 中优先级（增强体验）
-4. **成就系统**
-   - 定义成就列表和触发条件
-   - 成就追踪和通知
-   - 成就奖励发放
-
-5. **每周任务**
-   - 每周轮换头像框
-   - 周任务进度追踪
-
-6. **背景解锁条件**
-   - 实现"完成10次每日任务"解锁粉色背景
-   - 实现"集齐12种猫咪"解锁星空背景
-   - 解锁后仍需看广告激活（一次性）
-
-### 低优先级（扩展内容）
-7. **头像框系统**
-8. **棋盘格子底纹装饰**
-9. **更多皮肤和特效**
-
-## 已知技术债务
-
-1. **广告SDK未集成**: 所有"看广告"逻辑仅有后端接口，需前端调用微信SDK
-2. **图鉴闯关缺失**: 这是PRD的重要模式，但完全未实现
-3. **类型安全**: 部分代码使用`as unknown`类型断言，可改进
-4. **测试覆盖**: 核心逻辑有测试，但UI层缺少测试
-5. **错误处理**: 网络请求的错误处理较简单，可增强用户体验
-
-## 12级猫咪详细配置
+## 12 级猫咪配置
 
 | 等级 | 品种名称 | 描述 | 合并得分 |
 |------|----------|------|----------|
@@ -377,14 +269,11 @@ npm run start:prod # 生产环境
 
 ## 总结
 
-**项目当前状态：首个可玩垂直切片已完成**
+**项目当前状态**: 功能完整的可玩版本。核心玩法、4 种道具、经济与商店（12 件饰品）、每日任务/签到/挑战、图鉴、排行榜、微信分享（首页 + 结算卡片 + 分享复活）均已实现并在浏览器预览中验证可运行。
 
-核心2048玩法、道具系统、经济系统、每日任务、图鉴收集、排行榜等功能均已实现并可正常运行。美术资源完整，本地持久化稳定。
+**主要缺口**:
+- 微信激励视频广告 SDK 对接（接口已就绪）
+- 图鉴闯关模式
+- 成就系统与每周任务（可选增强）
 
-**主要缺失**:
-- 微信广告SDK集成（纯前端对接工作）
-- 图鉴闯关模式（需要关卡设计和UI开发）
-- 成就和每周任务（可选增强功能）
-
-**技术评价**:
-架构清晰，模块职责分明，核心逻辑与UI层分离良好，便于后续迭代和扩展。代码采用TypeScript编写，类型安全性高，可维护性强。
+**架构评价**: 分层清晰——`core/`（纯逻辑，引擎无关）→ `features/`（领域服务）→ `ui/`（表现层，代码化构建）→ `infrastructure/`（平台能力）；核心逻辑与 UI 通过快照/结果类型解耦，27 个 vitest 文件覆盖纯逻辑层，利于迭代。

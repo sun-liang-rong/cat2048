@@ -105,6 +105,40 @@
 }
 ```
 
+### POST /v1/leaderboard/scores/batch
+
+批量提交成绩（离线队列补交用）。一次最多 20 条，逐条幂等（相同 `runId` 标记 `duplicate`）。
+
+**请求体**
+
+```json
+{
+  "scores": [
+    { "runId": "run-1", "score": 1024, "highestLevel": 6 },
+    { "runId": "run-2", "score": 2048, "highestLevel": 8 }
+  ]
+}
+```
+
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| `scores` | array | 1–20 条，每条结构同单个提交 |
+
+**限流**：每分钟 10 次。
+
+**响应**（`rank` 为当前玩家最新排名，各条相同）
+
+```json
+{
+  "data": {
+    "results": [
+      { "runId": "run-1", "score": 1024, "accepted": true, "duplicate": false, "highScore": 2048, "rank": 3 },
+      { "runId": "run-2", "score": 2048, "accepted": true, "duplicate": false, "highScore": 2048, "rank": 3 }
+    ]
+  }
+}
+```
+
 ### GET /v1/leaderboard
 
 获取排行榜（前 N 名 + 我的排名）。

@@ -51,14 +51,15 @@ npm run start:dev
 cat2048/
 ├── docs/              # 📚 文档中心
 │   ├── PRD.md         # 产品需求文档
-│   ├── ARCHITECTURE.md # 架构设计文档
+│   ├── ARCHITECTURE.md # 架构设计文档（以当前实现为准）
+│   ├── API.md         # 后端接口文档
+│   ├── DEVELOPMENT.md # 开发指南
 │   └── archive/       # 历史文档归档
 ├── packages/          # 📦 项目包（monorepo 结构）
 │   ├── game/          # 🎮 Cocos Creator 游戏项目
 │   ├── server/        # 🔧 NestJS 后端服务
 │   └── shared/        # 🔗 前后端共享代码（占位）
 ├── scripts/           # 🛠️ 开发脚本（资源处理/构建）
-├── resources/         # 🎨 美术源文件（设计稿/生成记录）
 └── skills/            # 美术生成技能
 ```
 
