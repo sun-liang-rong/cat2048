@@ -1,5 +1,6 @@
-import { Color, Node } from 'cc';
+import { Color, Node, Sprite } from 'cc';
 import type { EconomySnapshot } from '../../features/economy/economy';
+import { calculateDailyReward } from '../../features/economy/economy';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
 import { ModalView } from './ModalView';
@@ -17,6 +18,8 @@ export interface DailyRewardViewActions {
 
 const PANEL_WIDTH = 540;
 const PANEL_HEIGHT = 560;
+
+const TEXT_GOLD = new Color(202, 124, 44, 255);
 
 export class DailyRewardView {
   private readonly modal: ModalView;
@@ -40,26 +43,31 @@ export class DailyRewardView {
 
     const coinFrame = this.art.frame(GAME_CONFIG.art.coin);
     if (coinFrame) {
-      const coin = createSpriteNode('DailyRewardCoin', coinFrame, 130, 130);
-      coin.setPosition(0, 95);
+      const coin = createSpriteNode('DailyRewardCoin', coinFrame, 120, 120);
+      coin.setPosition(0, 105);
+      if (!model.canClaimDaily) {
+        // 今日已领：金币褪色表示"奖励已入袋"
+        const coinSprite = coin.getComponent(Sprite);
+        if (coinSprite) coinSprite.color = new Color(198, 194, 186, 255);
+      }
       panel.addChild(coin);
     }
 
-    const streak = createLabel(`连续第 ${Math.max(1, model.dailyStreak + 1)} 天`, 24,
-      COLORS.teal, 300, 42, 'display');
-    streak.node.setPosition(0, -5);
-    panel.addChild(streak.node);
-    const amount = createLabel(`+${model.dailyReward} 金币`, 30, COLORS.ink, 320, 48, 'display');
-    amount.node.setPosition(0, -55);
+    const amount = createLabel(`+${model.dailyReward} 金币`, 36, TEXT_GOLD, 320, 54, 'display');
+    amount.node.setPosition(0, -10);
     panel.addChild(amount.node);
-    const bonus = createLabel('附赠：撤回 ×1  ·  消除 ×1', 20, COLORS.coral, 400, 36, 'display');
-    bonus.node.setPosition(0, -105);
-    panel.addChild(bonus.node);
+
+    const streakText = model.canClaimDaily
+      ? `连续第 ${Math.max(1, model.dailyStreak + 1)} 天`
+      : `已连续 ${model.dailyStreak} 天 · 明日 +${calculateDailyReward(model.dailyStreak)}`;
+    const streak = createLabel(streakText, 22, COLORS.teal, 420, 40, 'display');
+    streak.node.setPosition(0, -58);
+    panel.addChild(streak.node);
 
     const claim = createButton(model.canClaimDaily ? '立即领取' : '明日 00:00 可领取',
-      290, 74, model.canClaimDaily ? COLORS.coral : COLORS.disabledSurface,
-      () => { if (model.canClaimDaily) actions.onClaim(); }, 27, coinFrame);
-    claim.setPosition(0, -155);
+      300, 76, model.canClaimDaily ? COLORS.coral : COLORS.disabledSurface,
+      () => { if (model.canClaimDaily) actions.onClaim(); }, 27);
+    claim.setPosition(0, -140);
     panel.addChild(claim);
 
     return overlay;

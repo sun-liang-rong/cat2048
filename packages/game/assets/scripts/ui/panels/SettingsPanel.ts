@@ -25,12 +25,15 @@ export interface SettingsHandlers {
 }
 
 const PANEL_WIDTH = 680;
-const PANEL_HEIGHT = 620;
+const PANEL_HEIGHT = 500;
 const ROW_WIDTH = 600;
 const ROW_HEIGHT = 96;
 const ROW_RADIUS = 32;
 const ROW_EDGE = new Color(246, 231, 204, 255);
-const MUTED_RULE = new Color(221, 188, 142, 74);
+/** 三行设置项统一使用主题青色，同级功能不做多彩区分。 */
+const ICON_BACKGROUND = new Color(101, 190, 177, 255);
+/** 关闭态开关用中性暖灰，避免粉红色暗示"错误"。 */
+const TOGGLE_OFF_COLOR = new Color(233, 221, 200, 255);
 
 export class SettingsPanel {
   private readonly modal: ModalView;
@@ -67,52 +70,33 @@ export class SettingsPanel {
       this.addSettingIcon(row, icon, -239);
 
       const label = createLabel(labelText, 32, COLORS.ink, 150, 58, 'display');
-      label.node.setPosition(-132, 0);
+      label.node.setPosition(-105, 0);
       row.addChild(label.node);
 
-      const stateLabel = createLabel(enabled ? '开启' : '关闭', 26,
-        enabled ? COLORS.teal : new Color(126, 115, 106, 255), 110, 48);
-      stateLabel.node.setPosition(32, 0);
-      row.addChild(stateLabel.node);
-
-      const toggle = createToggle(name, enabled, (value) => {
-        stateLabel.string = value ? '开启' : '关闭';
-        stateLabel.color = value ? COLORS.teal : new Color(126, 115, 106, 255);
-        onChange(value);
-      }, {
+      // 开关自身的颜色与滑块位置已表达状态，不再叠加"开启/关闭"文字
+      const toggle = createToggle(name, enabled, onChange, {
         onColor: new Color(70, 173, 157, 255),
-        offColor: new Color(247, 198, 185, 255),
+        offColor: TOGGLE_OFF_COLOR,
         pawColor: new Color(224, 199, 174, 150),
       });
       toggle.setPosition(222, 0);
       row.addChild(toggle);
     };
 
-    addSettingRow('SoundSetting', '音效', state.soundEnabled, 117, 'sound', (enabled) => {
+    addSettingRow('SoundSetting', '音效', state.soundEnabled, 95, 'sound', (enabled) => {
       handlers.onSoundChange(enabled);
     });
-    addSettingRow('MusicSetting', '音乐', state.musicEnabled, 7, 'music', (enabled) => {
+    addSettingRow('MusicSetting', '音乐', state.musicEnabled, -15, 'music', (enabled) => {
       handlers.onMusicChange(enabled);
     });
-
-    const divider = createUiNode('SettingsDivider', ROW_WIDTH - 24, 4);
-    drawRounded(divider, ROW_WIDTH - 24, 4, MUTED_RULE, 2);
-    divider.setPosition(0, -52);
-    panel.addChild(divider);
-
-    addSettingRow('HapticsSetting', '震动', state.hapticsEnabled, -106, 'haptics', (enabled) => {
+    addSettingRow('HapticsSetting', '震动', state.hapticsEnabled, -125, 'haptics', (enabled) => {
       handlers.onHapticsChange(enabled);
     });
   }
 
   private addSettingIcon(parent: Node, type: 'sound' | 'music' | 'haptics', x: number): void {
     const icon = createUiNode(`${parent.name}:${type}Icon`, 66, 66);
-    const background = type === 'sound'
-      ? new Color(101, 190, 177, 255)
-      : type === 'music'
-        ? new Color(247, 143, 128, 255)
-        : new Color(251, 195, 102, 255);
-    drawRounded(icon, 66, 66, background, 33,
+    drawRounded(icon, 66, 66, ICON_BACKGROUND, 33,
       { color: new Color(255, 255, 255, 92), width: 2 });
     // 图标字形：Remix Icon 字体渲染的白色 PNG，与任务图标同一套生成管线。
     const iconFrame = this.art.frame(GAME_CONFIG.art.settingsIcons[type]);

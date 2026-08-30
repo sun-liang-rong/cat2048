@@ -1,4 +1,4 @@
-import { Color, Graphics, Label, Node } from 'cc';
+import { Graphics, Node } from 'cc';
 import type { DailyTaskItem, DailyTaskSnapshot } from '../../features/tasks/dailyTasks';
 import type { ArtRepository } from '../utils/ArtRepository';
 import { ModalView } from './ModalView';
@@ -20,8 +20,6 @@ const ROW_STEP = 130;
 const ROW_START_Y = 150;
 
 const MUTED_TEXT = COLORS.textMuted;
-/** 任务奖励提示文字的绿色（原内联值 61,154,123）。 */
-const TASK_REWARD_GREEN = new Color(61, 154, 123, 255);
 
 export class TaskPanelView {
   private rowsRoot: Node | null = null;
@@ -62,7 +60,11 @@ export class TaskPanelView {
   }
 
   private addHeader(panel: Node): void {
-    const header = createUiNode('TaskHeaderHint', 520, 44);
+    // 提示行整体居中：时钟图标在左，文案单标签居中，奖励信息已下沉到每行按钮
+    const hint = createLabel('每天 00:00 刷新 · 完成任务领金币', 22, MUTED_TEXT, 400, 38, 'body');
+    hint.node.setPosition(10, 240);
+    panel.addChild(hint.node);
+
     const clock = createUiNode('TaskHeaderClock', 28, 28);
     const clockGraphics = clock.addComponent(Graphics);
     clockGraphics.strokeColor = TASK_ACCENT;
@@ -74,19 +76,8 @@ export class TaskPanelView {
     clockGraphics.moveTo(0, 0);
     clockGraphics.lineTo(5, -3);
     clockGraphics.stroke();
-    clock.setPosition(-245, 240);
-    header.addChild(clock);
-
-    const refresh = createLabel('每天 00:00 刷新 ·', 22, MUTED_TEXT, 230, 38, 'body');
-    refresh.horizontalAlign = Label.HorizontalAlign.LEFT;
-    refresh.node.setPosition(-106, 240);
-    header.addChild(refresh.node);
-
-    const reward = createLabel('完成任务领金币', 22, TASK_REWARD_GREEN, 190, 38, 'body');
-    reward.horizontalAlign = Label.HorizontalAlign.LEFT;
-    reward.node.setPosition(100, 240);
-    header.addChild(reward.node);
-    panel.addChild(header);
+    clock.setPosition(-190, 240);
+    panel.addChild(clock);
   }
 
   private renderRows(model: DailyTaskSnapshot, actions: TaskPanelViewActions): void {
