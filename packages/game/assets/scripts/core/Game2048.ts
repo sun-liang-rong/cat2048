@@ -32,6 +32,22 @@ interface UndoSnapshot {
   readonly score: number;
 }
 
+/**
+ * 仅供对局流程在外部副作用失败时回滚的完整内存状态。
+ * 不用于持久化，避免把撤回历史扩大到存档协议中。
+ */
+export interface GameRollbackState {
+  readonly board: BoardSnapshot;
+  readonly score: number;
+  readonly nextTileId: number;
+  readonly undoSnapshot?: {
+    readonly board: BoardSnapshot;
+    readonly score: number;
+  };
+  readonly usedItemKinds: readonly ItemKind[];
+  readonly reviveRemaining: 0 | 1;
+}
+
 export class Game2048 implements TileFactory {
   private boardValue = new Board();
   private scoreValue = 0;
@@ -58,6 +74,36 @@ export class Game2048 implements TileFactory {
       remaining: this.reviveRemainingValue,
       canRevive: this.reviveRemainingValue > 0 && this.status === 'game-over',
     };
+  }
+
+  /** 捕获可回滚的内存状态，不包含对局会话元信息。 */
+  public captureRollbackState(): GameRollbackState {
+    return {
+      board: this.board,
+      score: this.scoreValue,
+      nextTileId: this.nextId,
+      ...(this.undoSnapshot ? {
+        undoSnapshot: {
+          board: this.undoSnapshot.board,
+          score: this.undoSnapshot.score,
+        },
+      } : {}),
+      usedItemKinds: [...this.usedItemKindsValue],
+      reviveRemaining: this.reviveRemainingValue,
+    };
+  }
+
+  /** 恢复 captureRollbackState 捕获的状态。 */
+  public restoreRollbackState(state: GameRollbackState): void {
+    this.boardValue = new Board(state.board);
+    this.scoreValue = state.score;
+    this.nextId = state.nextTileId;
+    this.undoSnapshot = state.undoSnapshot ? {
+      board: new Board(state.undoSnapshot.board).snapshot(),
+      score: state.undoSnapshot.score,
+    } : undefined;
+    this.usedItemKindsValue = new Set(state.usedItemKinds);
+    this.reviveRemainingValue = state.reviveRemaining;
   }
 
   /** 检查指定道具本局是否可用（不检查库存，仅检查局内限制） */

@@ -36,6 +36,7 @@ import type { CatDetailModal } from '../panels/CatDetailModal';
 import type { ShopView } from './ShopView';
 import type { CollectionView } from './CollectionView';
 import { SettingsPanel } from '../panels/SettingsPanel';
+import { GuidePanelView } from '../panels/GuidePanelView';
 import { settingsOrigin } from '../utils/settingsNavigation';
 import { EconomyPanelsController, type ScreenName } from '../controllers/EconomyPanelsController';
 import { LeaderboardController } from '../controllers/LeaderboardController';
@@ -43,6 +44,12 @@ import { GameFlowController } from './GameFlowController';
 import type { GameFlowHost } from './GameFlowController';
 import { createUiNode, setRuntimeFonts } from '../utils/uiFactory';
 import { stopTweens, tweenOpacity } from '../utils/tweenAsync';
+import {
+  markCocosLoadingError,
+  markCocosLoadingReady,
+  reportCocosLoadingProgress,
+} from '../utils/cocosLoadingBridge';
+import { GamePreparingOverlay } from '../components/GamePreparingOverlay';
 
 // ---- 平台抽象 ----
 
@@ -75,6 +82,7 @@ export interface HostServices {
   readonly taskPanel: TaskPanelView;
   readonly catDetailModal: CatDetailModal;
   readonly settings: SettingsPanel;
+  readonly guide: GuidePanelView;
   readonly dialogs: ModalView;
 }
 
@@ -97,7 +105,16 @@ export class AppHost implements GameFlowHost {
   private homeRoot: Node | null = null;
   private inputLocked = false;
   private shareInProgress = false;
+  /** 首页资源是否已就绪；首页显示不再等待对局资源。 */
   private assetsReady = false;
+  private gameAssetsReady = false;
+  private secondaryAssetsReady = false;
+  private gameAssetsPromise: Promise<void> | null = null;
+  private secondaryAssetsPromise: Promise<void> | null = null;
+  private gameAssetsError: unknown = null;
+  /** 对局预取对应的装备组合；远程同步或换装后需要重新校验。 */
+  private gameAssetsEquippedKey = '';
+  private readonly gamePreparingOverlay = new GamePreparingOverlay();
   private homeTransitionToken = 0;
   private sceneToken = 0;
   private currentScreen: ScreenName = 'loading';
@@ -185,8 +202,10 @@ export class AppHost implements GameFlowHost {
       host: this,
       actions: {
         onBack: () => this.confirmLeave(),
-        onSettings: () => this.showSettingsDialog(),
-        onCollection: () => this.economyPanels.showCollection('game'),
+        onSettings: () => { void this.openAfterSecondary(() => this.showSettingsDialog()); },
+        onCollection: () => {
+          void this.openAfterSecondary(() => this.economyPanels.showCollection('game'));
+        },
         onHome: () => this.showHome(),
         onReplay: () => this.showGame(true, this.flow.mode),
       },
@@ -206,6 +225,13 @@ export class AppHost implements GameFlowHost {
 
   public async initialize(): Promise<void> {
     this.assetsReady = false;
+    this.gameAssetsReady = false;
+    this.secondaryAssetsReady = false;
+    this.gameAssetsPromise = null;
+    this.secondaryAssetsPromise = null;
+    this.gameAssetsError = null;
+    this.gameAssetsEquippedKey = '';
+    this.gamePreparingOverlay.close();
     this.homeTransitionToken += 1;
     this.startupMetrics.mark('boot');
     this.svc.loadingView.reset();
@@ -215,32 +241,67 @@ export class AppHost implements GameFlowHost {
     } catch (error) {
       console.error('[Cat2048] Startup data loading failed', error);
       this.svc.loadingView.showError();
+      markCocosLoadingError(error);
       return;
     }
     const { runStartupSequence } = await import('../utils/startupSequence');
     await runStartupSequence({
-      preload: () => this.svc.art.preload(
+      // 首页是首屏阻塞层；对局资源在 onReady 后后台预取。
+      preload: () => this.svc.art.preloadHome(
         this.saveValue.economy.equipped,
-        (ratio) => this.svc.loadingView.setProgress(ratio),
+        (ratio) => {
+          this.svc.loadingView.setProgress(ratio);
+          reportCocosLoadingProgress(ratio);
+        },
       ),
       isActive: () => this.platform.isValid,
       onReady: () => {
         this.assetsReady = true;
+        this.startupMetrics.mark('home-ready');
+        reportCocosLoadingProgress(1);
+        markCocosLoadingReady();
         this.beginHomeTransition();
-        // 首页已可交互：后台加载次级资源（图鉴/商店/排行榜/高等级立绘/BGM），不阻塞用户。
-        void this.preloadSecondaryAssets();
+        // 首页已可交互：优先后台预取对局资源，避免次级页面请求抢占首局带宽。
+        const gamePreload = this.beginGameAssetsPreload();
+        this.secondaryAssetsPromise = gamePreload.then(
+          () => this.preloadSecondaryAssets(),
+          () => this.preloadSecondaryAssets(),
+        );
       },
       onError: (error) => {
         console.error('[Cat2048] Startup asset loading failed', error);
         this.svc.loadingView.showError();
+        markCocosLoadingError(error);
       },
     });
+  }
+
+  /** 首页就绪后后台预取对局资源；完成后点击开始无需再等待。 */
+  private beginGameAssetsPreload(): Promise<void> {
+    this.gameAssetsReady = false;
+    this.gameAssetsError = null;
+    this.gameAssetsEquippedKey = this.equippedKey(this.saveValue.economy.equipped);
+    const promise = this.preloadGameAssets();
+    this.gameAssetsPromise = promise;
+    return promise;
+  }
+
+  private async preloadGameAssets(): Promise<void> {
+    try {
+      await this.svc.art.preloadGame(this.saveValue.economy.equipped);
+      this.gameAssetsReady = true;
+    } catch (error) {
+      // 后台预取失败不应产生未处理 Promise rejection；用户点击开始时会看到可重试提示。
+      this.gameAssetsError = error;
+      console.warn('[Cat2048] Game assets loading failed', error);
+    }
   }
 
   /** 首页就绪后后台加载 Tier 2 资源，完成后输出启动性能埋点。 */
   private async preloadSecondaryAssets(): Promise<void> {
     try {
       await this.svc.art.preloadSecondary(this.saveValue.economy.equipped);
+      this.secondaryAssetsReady = true;
     } catch (error) {
       console.warn('[Cat2048] Secondary asset loading failed', error);
     } finally {
@@ -321,17 +382,38 @@ export class AppHost implements GameFlowHost {
     }
     this.homeRoot = this.makeScreen('Home');
     this.svc.homeView.build(this.homeRoot, this.homeViewModel(), {
-      onPlay: () => { if (this.assetsReady) this.startGame(); },
-      onRestart: () => { if (this.assetsReady) this.restartGame(); },
-      onDailyChallenge: () => { if (this.assetsReady) this.startDailyChallenge(); },
-      onInfo: () => { if (this.assetsReady) this.showInfoDialog(); },
-      onCollection: () => { if (this.assetsReady) this.economyPanels.showCollection('home'); },
-      onLeaderboard: () => { if (this.assetsReady) this.leaderboardCtrl.showLeaderboard(); },
-      onShop: () => { if (this.assetsReady) this.economyPanels.showShop(); },
-      onDailyReward: () => { if (this.assetsReady) this.economyPanels.showDailyReward(); },
-      onTasks: () => { if (this.assetsReady) this.economyPanels.showTasks(); },
+      onPlay: () => { if (this.assetsReady) void this.startGameWhenReady(); },
+      onRestart: () => { if (this.assetsReady) void this.restartGameWhenReady(); },
+      onDailyChallenge: () => {
+        if (this.assetsReady) void this.startDailyChallengeWhenReady();
+      },
+      onCollection: () => {
+        if (this.assetsReady) void this.openAfterSecondary(
+          () => this.economyPanels.showCollection('home'));
+      },
+      onLeaderboard: () => {
+        if (this.assetsReady) void this.openAfterSecondary(
+          () => this.leaderboardCtrl.showLeaderboard());
+      },
+      onShop: () => {
+        if (this.assetsReady) void this.openAfterSecondary(
+          () => this.economyPanels.showShop());
+      },
+      onDailyReward: () => {
+        if (this.assetsReady) void this.openAfterSecondary(
+          () => this.economyPanels.showDailyReward());
+      },
+      onTasks: () => {
+        if (this.assetsReady) void this.openAfterSecondary(
+          () => this.economyPanels.showTasks());
+      },
+      onGuide: () => {
+        if (this.assetsReady) void this.openAfterSecondary(() => this.showGuideDialog());
+      },
       onToggleSound: () => { if (this.assetsReady) this.toggleSound(); },
-      onSettings: () => { if (this.assetsReady) this.showSettingsDialog(); },
+      onSettings: () => {
+        if (this.assetsReady) void this.openAfterSecondary(() => this.showSettingsDialog());
+      },
     });
     this.economyPanels.promptDailyRewardIfDue();
   }
@@ -379,9 +461,12 @@ export class AppHost implements GameFlowHost {
       () => this.showHome(), undefined, undefined, { cancelTone: 'primary', confirmTone: 'secondary' });
   }
 
-  public showInfoDialog(): void {
-    this.showDialog('怎么玩', '滑动屏幕或使用方向键\n合并两只相同猫咪并不断升级', '知道啦', '开始游戏',
-      () => this.startGame());
+  public showGuideDialog(): void {
+    if (!this.screenRoot) return;
+    this.inputLocked = true;
+    this.svc.guide.show(this.screenRoot, {
+      onClose: () => { this.inputLocked = false; this.showHome(); },
+    });
   }
 
   public showSettingsDialog(): void {
@@ -418,6 +503,7 @@ export class AppHost implements GameFlowHost {
     this.sceneToken += 1;
     this.homeTransitionToken += 1;
     this.inputLocked = false;
+    this.gamePreparingOverlay.close();
     this.shareInProgress = false;
     this.economyPanels.resetOverlays();
     this.flow.teardown();
@@ -465,6 +551,79 @@ export class AppHost implements GameFlowHost {
     };
   }
 
+  /** 等待后台对局资源预取；等待期间只遮挡首页输入，不重建整张 Loading 页。 */
+  private async ensureGameAssets(): Promise<boolean> {
+    if (this.inputLocked) return false;
+    const equippedKey = this.equippedKey(this.saveValue.economy.equipped);
+    if (this.gameAssetsReady && this.gameAssetsEquippedKey === equippedKey) return true;
+    // 同步期间服务器可能返回了新的装备组合；预取旧组合不能直接复用。
+    // 即使旧预取尚未完成也要启动新组合的请求，否则点击开始可能等待旧资源后
+    // 直接进入棋盘，导致新皮肤/棋盘出现占位或默认素材。
+    if (this.gameAssetsEquippedKey !== equippedKey) {
+      this.beginGameAssetsPreload();
+    }
+    if (this.gameAssetsError) {
+      // 资源请求可能只是临时网络失败；已缓存的资源会被 ArtRepository 去重，
+      // 因此再次点击可以只重试失败的路径。
+      this.beginGameAssetsPreload();
+    }
+    const pending = this.gameAssetsPromise;
+    if (!pending) {
+      this.showNotice('棋盘资源尚未开始加载');
+      return false;
+    }
+
+    const token = this.sceneToken;
+    const parent = this.screenRoot;
+    const closeOverlay = parent
+      ? this.gamePreparingOverlay.show(parent, this.uiWidthValue, this.uiHeightValue)
+      : () => undefined;
+    this.inputLocked = true;
+    try {
+      await pending;
+    } finally {
+      closeOverlay();
+      this.inputLocked = false;
+    }
+
+    if (token !== this.sceneToken || this.currentScreen !== 'home') return false;
+    if (this.gameAssetsError || !this.gameAssetsReady) {
+      this.showNotice('棋盘资源加载失败，请重试');
+      return false;
+    }
+    return true;
+  }
+
+  private async openAfterSecondary(action: () => void): Promise<void> {
+    if (this.inputLocked) return;
+    if (this.secondaryAssetsReady || !this.secondaryAssetsPromise) {
+      action();
+      return;
+    }
+    const token = this.sceneToken;
+    const screenBefore = this.currentScreen;
+    this.inputLocked = true;
+    try {
+      await this.secondaryAssetsPromise;
+    } finally {
+      this.inputLocked = false;
+    }
+    if (token !== this.sceneToken || this.currentScreen !== screenBefore) return;
+    action();
+  }
+
+  private async startGameWhenReady(): Promise<void> {
+    if (await this.ensureGameAssets()) this.startGame();
+  }
+
+  private async restartGameWhenReady(): Promise<void> {
+    if (await this.ensureGameAssets()) this.restartGame();
+  }
+
+  private async startDailyChallengeWhenReady(): Promise<void> {
+    if (await this.ensureGameAssets()) this.startDailyChallenge();
+  }
+
   private startGame(): void {
     const pending = this.svc.runSession.load();
     if (pending) { this.flow.resumeRun(pending); this.showGame(false); return; }
@@ -483,6 +642,7 @@ export class AppHost implements GameFlowHost {
     this.economySnapshotValue = snapshot;
     this.saveValue = {
       ...runtimeStorage.load(),
+      unlockedCatLevels: [...snapshot.unlockedCatLevels],
       economy: {
         coins: snapshot.coins, ownedItemIds: snapshot.ownedItemIds, equipped: snapshot.equipped,
         lastDailyClaimDate: snapshot.lastDailyClaimDate, dailyStreak: snapshot.dailyStreak,
@@ -495,6 +655,10 @@ export class AppHost implements GameFlowHost {
       },
     };
     this.svc.cosmetics.setEquipped(this.saveValue.economy.equipped);
+  }
+
+  private equippedKey(equipped: SaveDataV3['economy']['equipped']): string {
+    return `${equipped.catSkin}|${equipped.board}|${equipped.effect}`;
   }
 
   private showDialog(titleText: string, bodyText: string, cancelText: string, confirmText: string,
@@ -511,6 +675,7 @@ export class AppHost implements GameFlowHost {
     this.flow.teardown();
     this.sceneToken += 1;
     this.inputLocked = false;
+    this.gamePreparingOverlay.close();
     this.shareInProgress = false;
     this.economyPanels.resetOverlays();
     if (this.screenRoot && this.screenRoot !== this.homeRoot) {

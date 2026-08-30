@@ -43,7 +43,13 @@
   "splash-setting": {
     "background": {
       "image": "project://settings/logo.png",
-      "type": "default"
+      "type": "color",
+      "color": {
+        "x": 1,
+        "y": 0.9568627450980393,
+        "z": 0.8705882352941177,
+        "w": 1
+      }
     },
     "logo": {
       "type": "custom",

@@ -13,6 +13,7 @@ interface WechatRequestOptions {
   readonly method: 'GET' | 'POST' | 'PATCH';
   readonly data?: unknown;
   readonly header?: Record<string, string>;
+  readonly timeout?: number;
   readonly success: (response: { statusCode: number; data: unknown }) => void;
   readonly fail: (error: unknown) => void;
 }
@@ -28,6 +29,8 @@ export interface WechatRuntime {
 }
 
 export class WechatHttpTransport implements LeaderboardHttpTransport {
+  private static readonly REQUEST_TIMEOUT_MS = 10_000;
+
   public constructor(private readonly baseUrl: string, private readonly runtime: WechatRuntime) {}
 
   public request<TResponse>(request: LeaderboardHttpRequest): Promise<TResponse> {
@@ -40,8 +43,10 @@ export class WechatHttpTransport implements LeaderboardHttpTransport {
         url: `${this.baseUrl.replace(/\/$/, '')}${request.path}`,
         method: request.method,
         data: request.body,
+        timeout: WechatHttpTransport.REQUEST_TIMEOUT_MS,
         header: {
           'content-type': 'application/json',
+          ...(request.headers ?? {}),
           ...(request.token ? { Authorization: `Bearer ${request.token}` } : {}),
         },
         success: (response) => {

@@ -4,7 +4,7 @@
  *
  * 关键指标：
  * - homeReadyMs：脚本启动 → 首页可交互（Tier 1 资源就绪），加载速度的核心指标
- * - secondaryMs：首页可交互 → 次级资源全部就绪（Tier 2 后台加载耗时）
+ * - secondaryMs：首页可交互 → 对局与次级资源全部就绪（后台资源加载耗时）
  */
 
 type StartupMark = 'boot' | 'home-ready' | 'secondary-loaded';

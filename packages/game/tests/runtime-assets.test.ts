@@ -61,6 +61,7 @@ const homeImagePaths = [
   'home_checkin_button.png',
   'home_coin.png',
   'home_collection.png',
+  'home_guide.png',
   'home_leaderboard_button.png',
   'home_play_paw.png',
   'home_plus.png',

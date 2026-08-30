@@ -1,6 +1,7 @@
 import { AudioClip, Font, ImageAsset, resources, SpriteFrame, Texture2D, TTFFont } from 'cc';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import { allCosmetics, DEFAULT_EQUIPPED, type EquippedCosmetics } from '../../features/economy/catalog';
+import { shopPreviewAssetPaths } from './assetPaths';
 
 export class ArtRepository {
   private readonly frames = new Map<string, SpriteFrame>();
@@ -12,25 +13,30 @@ export class ArtRepository {
   private readonly highLevelAssetsLoaded = new Set<string>();
 
   /**
-   * 关键资源预载（Tier 1）：仅首页与对局必需的资源，阻塞加载进度条。
-   * 图鉴/商店/排行榜等次级资源由 {@link preloadSecondary} 在首页可交互后后台加载。
+   * 首页关键资源（Home Tier）：只阻塞到首页可交互。
+   * 对局资源由 {@link preloadGame} 在首页出现后后台预取。
    */
-  public async preload(
+  public async preloadHome(
+    _equipped: EquippedCosmetics = DEFAULT_EQUIPPED,
+    onProgress?: (ratio: number) => void,
+  ): Promise<void> {
+    const framePaths = this.homeFramePaths();
+    await this.loadFramesChunked(framePaths, 6, (ratio) => onProgress?.(ratio * 0.92), false);
+    await this.cacheFont(GAME_CONFIG.fonts.display, TTFFont);
+    onProgress?.(1);
+  }
+
+  /**
+   * 对局关键资源（Game Tier）：首页可交互后后台加载。
+   * 音效属于可选资源，缺失时不阻塞进入棋盘。
+   */
+  public async preloadGame(
     equipped: EquippedCosmetics = DEFAULT_EQUIPPED,
     onProgress?: (ratio: number) => void,
   ): Promise<void> {
-    const framePaths = this.startupFramePaths(equipped);
-    let loadedFrames = 0;
-    await Promise.all(framePaths.map(async (path) => {
-      await this.loadFrame(path);
-      loadedFrames += 1;
-      onProgress?.(0.05 + (loadedFrames / Math.max(1, framePaths.length)) * 0.8);
-    }));
+    const framePaths = this.gameFramePaths(equipped);
+    await this.loadFramesChunked(framePaths, 6, (ratio) => onProgress?.(ratio * 0.85), false);
 
-    await this.cacheFont(GAME_CONFIG.fonts.display, TTFFont);
-    onProgress?.(0.9);
-
-    // game_over 属对局必需（结束时刻一次性播放，错过无法补偿），留在关键层。
     const audioNames = ['move', 'merge', 'game_over'];
     let loadedAudio = 0;
     await Promise.all(audioNames.map(async (name) => {
@@ -38,14 +44,26 @@ export class ArtRepository {
       try { this.clips.set(name, await this.loadClip(path)); }
       catch (error) { console.warn(`[Cat2048] Optional audio unavailable: ${path}`, error); }
       loadedAudio += 1;
-      onProgress?.(0.9 + (loadedAudio / audioNames.length) * 0.1);
+      onProgress?.(0.85 + (loadedAudio / audioNames.length) * 0.15);
     }));
     onProgress?.(1);
   }
 
   /**
+   * 兼容旧调用方：完整启动资源仍可一次性预载，但新启动流程应优先使用
+   * {@link preloadHome} + {@link preloadGame}，避免阻塞首页。
+   */
+  public async preload(
+    equipped: EquippedCosmetics = DEFAULT_EQUIPPED,
+    onProgress?: (ratio: number) => void,
+  ): Promise<void> {
+    await this.preloadHome(equipped, (ratio) => onProgress?.(ratio * 0.5));
+    await this.preloadGame(equipped, (ratio) => onProgress?.(0.5 + ratio * 0.5));
+  }
+
+  /**
    * 次级资源后台预载（Tier 2）：功能页（图鉴/商店/排行榜）界面图、
-   * 设置/任务图标与 BGM。猫咪高等级立绘留到对局预热或图鉴按需加载。
+   * 商店预览图、设置/任务图标与 BGM。猫咪高等级立绘留到对局预热或图鉴按需加载。
    */
   public async preloadSecondary(_equipped: EquippedCosmetics = DEFAULT_EQUIPPED): Promise<void> {
     await this.loadFramesChunked(this.secondaryFramePaths());
@@ -58,12 +76,25 @@ export class ArtRepository {
   }
 
   /** 分片加载帧资源：每片之间让出一轮事件循环，避免连续解码阻塞渲染。 */
-  private async loadFramesChunked(paths: readonly string[], chunkSize = 4): Promise<void> {
-    for (let index = 0; index < paths.length; index += chunkSize) {
-      const chunk = paths.slice(index, index + chunkSize);
-      await Promise.all(chunk.map((path) => this.loadFrame(path).catch((error) => {
-        console.warn(`[Cat2048] Secondary asset unavailable: ${path}`, error);
-      })));
+  private async loadFramesChunked(
+    paths: readonly string[],
+    chunkSize = 4,
+    onProgress?: (ratio: number) => void,
+    ignoreErrors = true,
+  ): Promise<void> {
+    const pending = Array.from(new Set(paths));
+    let loaded = 0;
+    for (let index = 0; index < pending.length; index += chunkSize) {
+      const chunk = pending.slice(index, index + chunkSize);
+      await Promise.all(chunk.map((path) => {
+        const load = this.loadFrame(path);
+        if (!ignoreErrors) return load;
+        return load.catch((error) => {
+          console.warn(`[Cat2048] Secondary asset unavailable: ${path}`, error);
+        });
+      }));
+      loaded += chunk.length;
+      onProgress?.(loaded / Math.max(1, pending.length));
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }
@@ -186,11 +217,10 @@ export class ArtRepository {
     });
   }
 
-  /** 关键路径（Tier 1）：首页 UI、对局基础、常用按钮、装备皮肤前 4 级与当前装扮。 */
-  private startupFramePaths(equipped: EquippedCosmetics): string[] {
+  /** 首页关键路径：只包含首页首次绘制需要的纹理。 */
+  private homeFramePaths(): string[] {
     const art = GAME_CONFIG.art;
-    const paths = new Set<string>([
-      // 首页
+    return Array.from(new Set<string>([
       art.homeBackground,
       art.homeCatRoom,
       art.homePlayPaw,
@@ -198,12 +228,19 @@ export class ArtRepository {
       art.homeCollection,
       art.homeShop,
       art.homeTasks,
+      art.homeGuide,
       art.homeSettings,
       art.homeCoin,
       art.homePlus,
       art.homeLeaderboardButton,
       art.homeCheckinButton,
-      // 对局基础
+    ]));
+  }
+
+  /** 对局关键路径：棋盘、HUD、按钮、特效及当前装备的前 4 级立绘。 */
+  private gameFramePaths(equipped: EquippedCosmetics): string[] {
+    const art = GAME_CONFIG.art;
+    const paths = new Set<string>([
       art.pageBackground,
       art.boardBackground,
       art.gameplayStatsSheet,
@@ -270,6 +307,11 @@ export class ArtRepository {
       cats[cats.length - 1].asset,
       cats[0].asset,
     ]);
+    // 商店首屏直接使用缓存中的预览图，避免先显示占位卡再整组重绘。
+    const catalog = allCosmetics();
+    for (const category of ['cat-skin', 'board', 'effect'] as const) {
+      for (const path of shopPreviewAssetPaths(catalog, category)) paths.add(path);
+    }
     return Array.from(paths);
   }
 }

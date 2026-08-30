@@ -20,6 +20,8 @@ const CAPTION_COLOR = new Color(156, 136, 126, 255);  // 柔和的辅助文字�
 export interface RankListOptions {
   readonly entries: readonly LeaderboardEntry[];
   readonly currentRank: number | null;
+  /** 自己的真实名次超出返回条目窗口时，追加到列表末尾的条目（前置省略号分隔）。 */
+  readonly trailingMeEntry?: LeaderboardEntry | null;
   readonly width: number;
   /** 列表区域顶/底坐标（y 轴正方向朝上）。 */
   readonly top: number;
@@ -28,7 +30,7 @@ export interface RankListOptions {
 
 /** 构建可滚动的排行榜列表（含列头、遮罩视口与行）。 */
 export function createRankList(parent: Node, options: RankListOptions, art: ArtRepository): void {
-  const { entries, currentRank, width, top, bottom } = options;
+  const { entries, currentRank, trailingMeEntry, width, top, bottom } = options;
   const listHeight = Math.max(360, top - bottom);
   const scroll = createUiNode('LeaderboardScroll', width, listHeight);
   scroll.setPosition(0, top - listHeight / 2);
@@ -45,7 +47,9 @@ export function createRankList(parent: Node, options: RankListOptions, art: ArtR
   viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
   scroll.addChild(viewport);
 
-  const contentHeight = Math.max(viewportHeight, entries.length * ROW_STEP + 24);
+  // 追加的自己那行多占一个行槽；省略分隔悬浮在两行之间的空档里，不额外占位
+  const slots = entries.length + (trailingMeEntry ? 1 : 0);
+  const contentHeight = Math.max(viewportHeight, slots * ROW_STEP + 24);
   const content = createUiNode('LeaderboardContent', width, contentHeight);
   content.setPosition(0, (viewportHeight - contentHeight) / 2);
   viewport.addChild(content);
@@ -61,6 +65,26 @@ export function createRankList(parent: Node, options: RankListOptions, art: ArtR
     row.setPosition(0, contentHeight / 2 - 68 - index * ROW_STEP);
     content.addChild(row);
   });
+
+  if (trailingMeEntry) {
+    const ownSlot = entries.length;
+    if (showSeparator(entries, trailingMeEntry)) {
+      const separator = createLabel('· · ·', 26, CAPTION_COLOR, width - 120, 34);
+      separator.node.setPosition(0,
+        contentHeight / 2 - 68 - ownSlot * ROW_STEP + ROW_STEP / 2);
+      content.addChild(separator.node);
+    }
+    const row = createRankItem(trailingMeEntry, width - 12,
+      trailingMeEntry.rank === currentRank, art);
+    row.setPosition(0, contentHeight / 2 - 68 - ownSlot * ROW_STEP);
+    content.addChild(row);
+  }
+}
+
+/** 名次与列表末位之间有空档（差值 > 1）才显示省略号；第 51 名紧挨着排即可。 */
+function showSeparator(entries: readonly LeaderboardEntry[], trailing: LeaderboardEntry): boolean {
+  const last = entries[entries.length - 1];
+  return entries.length > 0 && trailing.rank - last.rank > 1;
 }
 
 function renderColumnHeader(header: Node, width: number): void {

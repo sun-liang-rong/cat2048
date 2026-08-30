@@ -303,4 +303,21 @@ describe('Game2048', () => {
     const ids = restored.board.tiles.map((tile) => tile.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it('can roll back an item operation without losing undo history', () => {
+    const game = new Game2048(new FixedRandom([0.95, 0, 0.95, 0]));
+    const before = game.loadFixture([
+      [0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
+    ], 12);
+    game.move('left');
+    const rollback = game.captureRollbackState();
+
+    expect(game.undo().changed).toBe(true);
+    game.restoreRollbackState(rollback);
+
+    expect(game.board).toEqual(rollback.board);
+    expect(game.score).toBe(rollback.score);
+    expect(game.items.canUse('undo')).toBe(true);
+    expect(game.undo().board).toEqual(before);
+  });
 });

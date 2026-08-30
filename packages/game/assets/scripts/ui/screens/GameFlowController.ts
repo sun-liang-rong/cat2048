@@ -183,6 +183,8 @@ export class GameFlowController {
   }
 
   public canUseItem(kind: ItemKind): boolean {
+    // 结算完成后棋盘只读；救援弹窗结算进行中仍允许撤回/消除救援。
+    if (this.game.status === 'game-over' && !this.gameOverSettlementInProgress) return false;
     return this.game.items.canUse(kind) && this.deps.economy.hasItem(kind);
   }
 
@@ -265,25 +267,35 @@ export class GameFlowController {
   public async useItem(kind: ItemKind): Promise<void> {
     if (this.deps.host.isInputLocked() || !this.canUseItem(kind) || !this.boardView.root) return;
 
-    switch (kind) {
-      case 'undo': await this.useUndoItem(); break;
-      case 'spawn': await this.useSpawnItem(); break;
-      case 'shuffle': await this.useShuffleItem(); break;
-      case 'erase': await this.useEraseItem(); break;
+    // 扣库存期间锁住输入，避免网络请求未返回时重复发起道具操作。
+    this.deps.host.lockInput();
+    try {
+      switch (kind) {
+        case 'undo': await this.useUndoItem(); break;
+        case 'spawn': await this.useSpawnItem(); break;
+        case 'shuffle': await this.useShuffleItem(); break;
+        case 'erase': await this.useEraseItem(); break;
+      }
+    } finally {
+      if (this.deps.host.isOnGameScreen() && this.boardView.root) this.deps.host.unlockInput();
     }
   }
 
   private async useUndoItem(): Promise<void> {
+    const rollback = this.game.captureRollbackState();
     const result = this.game.undo();
     if (!result.changed) {
       this.refreshItemViews();
       return;
     }
-    await this.consumeItemFromInventory('undo');
+    if (!await this.consumeItemFromInventory('undo')) {
+      this.game.restoreRollbackState(rollback);
+      this.refreshGameViews();
+      return;
+    }
     this.deps.tasks.recordEvent('use-items');
     this.persistRun();
     const token = this.sessionToken;
-    this.deps.host.lockInput();
     this.refreshGameViews();
     await this.boardView.fadeRebuild(
       result.board,
@@ -292,20 +304,23 @@ export class GameFlowController {
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.updateScore(result.score);
     this.refreshGameViews();
-    this.deps.host.unlockInput();
   }
 
   private async useSpawnItem(): Promise<void> {
+    const rollback = this.game.captureRollbackState();
     const result = this.game.spawn();
     if (!result.changed) {
       this.refreshItemViews();
       return;
     }
-    await this.consumeItemFromInventory('spawn');
+    if (!await this.consumeItemFromInventory('spawn')) {
+      this.game.restoreRollbackState(rollback);
+      this.refreshGameViews();
+      return;
+    }
     this.deps.tasks.recordEvent('use-items');
     this.persistRun();
     const token = this.sessionToken;
-    this.deps.host.lockInput();
     this.refreshGameViews();
     if (result.spawned) {
       this.deps.haptics.light();
@@ -317,20 +332,23 @@ export class GameFlowController {
     );
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.refreshGameViews();
-    this.deps.host.unlockInput();
   }
 
   private async useShuffleItem(): Promise<void> {
+    const rollback = this.game.captureRollbackState();
     const result = this.game.shuffle();
     if (!result.changed) {
       this.refreshItemViews();
       return;
     }
-    await this.consumeItemFromInventory('shuffle');
+    if (!await this.consumeItemFromInventory('shuffle')) {
+      this.game.restoreRollbackState(rollback);
+      this.refreshGameViews();
+      return;
+    }
     this.deps.tasks.recordEvent('use-items');
     this.persistRun();
     const token = this.sessionToken;
-    this.deps.host.lockInput();
     this.refreshGameViews();
     this.deps.haptics.light();
     this.deps.audio.play('merge', 0.55);
@@ -340,11 +358,11 @@ export class GameFlowController {
     );
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.refreshGameViews();
-    this.deps.host.unlockInput();
   }
 
   private async useEraseItem(): Promise<void> {
     // 消除需要选择目标，暂用随机选择最低等级猫咪
+    const rollback = this.game.captureRollbackState();
     const tiles = [...this.game.board.tiles];
     if (tiles.length === 0) {
       this.refreshItemViews();
@@ -357,11 +375,14 @@ export class GameFlowController {
       this.refreshItemViews();
       return;
     }
-    await this.consumeItemFromInventory('erase');
+    if (!await this.consumeItemFromInventory('erase')) {
+      this.game.restoreRollbackState(rollback);
+      this.refreshGameViews();
+      return;
+    }
     this.deps.tasks.recordEvent('use-items');
     this.persistRun();
     const token = this.sessionToken;
-    this.deps.host.lockInput();
     this.refreshGameViews();
     this.deps.haptics.light();
     this.deps.audio.play('merge', 0.55);
@@ -372,7 +393,6 @@ export class GameFlowController {
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.boardView.rebuild(result.board, false);
     this.refreshGameViews();
-    this.deps.host.unlockInput();
   }
 
   public async shareRevive(): Promise<void> {
@@ -430,8 +450,10 @@ export class GameFlowController {
     this.deps.host.lockInput();
     this.updateScore(this.game.score);
     this.deps.audio.play('game_over', 0.8);
+    // 只有撤回和消除能从结束盘面直接提供救援；刷新/洗牌虽可用，但不应
+    // 让用户进入一个没有对应按钮的“待结算”弹窗。
     const hasRescueItem = this.game.items.canUseMore
-      && (['undo', 'spawn', 'shuffle', 'erase'] as ItemKind[]).some((k) => this.canUseItem(k));
+      && (this.canUseItem('undo') || this.canUseItem('erase'));
     if (hasRescueItem) {
       this.showRescueGameOver();
     } else {
@@ -460,7 +482,10 @@ export class GameFlowController {
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
     }, {
-      onClose: () => this.deps.host.unlockInput(),
+      // 救援弹窗尚未结算，关闭时也要完成结算，避免奖励悬挂且页面失去操作出口。
+      onClose: () => {
+        void this.finishGameOver(() => this.deps.actions.onHome());
+      },
       onHome: () => { void this.finishGameOver(() => this.deps.actions.onHome()); },
       onReplay: () => { void this.finishGameOver(() => this.deps.actions.onReplay()); },
       onShareScore: () => { void this.finishGameOver(() => {
@@ -476,9 +501,21 @@ export class GameFlowController {
     if (!this.canUseItem(kind)) return;
     this.gameOverOverlay?.destroy();
     this.gameOverOverlay = null;
-    this.gameOverSettlementInProgress = false;
     this.deps.host.unlockInput();
-    void this.useItem(kind);
+    void this.useItem(kind).then(() => {
+      this.gameOverSettlementInProgress = false;
+      // 扣除失败会回滚到结束状态；恢复结算弹窗，避免用户被留在无操作的棋盘上。
+      if (this.deps.host.isOnGameScreen() && this.boardView.root
+        && this.game.status === 'game-over' && !this.gameOverOverlay?.isValid) {
+        this.showGameOver();
+      }
+    }).catch((error) => {
+      this.gameOverSettlementInProgress = false;
+      console.warn(`[Cat2048] Failed to use rescue item ${kind}.`, error);
+      if (this.deps.host.isOnGameScreen() && this.boardView.root && !this.gameOverOverlay?.isValid) {
+        this.showGameOver();
+      }
+    });
   }
 
   private async finishGameOver(after: () => void): Promise<void> {
@@ -513,12 +550,16 @@ export class GameFlowController {
         runId: this.currentRunId,
         score: this.game.score,
         highestLevel: highestLevelOfTiles(this.game.board.tiles),
+        discoveredLevels: this.deps.host.getSave().unlockedCatLevels,
       });
       reward = result.awardedCoins;
       this.deps.host.applyEconomyResult(result);
     } catch (error) {
       rewardFailed = true;
       console.warn('[Cat2048] Failed to settle run reward.', error);
+      // RemoteEconomyRepository 会在 sync 中冲刷对局奖励 outbox；失败时触发
+      // 一次后台重试，让短暂断网无需等到用户重启小游戏才补发金币。
+      if (this.deps.economy.sync) void this.deps.economy.sync();
     }
     this.deps.tasks.recordEvent('play-runs');
     if (highestLevelOfTiles(this.game.board.tiles) >= 5) {
@@ -550,7 +591,8 @@ export class GameFlowController {
       uiWidth: this.uiWidth,
       uiHeight: this.uiHeight,
     }, {
-      onClose: () => this.deps.host.unlockInput(),
+      // 结束态不应回到底层棋盘继续操作；关闭即返回主页。
+      onClose: () => this.deps.actions.onHome(),
       onHome: () => this.deps.actions.onHome(),
       onReplay: () => this.deps.actions.onReplay(),
       onShareScore: () => { void this.shareResult(); },
@@ -560,12 +602,19 @@ export class GameFlowController {
     });
   }
 
-  private async consumeItemFromInventory(kind: ItemKind): Promise<void> {
+  private async consumeItemFromInventory(kind: ItemKind): Promise<boolean> {
     try {
       const result = await this.deps.economy.consumeItems(kind, 1);
       this.deps.host.applyEconomyResult(result);
+      if (result.ok) return true;
+      this.deps.host.showNotice(result.reason === 'insufficient-items'
+        ? '道具库存不足，请刷新后重试'
+        : '道具扣除失败，本次操作未生效');
+      return false;
     } catch (error) {
       console.warn(`[Cat2048] Failed to consume ${kind} item.`, error);
+      this.deps.host.showNotice('道具扣除失败，请检查网络后重试');
+      return false;
     }
   }
 
@@ -594,7 +643,9 @@ export class GameFlowController {
       ...save,
       unlockedCatLevels: Array.from(unlocked).sort((a, b) => a - b),
     });
-    if (progress.rewardCoins > 0) void this.awardCollectionReward(progress.rewardCoins);
+    if (progress.rewardCoins > 0 && !this.deps.economy.serverAuthoritative) {
+      void this.awardCollectionReward(progress.rewardCoins);
+    }
   }
 
   private async awardCollectionReward(coins: number): Promise<void> {

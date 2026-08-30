@@ -2,7 +2,12 @@ import {
   Color,
   Node,
 } from 'cc';
-import type { LeaderboardEntry, LeaderboardResponse } from '../../features/leaderboard/leaderboard';
+import type {
+  LeaderboardEntry,
+  LeaderboardResponse,
+  PlayerSummary,
+} from '../../features/leaderboard/leaderboard';
+import { ownTrailingEntry } from '../../features/leaderboard/leaderboard';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
 import { addCoverBackground } from '../styles/background';
@@ -26,6 +31,8 @@ export interface LeaderboardViewModel {
   readonly data: LeaderboardResponse | null;
   readonly status: LeaderboardViewStatus;
   readonly localHighScore: number;
+  /** 当前登录玩家资料（昵称/头像），用于名次超出列表窗口时追加自己那一行。 */
+  readonly ownProfile: PlayerSummary | null;
   readonly uiWidth: number;
   readonly uiHeight: number;
   readonly topInset: number;
@@ -307,6 +314,7 @@ export class LeaderboardView {
     createRankList(parent, {
       entries,
       currentRank: model.data?.me?.rank ?? null,
+      trailingMeEntry: ownTrailingEntry(entries, model.data?.me ?? null, model.ownProfile),
       width,
       top: region.top,
       bottom: region.bottom,

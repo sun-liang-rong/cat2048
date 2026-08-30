@@ -85,6 +85,8 @@ const REFERENCE_HEIGHT = 620;
  * 从而保证弹窗四个角（尤其是底部两个角）始终是圆角。
  */
 export class ModalView {
+  private noticeNode: Node | null = null;
+
   public constructor(
     private readonly art: ArtRepository,
     private readonly getSize: () => { width: number; height: number },
@@ -215,6 +217,9 @@ export class ModalView {
   public showNotice(parent: Node | null, text: string,
     options: { readonly anchor?: 'top' | 'bottom'; readonly offset?: number } = {}): void {
     if (!parent) return;
+    // 轻提示只保留最新一条，避免奖励/网络提示连续触发时互相遮挡。
+    if (this.noticeNode?.isValid) this.noticeNode.destroy();
+    this.noticeNode = null;
     const { height } = this.getSize();
     const notice = createUiNode('ModalNotice', 500, 78);
     drawRounded(notice, 500, 78, COLORS.ink, 24);
@@ -226,11 +231,15 @@ export class ModalView {
     const opacity = notice.addComponent(UIOpacity);
     opacity.opacity = 0;
     parent.addChild(notice);
+    this.noticeNode = notice;
     tween(opacity)
       .to(0.12, { opacity: 255 })
       .delay(1.8)
       .to(0.2, { opacity: 0 })
-      .call(() => notice.destroy())
+      .call(() => {
+        if (this.noticeNode === notice) this.noticeNode = null;
+        notice.destroy();
+      })
       .start();
   }
 

@@ -95,6 +95,11 @@ describe('LocalEconomyRepository', () => {
     const invalid = await repository.consumeItems('undo', -1);
     expect(invalid.ok).toBe(false);
     expect((await repository.load()).undoItems).toBe(1);
+
+    const insufficient = await repository.consumeItems('undo', 2);
+    expect(insufficient.ok).toBe(false);
+    expect(insufficient.reason).toBe('insufficient-items');
+    expect((await repository.load()).undoItems).toBe(1);
   });
 
   it('does not spend coins when balance is insufficient and equips owned items', async () => {

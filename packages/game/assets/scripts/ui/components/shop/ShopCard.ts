@@ -8,7 +8,7 @@
  * - 高档商品（≥1500）带稀有度丝带：1500 稀有金、1800 传说绯红
  * - 预览图坐在圆形奶油舞台上，配椭圆投影，强化"展示台"氛围
  */
-import { Color, Graphics, Label, Node, UIOpacity, Vec3, tween } from 'cc';
+import { Color, Graphics, Label, Node, tween } from 'cc';
 import type { CosmeticDefinition } from '../../../features/economy/catalog';
 import type { EconomySnapshot } from '../../../features/economy/economy';
 import { GAME_CONFIG } from '../../../core/config/gameConfig';
@@ -72,7 +72,7 @@ export interface ShopCardOptions {
 }
 
 /** 生成一张商品卡片（舞台预览、名称+价格行、单一主操作按钮）。 */
-export function createShopCard(item: CosmeticDefinition, options: ShopCardOptions, index = 0): Node {
+export function createShopCard(item: CosmeticDefinition, options: ShopCardOptions): Node {
   const { economy, width, height, art, isEquipped, onPurchase, onEquip } = options;
   const card = createUiNode(`ShopCard:${item.id}`, width, height);
 
@@ -87,7 +87,7 @@ export function createShopCard(item: CosmeticDefinition, options: ShopCardOption
   shadow.setPosition(0, -4);
   card.addChild(shadow);
 
-  // 使用中：卡片外圈翡翠光晕（入场后脉冲一次）
+  // 使用中：卡片外圈翡翠光晕
   let equippedGlow: Node | null = null;
   if (equipped) {
     equippedGlow = createUiNode(`ShopEquippedGlow:${item.id}`, width + 16, height + 16);
@@ -112,18 +112,6 @@ export function createShopCard(item: CosmeticDefinition, options: ShopCardOption
     ribbon.addChild(ribbonLabel.node);
     ribbon.setPosition(-width / 2 + 56, height / 2 - 26);
     body.addChild(ribbon);
-  }
-
-  // 使用中角标（右上角，翡翠底白字）
-  if (equipped) {
-    const badge = createUiNode(`ShopEquippedBadge:${item.id}`, 108, RIBBON_HEIGHT);
-    drawRounded(badge, 108, RIBBON_HEIGHT, EQUIPPED_BORDER, 17);
-    const badgeLabel = createLabel('✓ 使用中', 15, new Color(255, 255, 255, 255), 96,
-      RIBBON_HEIGHT - 8, 'display');
-    badgeLabel.isBold = true;
-    badge.addChild(badgeLabel.node);
-    badge.setPosition(width / 2 - 62, height / 2 - 26);
-    body.addChild(badge);
   }
 
   // ---- 预览舞台：圆形奶油底 + 椭圆投影，猫咪"坐"在展示台上 ----
@@ -166,6 +154,19 @@ export function createShopCard(item: CosmeticDefinition, options: ShopCardOption
     addPreviewLoadingState(preview, item.id);
     preview.setPosition(0, stageY);
     body.addChild(preview);
+  }
+
+  // 使用中角标（右上角，翡翠底白字）。
+  // 必须在舞台与预览立绘之后添加：子节点按顺序渲染，先加会被立绘左下角压住。
+  if (equipped) {
+    const badge = createUiNode(`ShopEquippedBadge:${item.id}`, 108, RIBBON_HEIGHT);
+    drawRounded(badge, 108, RIBBON_HEIGHT, EQUIPPED_BORDER, 17);
+    const badgeLabel = createLabel('✓ 使用中', 15, new Color(255, 255, 255, 255), 96,
+      RIBBON_HEIGHT - 8, 'display');
+    badgeLabel.isBold = true;
+    badge.addChild(badgeLabel.node);
+    badge.setPosition(width / 2 - 62, height / 2 - 26);
+    body.addChild(badge);
   }
 
   // ---- 名称 + 价格行：名称居左，金币价格居右 ----
@@ -217,23 +218,7 @@ export function createShopCard(item: CosmeticDefinition, options: ShopCardOption
   action.setPosition(0, buttonY);
   body.addChild(action);
 
-  // 入场动画：波浪延迟 + 弹性缩放；使用中的卡片外圈光晕多一次呼吸脉冲
-  card.setScale(0.88, 0.88, 1);
-  const delay = index * 0.045;
-  tween(card).delay(delay).to(0.24, { scale: Vec3.ONE }, { easing: 'backOut' }).start();
-  const opacity = card.addComponent(UIOpacity);
-  opacity.opacity = 0;
-  tween(opacity).delay(delay).to(0.2, { opacity: 255 }).start();
-
-  if (equippedGlow) {
-    const glowOpacity = equippedGlow.addComponent(UIOpacity);
-    tween(glowOpacity)
-      .delay(delay + 0.3)
-      .to(0.35, { opacity: 130 })
-      .to(0.35, { opacity: 255 })
-      .start();
-  }
-
+  // 商店首屏要求稳定绘制：卡片不从透明/缩放状态入场，避免首次进入时闪烁。
   return card;
 }
 

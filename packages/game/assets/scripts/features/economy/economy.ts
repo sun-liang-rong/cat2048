@@ -20,9 +20,11 @@ export interface RunRewardRequest {
   readonly runId: string;
   readonly score: number;
   readonly highestLevel: number;
+  readonly discoveredLevels?: readonly number[];
 }
 
 export interface EconomySnapshot extends EconomySaveData {
+  readonly unlockedCatLevels: readonly number[];
   readonly catalog: ReturnType<typeof allCosmetics>;
   readonly canClaimDaily: boolean;
   readonly dailyReward: number;
@@ -31,15 +33,27 @@ export interface EconomySnapshot extends EconomySaveData {
 export interface EconomyMutationResult extends EconomySnapshot {
   readonly ok: boolean;
   readonly awardedCoins: number;
-  readonly reason?: 'already-claimed' | 'already-owned' | 'insufficient-coins' | 'invalid-item';
+  readonly reason?:
+    | 'already-claimed'
+    | 'already-owned'
+    | 'already-settled'
+    | 'insufficient-coins'
+    | 'insufficient-items'
+    | 'invalid-item'
+    | 'invalid-task'
+    | 'holding-limit'
+    | 'daily-limit';
 }
 
 export interface EconomyRepository {
+  readonly serverAuthoritative?: boolean;
   load(): Promise<EconomySnapshot>;
+  /** 可选的后台同步入口；远程仓库会顺带重试未结算的对局奖励。 */
+  sync?(): Promise<EconomySnapshot>;
   claimDailyReward(): Promise<EconomyMutationResult>;
   settleRun(request: RunRewardRequest): Promise<EconomyMutationResult>;
+  claimTaskReward(taskId: string, amount: number): Promise<EconomyMutationResult>;
   grantCoins(amount: number): Promise<EconomyMutationResult>;
-  grantItem(kind: ItemKind, amount: number): Promise<EconomyMutationResult>;
   consumeItems(kind: ItemKind, amount: number): Promise<EconomyMutationResult>;
   purchase(itemId: string): Promise<EconomyMutationResult>;
   equip(itemId: string): Promise<EconomyMutationResult>;
@@ -84,6 +98,7 @@ export function localDate(): string {
 }
 
 export class LocalEconomyRepository implements EconomyRepository {
+  public readonly serverAuthoritative = false;
   private readonly saveStorage: LocalGameStorage;
   private readonly clock: EconomyClock;
 
@@ -93,14 +108,15 @@ export class LocalEconomyRepository implements EconomyRepository {
   }
 
   public async load(): Promise<EconomySnapshot> {
-    return this.snapshot(this.saveStorage.load().economy);
+    const save = this.saveStorage.load();
+    return this.snapshot(save.economy, save.unlockedCatLevels);
   }
 
   public async claimDailyReward(): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     const today = this.clock.today();
     if (save.economy.lastDailyClaimDate === today) {
-      return this.result(save.economy, false, 0, 'already-claimed');
+      return this.result(save.economy, false, 0, 'already-claimed', save.unlockedCatLevels);
     }
     const streak = this.isYesterday(save.economy.lastDailyClaimDate, today)
       ? save.economy.dailyStreak + 1 : 1;
@@ -110,15 +126,17 @@ export class LocalEconomyRepository implements EconomyRepository {
       coins: save.economy.coins + awardedCoins,
       lastDailyClaimDate: today,
       dailyStreak: streak,
+      undoItems: Math.min(ITEM_HOLDING_MAX.undo, save.economy.undoItems + 2),
+      eraseItems: Math.min(ITEM_HOLDING_MAX.erase, save.economy.eraseItems + 1),
     };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, awardedCoins);
+    return this.result(economy, true, awardedCoins, undefined, save.unlockedCatLevels);
   }
 
   public async settleRun(request: RunRewardRequest): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     if (!request.runId || save.economy.settledRunIds.indexOf(request.runId) >= 0) {
-      return this.result(save.economy, false, 0);
+      return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     }
     const awardedCoins = calculateRunReward(request.score, request.highestLevel);
     const economy = {
@@ -127,49 +145,56 @@ export class LocalEconomyRepository implements EconomyRepository {
       settledRunIds: [...save.economy.settledRunIds, request.runId],
     };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, awardedCoins);
+    return this.result(economy, true, awardedCoins, undefined, save.unlockedCatLevels);
   }
 
   public async grantCoins(amount: number): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
-    if (safeAmount <= 0) return this.result(save.economy, false, 0);
+    if (safeAmount <= 0) return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     const economy = { ...save.economy, coins: save.economy.coins + safeAmount };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, safeAmount);
+    return this.result(economy, true, safeAmount, undefined, save.unlockedCatLevels);
+  }
+
+  public async claimTaskReward(_taskId: string, amount: number): Promise<EconomyMutationResult> {
+    return this.grantCoins(amount);
   }
 
   public async grantItem(kind: ItemKind, amount: number): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
-    if (safeAmount <= 0) return this.result(save.economy, false, 0);
+    if (safeAmount <= 0) return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     const key = this.itemKey(kind);
     const current = save.economy[key] as number;
     const economy = { ...save.economy, [key]: current + safeAmount };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, 0);
+    return this.result(economy, true, 0, undefined, save.unlockedCatLevels);
   }
 
   public async consumeItems(kind: ItemKind, amount: number): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
-    if (safeAmount <= 0) return this.result(save.economy, false, 0);
+    if (safeAmount <= 0) return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     const key = this.itemKey(kind);
     const current = save.economy[key] as number;
-    const economy = { ...save.economy, [key]: Math.max(0, current - safeAmount) };
+    if (current < safeAmount) {
+      return this.result(save.economy, false, 0, 'insufficient-items', save.unlockedCatLevels);
+    }
+    const economy = { ...save.economy, [key]: current - safeAmount };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, 0);
+    return this.result(economy, true, 0, undefined, save.unlockedCatLevels);
   }
 
   public async purchase(itemId: string): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId);
-    if (!item) return this.result(save.economy, false, 0, 'invalid-item');
+    if (!item) return this.result(save.economy, false, 0, 'invalid-item', save.unlockedCatLevels);
     if (save.economy.ownedItemIds.indexOf(item.id) >= 0) {
-      return this.result(save.economy, false, 0, 'already-owned');
+      return this.result(save.economy, false, 0, 'already-owned', save.unlockedCatLevels);
     }
     if (save.economy.coins < item.price) {
-      return this.result(save.economy, false, 0, 'insufficient-coins');
+      return this.result(save.economy, false, 0, 'insufficient-coins', save.unlockedCatLevels);
     }
     const economy = {
       ...save.economy,
@@ -177,26 +202,27 @@ export class LocalEconomyRepository implements EconomyRepository {
       ownedItemIds: [...save.economy.ownedItemIds, item.id],
     };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, 0);
+    return this.result(economy, true, 0, undefined, save.unlockedCatLevels);
   }
 
   public async equip(itemId: string): Promise<EconomyMutationResult> {
     const save = this.saveStorage.load();
     const item = findCosmetic(itemId);
     if (!item || save.economy.ownedItemIds.indexOf(itemId) < 0) {
-      return this.result(save.economy, false, 0, 'invalid-item');
+      return this.result(save.economy, false, 0, 'invalid-item', save.unlockedCatLevels);
     }
     const key = this.equippedKey(item.category);
     const equipped: EquippedCosmetics = { ...save.economy.equipped, [key]: item.id };
     const economy = { ...save.economy, equipped };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, 0);
+    return this.result(economy, true, 0, undefined, save.unlockedCatLevels);
   }
 
-  private snapshot(economy: EconomySaveData): EconomySnapshot {
+  private snapshot(economy: EconomySaveData, unlockedCatLevels: readonly number[] = [1]): EconomySnapshot {
     const today = this.clock.today();
     return {
       ...economy,
+      unlockedCatLevels,
       catalog: allCosmetics(),
       canClaimDaily: economy.lastDailyClaimDate !== today,
       dailyReward: calculateDailyReward(
@@ -207,8 +233,8 @@ export class LocalEconomyRepository implements EconomyRepository {
   }
 
   private result(economy: EconomySaveData, ok: boolean, awardedCoins: number,
-    reason?: EconomyMutationResult['reason']): EconomyMutationResult {
-    return { ...this.snapshot(economy), ok, awardedCoins, ...(reason ? { reason } : {}) };
+    reason?: EconomyMutationResult['reason'], unlockedCatLevels?: readonly number[]): EconomyMutationResult {
+    return { ...this.snapshot(economy, unlockedCatLevels), ok, awardedCoins, ...(reason ? { reason } : {}) };
   }
 
   private itemKey(kind: ItemKind): keyof EconomySaveData {
@@ -265,10 +291,10 @@ export class LocalEconomyRepository implements EconomyRepository {
     const dailyAdCount = isSameDay ? (save.economy[adKey] as number) : 0;
 
     if (current >= holdingMax) {
-      return this.result(save.economy, false, 0, 'already-claimed');
+      return this.result(save.economy, false, 0, 'already-claimed', save.unlockedCatLevels);
     }
     if (dailyAdCount >= dailyAdMax) {
-      return this.result(save.economy, false, 0, 'already-claimed');
+      return this.result(save.economy, false, 0, 'already-claimed', save.unlockedCatLevels);
     }
 
     const economy = {
@@ -278,7 +304,7 @@ export class LocalEconomyRepository implements EconomyRepository {
       lastDailyClaimDate: save.economy.lastDailyClaimDate ?? today,
     };
     this.saveStorage.save({ ...save, economy });
-    return this.result(economy, true, 0);
+    return this.result(economy, true, 0, undefined, save.unlockedCatLevels);
   }
 
   /** 获取道具库存数量 */

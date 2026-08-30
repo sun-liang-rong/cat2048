@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { HealthController } from './health.controller';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { EconomyModule } from './economy/economy.module';
 import { PlayersModule } from './players/players.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { resolveServerEnvFilePath } from './config/env-file-path';
@@ -23,6 +24,7 @@ const envFilePath = resolveServerEnvFilePath(__dirname, process.cwd());
     PlayersModule,
     AuthModule,
     LeaderboardModule,
+    EconomyModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

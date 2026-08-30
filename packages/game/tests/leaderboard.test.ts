@@ -5,6 +5,7 @@ import {
   LEADERBOARD_AUTH_KEY,
   PendingScoreQueue,
   highestLevelOfTiles,
+  ownTrailingEntry,
   type LeaderboardHttpTransport,
   type LeaderboardLoginProvider,
   type StorageLike,
@@ -282,5 +283,44 @@ describe('LeaderboardClient', () => {
 
     await expect(client.getLeaderboard()).resolves.toEqual({ entries: [], me: null });
     expect(login.getLoginCode).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ownTrailingEntry', () => {
+  const entries = [
+    { rank: 1, playerId: 'p1', nickname: '甲', avatarUrl: null, score: 900, achievedAt: '2026-08-30T10:00:00Z' },
+    { rank: 2, playerId: 'p2', nickname: '乙', avatarUrl: null, score: 800, achievedAt: '2026-08-30T10:00:00Z' },
+  ];
+
+  it('returns null when me is already inside the returned entries', () => {
+    expect(ownTrailingEntry(entries, { rank: 2, score: 800 }, null)).toBeNull();
+  });
+
+  it('returns null when there is no me', () => {
+    expect(ownTrailingEntry(entries, null, null)).toBeNull();
+  });
+
+  it('builds a trailing entry with the true global rank and profile', () => {
+    const profile = { id: 'p9', nickname: '本尊', avatarUrl: 'https://wx.qlogo.cn/9.png', highScore: 300 };
+    expect(ownTrailingEntry(entries, { rank: 87, score: 300 }, profile)).toEqual({
+      rank: 87,
+      playerId: 'p9',
+      nickname: '本尊',
+      avatarUrl: 'https://wx.qlogo.cn/9.png',
+      score: 300,
+      achievedAt: '',
+    });
+  });
+
+  it('falls back to placeholder identity when the profile is missing', () => {
+    const entry = ownTrailingEntry(entries, { rank: 51, score: 120 }, null);
+    expect(entry).toEqual({
+      rank: 51,
+      playerId: 'me',
+      nickname: '我',
+      avatarUrl: null,
+      score: 120,
+      achievedAt: '',
+    });
   });
 });

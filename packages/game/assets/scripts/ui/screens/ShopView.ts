@@ -73,6 +73,7 @@ export class ShopView {
   private tabIndicator: Node | null = null;
   private segmentLabels: Label[] = [];
   private content: Node | null = null;
+  private scrollView: ScrollView | null = null;
   private wallet: Node | null = null;
 
   public constructor(
@@ -168,6 +169,7 @@ export class ShopView {
     scrollView.vertical = true;
     scrollView.inertia = true;
     scrollView.content = this.content;
+    this.scrollView = scrollView;
 
     this.renderContent();
   }
@@ -193,6 +195,7 @@ export class ShopView {
     this.tabIndicator = null;
     this.segmentLabels = [];
     this.content = null;
+    this.scrollView = null;
     this.wallet = null;
   }
 
@@ -256,11 +259,13 @@ export class ShopView {
     const rowsHeight = rowCount > 0
       ? rowCount * cardHeight + (rowCount - 1) * rowGap
       : cardHeight;
-    const contentPadding = 28;
+    // 首行紧贴内容顶部：与 tab 的间距由视口边距承担，内容不叠加顶部内边距；
+    // 底部保留 28px，滚动到底时最后一张卡不贴死底缘。
+    const contentPaddingBottom = 28;
     const contentTransform = content.getComponent(UITransform)!;
     const viewportHeight = contentTransform.contentSize.height || rowsHeight;
     contentTransform.setContentSize(contentTransform.width,
-      Math.max(viewportHeight, rowsHeight + contentPadding * 2));
+      Math.max(viewportHeight, rowsHeight + contentPaddingBottom));
     const contentHeight = contentTransform.contentSize.height;
 
     items.forEach((item, index) => {
@@ -272,11 +277,11 @@ export class ShopView {
         isEquipped: (candidate) => this.isEquipped(candidate),
         onPurchase: actions.onPurchase,
         onEquip: actions.onEquip,
-      }, index);
+      });
       const col = index % 2;
       const row = Math.floor(index / 2);
       card.setPosition(-cardWidth / 2 - columnGap / 2 + col * (cardWidth + columnGap),
-        contentHeight / 2 - contentPadding - cardHeight / 2 - row * (cardHeight + rowGap));
+        contentHeight / 2 - cardHeight / 2 - row * (cardHeight + rowGap));
       content.addChild(card);
     });
 
@@ -284,6 +289,10 @@ export class ShopView {
       const empty = createLabel('暂无商品', 26, new Color(100, 116, 139, 255), 360, 60, 'display');
       content.addChild(empty.node);
     }
+
+    // 内容高度变化后内容节点仍停留在原点（中心锚点会上下各溢出一半），
+    // 立即回到顶部，保证进页/切分类时首行完整可见。
+    this.scrollView?.scrollToTop(0);
   }
 
   private isEquipped(item: CosmeticDefinition): boolean {

@@ -56,6 +56,7 @@ export interface LeaderboardHttpRequest {
   readonly path: string;
   readonly body?: unknown;
   readonly token?: string;
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface LeaderboardHttpTransport {

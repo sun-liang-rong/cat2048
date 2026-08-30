@@ -87,6 +87,7 @@ export class LeaderboardController {
       data,
       status,
       localHighScore: this.deps.getSave().highScore,
+      ownProfile: this.deps.leaderboard.currentPlayer(),
       uiWidth: this.deps.getSize().width,
       uiHeight: this.deps.getSize().height,
       topInset: this.deps.topInset(),

@@ -2,15 +2,11 @@ import {
   Color,
   Label,
   Node,
-  resources,
-  SpriteFrame,
-  Texture2D,
   Tween,
   Vec3,
   tween,
 } from 'cc';
-import { GAME_CONFIG } from '../../core/config/gameConfig';
-import { COLORS, createButton, createLabel, createSpriteNode, createUiNode, drawRounded } from '../utils/uiFactory';
+import { COLORS, createButton, createLabel, createUiNode, drawRounded } from '../utils/uiFactory';
 
 const DESIGN_HEIGHT = 1334;
 const LOGO_SIZE = 388;
@@ -58,7 +54,12 @@ export class LoadingView {
     const logoHost = createUiNode('LoadingLogoHost', this.logoSize, this.logoSize);
     logoHost.setPosition(0, Math.round(132 * this.contentScale));
     parent.addChild(logoHost);
-    this.loadLogo(logoHost);
+    // Cocos 的原生 first-screen 使用本地 Logo；这里使用纯文本回退，避免
+    // Loading 页再次向远程 resources Bundle 发起一个不计入进度的图片请求。
+    const logo = createLabel('猫咪2048', Math.round(72 * this.contentScale),
+      new Color(169, 100, 60, 255), this.logoSize, Math.round(110 * this.contentScale), 'display');
+    logoHost.addChild(logo.node);
+    this.startLogoMotion(logo.node);
 
     this.statusLabel = createLabel('正在加载游戏资源', Math.round(28 * this.contentScale), TEXT,
       Math.min(620, width - 72), Math.round(46 * this.contentScale), 'display');
@@ -115,21 +116,6 @@ export class LoadingView {
   public showError(): void {
     this.failed = true;
     this.render();
-  }
-
-  private loadLogo(parent: Node): void {
-    resources.load(GAME_CONFIG.art.logo, Texture2D, (error, texture) => {
-      if (error) {
-        console.warn('[Cat2048] Loading logo unavailable.', error);
-        return;
-      }
-      if (!parent.isValid) return;
-      const frame = new SpriteFrame();
-      frame.texture = texture;
-      const logo = createSpriteNode('LoadingLogo', frame, this.logoSize, this.logoSize);
-      parent.addChild(logo);
-      this.startLogoMotion(logo);
-    });
   }
 
   private startLogoMotion(logo: Node): void {

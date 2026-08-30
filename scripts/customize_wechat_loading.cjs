@@ -21,6 +21,11 @@ const runtimeReady = new Promise((resolve) => {
         },
         markError: (error) => {
             console.error('[Cat2048] Runtime asset loading failed', error);
+            // 失败也要结束原生首屏，让应用自己的 LoadingView 显示重试按钮；
+            // 否则 runtimeReady 会永久 pending，用户无法恢复。
+            if (ready) return;
+            ready = true;
+            resolve();
         },
     };
 });`;

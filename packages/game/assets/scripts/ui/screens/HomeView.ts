@@ -46,11 +46,11 @@ export interface HomeViewActions {
   onPlay(): void;
   onRestart(): void;
   onDailyChallenge(): void;
-  onInfo(): void;
   onCollection(): void;
   onLeaderboard(): void;
   onTasks(): void;
   onShop(): void;
+  onGuide(): void;
   onDailyReward(): void;
   onToggleSound(): void;
   onSettings(): void;
@@ -141,6 +141,7 @@ export class HomeView {
           onCollection: actions.onCollection,
           onShop: actions.onShop,
           onTasks: actions.onTasks,
+          onGuide: actions.onGuide,
           onSettings: actions.onSettings,
         }
       );
@@ -195,7 +196,9 @@ export class HomeView {
 
   private addCatShowcase(root: Node, model: HomeViewModel): void {
     const showcase = createUiNode('HomeCatShowcase', SHOWCASE_WIDTH, SHOWCASE_HEIGHT);
-    const showcaseScale = Math.min(1, Math.max(0.72,
+    // 上限 1.05：素材 750×575 对 600×460 节点有 1.25× 分辨率余量，放大 5% 不会糊；
+    // 矮屏仍按可用高度收缩，下限 0.72 与 +48 缓冲保持不变。
+    const showcaseScale = Math.min(1.05, Math.max(0.72,
       (this.playButtonTopFromTop(model) + 48 - SHOWCASE_TOP) / SHOWCASE_HEIGHT));
     showcase.setScale(showcaseScale, showcaseScale, 1);
     showcase.setPosition(0,

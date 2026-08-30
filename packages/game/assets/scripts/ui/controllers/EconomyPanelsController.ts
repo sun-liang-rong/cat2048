@@ -124,14 +124,14 @@ export class EconomyPanelsController {
         this.deps.showNotice('今日奖励已领取');
         return;
       }
-      await this.deps.economy.grantItem('undo', 2);
-      await this.deps.economy.grantItem('erase', 1);
       this.deps.applyEconomySnapshot(await this.deps.economy.load());
       this.dailyRewardOverlay?.destroy();
       this.dailyRewardOverlay = null;
       this.deps.unlockInput();
       if (this.deps.getCurrentScreen() === 'shop') this.showShop();
       else this.deps.showHome();
+      // 页面切换会销毁旧节点，必须在切换完成后再显示成功反馈。
+      this.deps.showNotice(`领取成功：+${result.awardedCoins} 金币`);
     } catch (error) {
       console.warn('[Cat2048] Failed to claim daily reward.', error);
       this.deps.unlockInput();
@@ -166,19 +166,44 @@ export class EconomyPanelsController {
     if (this.taskClaimInProgress || !this.taskOverlay?.isValid) return;
     this.taskClaimInProgress = true;
     try {
-      const result = this.deps.tasks.claim(taskId);
-      if (result.ok) {
-        await this.deps.economy.grantCoins(result.awardedCoins);
-        this.deps.applyEconomySnapshot(await this.deps.economy.load());
+      const taskSnapshot = this.deps.tasks.snapshot();
+      const task = taskSnapshot.items.find((item) => item.id === taskId);
+      let nextTaskSnapshot = taskSnapshot;
+      let successNotice: string | null = null;
+      if (!task || task.progress < task.target || task.claimed) {
+        this.deps.showNotice(task?.claimed ? '任务奖励已领取' : '任务尚未完成');
+      } else if (this.deps.economy.serverAuthoritative) {
+        // 先让服务端确认，避免网络失败时本地先标记已领取而丢失奖励。
+        const remote = await this.deps.economy.claimTaskReward(taskId, task.rewardCoins);
+        if (remote.ok || remote.reason === 'already-claimed') {
+          nextTaskSnapshot = this.deps.tasks.claim(taskId).snapshot;
+          this.deps.applyEconomyResult(remote);
+          successNotice = remote.ok
+            ? `任务奖励 +${remote.awardedCoins} 金币`
+            : '任务奖励已领取';
+        } else {
+          this.deps.showNotice(remote.reason === 'invalid-task' ? '任务不可领取' : '任务奖励已领取');
+        }
       } else {
-        this.deps.showNotice('任务尚未完成');
+        const result = this.deps.tasks.claim(taskId);
+        nextTaskSnapshot = result.snapshot;
+        if (result.ok) {
+          const reward = await this.deps.economy.claimTaskReward(taskId, result.awardedCoins);
+          this.deps.applyEconomyResult(reward);
+          successNotice = reward.ok
+            ? `任务奖励 +${reward.awardedCoins} 金币`
+            : '任务奖励领取失败';
+        } else {
+          this.deps.showNotice('任务尚未完成');
+        }
       }
-      this.deps.taskPanel.refresh(result.snapshot, {
+      this.deps.taskPanel.refresh(nextTaskSnapshot, {
         onClaim: (id) => { void this.claimTask(id); },
         onClose: () => this.closeTasks(),
       });
       // 即时同步首页红点，避免关闭面板后仍残留。
       this.deps.refreshHome();
+      if (successNotice) this.deps.showNotice(successNotice);
     } catch (error) {
       console.warn('[Cat2048] Failed to claim task reward.', error);
       this.deps.showNotice('任务奖励领取失败');
@@ -247,7 +272,9 @@ export class EconomyPanelsController {
           : economyErrorText(result));
         return;
       }
+      const purchased = this.deps.getEconomySnapshot().catalog.find((item) => item.id === itemId);
       this.showShop();
+      this.deps.showNotice(purchased ? `购买成功：${purchased.name}` : '购买成功');
     } catch (error) {
       this.deps.unlockInput();
       console.warn('[Cat2048] Failed to purchase cosmetic.', error);
@@ -274,8 +301,10 @@ export class EconomyPanelsController {
       } catch (error) {
         console.warn(`[Cat2048] Failed to warm equipped cosmetic ${itemId}.`, error);
       }
+      const equipped = this.deps.getEconomySnapshot().catalog.find((item) => item.id === itemId);
       this.deps.unlockInput();
       this.showShop();
+      this.deps.showNotice(equipped ? `装备成功：${equipped.name}` : '装备成功');
     } catch (error) {
       this.deps.unlockInput();
       console.warn('[Cat2048] Failed to equip cosmetic.', error);

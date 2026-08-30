@@ -81,7 +81,7 @@ export class GameOverDialogView {
     panel.addChild(score.node);
 
     const reward = createLabel(model.runRewardFailed
-      ? '本局金币暂未结算'
+      ? '本局金币暂未结算 · 联网后自动补发'
       : `+${model.runReward} 金币  ·  余额 ${model.coins}`,
       23, model.runRewardFailed ? COLORS.coral : COLORS.teal, 490, 42, 'display');
     reward.node.setPosition(0, titleY - 155);

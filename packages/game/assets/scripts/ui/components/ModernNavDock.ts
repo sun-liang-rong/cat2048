@@ -43,6 +43,7 @@ export class ModernNavDock {
       onCollection: () => void;
       onShop: () => void;
       onTasks: () => void;
+      onGuide: () => void;
       onSettings: () => void;
     }
   ): Node {
@@ -58,6 +59,7 @@ export class ModernNavDock {
       { name: 'Collection', label: '图鉴', iconName: 'collection', onTap: actions.onCollection },
       { name: 'Shop', label: '商店', iconName: 'shop', onTap: actions.onShop },
       { name: 'Tasks', label: '任务', iconName: 'tasks', onTap: actions.onTasks, badge: true },
+      { name: 'Guide', label: '玩法', iconName: 'guide', onTap: actions.onGuide },
       { name: 'Settings', label: '设置', iconName: 'settings', onTap: actions.onSettings },
     ];
 
@@ -119,6 +121,7 @@ export class ModernNavDock {
       collection: GAME_CONFIG.art.homeCollection,
       shop: GAME_CONFIG.art.homeShop,
       tasks: GAME_CONFIG.art.homeTasks,
+      guide: GAME_CONFIG.art.homeGuide,
       settings: GAME_CONFIG.art.homeSettings,
     };
 

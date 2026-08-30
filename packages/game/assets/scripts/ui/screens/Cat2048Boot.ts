@@ -23,7 +23,7 @@ import {
   UITransform,
   view,
 } from 'cc';
-import { LocalEconomyRepository } from '../../features/economy/economy';
+import { RemoteEconomyRepository, createEconomyApiClient } from '../../features/economy/remoteEconomy';
 import { LocalDailyTaskRepository } from '../../features/tasks/dailyTasks';
 import { RunSessionStore } from '../../features/storage/runSession';
 import type { Direction } from '../../core/types';
@@ -47,7 +47,7 @@ import { TaskPanelView } from '../panels/TaskPanelView';
 import { CatDetailModal } from '../panels/CatDetailModal';
 import { ShopView } from './ShopView';
 import { SettingsPanel } from '../panels/SettingsPanel';
-import { markCocosLoadingReady } from '../utils/cocosLoadingBridge';
+import { GuidePanelView } from '../panels/GuidePanelView';
 import { wechatCapsuleInset } from '../utils/safeInsets';
 import { AppHost, type HostPlatform, type HostServices } from './AppHost';
 
@@ -78,13 +78,15 @@ export class Cat2048Boot extends Component {
     const haptics = new HapticController();
     haptics.enabled = save.hapticsEnabled;
 
+    const leaderboard = createWechatLeaderboardClient(GAME_CONFIG.network.leaderboardBaseUrl, sys.localStorage);
+    const economy = new RemoteEconomyRepository(createEconomyApiClient(leaderboard), sys.localStorage);
     const services: HostServices = {
       art,
       cosmetics,
-      economy: new LocalEconomyRepository(sys.localStorage),
+      economy,
       tasks: new LocalDailyTaskRepository(sys.localStorage),
       runSession: new RunSessionStore(sys.localStorage),
-      leaderboard: createWechatLeaderboardClient(GAME_CONFIG.network.leaderboardBaseUrl, sys.localStorage),
+      leaderboard,
       haptics,
       resultShare: new ResultShareController(),
       audio,
@@ -97,6 +99,7 @@ export class Cat2048Boot extends Component {
       taskPanel: new TaskPanelView(art),
       catDetailModal: new CatDetailModal(art, cosmetics),
       settings: new SettingsPanel(() => ({ width: this.uiWidth, height: this.uiHeight }), art),
+      guide: new GuidePanelView(() => ({ width: this.uiWidth, height: this.uiHeight }), art),
       dialogs: new ModalView(art, () => ({ width: this.uiWidth, height: this.uiHeight })),
     };
 
@@ -108,13 +111,14 @@ export class Cat2048Boot extends Component {
     };
 
     this.app = new AppHost(platform, services, save, this.uiWidth, this.uiHeight, this.safeTop, this.safeBottom);
+    economy.setSnapshotListener((snapshot) => this.app?.applyEconomySnapshot(snapshot));
 
     input.on(Input.EventType.KEY_DOWN, this.onKeyDown, this);
     screen.on('window-resize', this.onResize, this);
     screen.on('orientation-change', this.onResize, this);
 
-    markCocosLoadingReady();
     void this.app.initialize();
+    void economy.sync();
   }
 
   protected override onDestroy(): void {

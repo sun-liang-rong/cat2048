@@ -20,6 +20,7 @@ import {
   type ScorePayload,
   type ScoreSubmissionResponse,
   type AuthResponse,
+  type LeaderboardEntry,
   type LeaderboardResponse,
   type LeaderboardHttpRequest,
   type LeaderboardHttpTransport,
@@ -63,6 +64,25 @@ export function highestLevelOfTiles(tiles: readonly { readonly level: number }[]
   return tiles.reduce((highest, tile) => Math.max(highest, tile.level), 1);
 }
 
+/**
+ * 自己的真实名次不在返回条目内（超出 limit 窗口）时，构造追加到列表末尾的
+ * 条目——名次用全局真实值（如 87），而不是列表末位+1。已在列表内则返回 null。
+ * achievedAt 置空串：RankItem 对空日期不渲染日期行。
+ */
+export function ownTrailingEntry(entries: readonly LeaderboardEntry[],
+  me: LeaderboardResponse['me'], profile: PlayerSummary | null): LeaderboardEntry | null {
+  if (!me) return null;
+  if (entries.some((entry) => entry.rank === me.rank)) return null;
+  return {
+    rank: me.rank,
+    playerId: profile?.id ?? 'me',
+    nickname: profile?.nickname ?? '我',
+    avatarUrl: profile?.avatarUrl ?? null,
+    score: me.score,
+    achievedAt: '',
+  };
+}
+
 export class LeaderboardClient {
   private readonly queue: PendingScoreQueue;
   private accessToken: string | null = null;
@@ -85,6 +105,11 @@ export class LeaderboardClient {
 
   public currentPlayer(): PlayerSummary | null {
     return this.player;
+  }
+
+  /** 复用排行榜的微信登录、JWT 缓存与 401 重试，供其他服务调用。 */
+  public request<TResponse>(request: LeaderboardHttpRequest): Promise<TResponse> {
+    return this.authorizedRequest<TResponse>(request);
   }
 
   public ensureAuthenticated(): Promise<PlayerSummary> {

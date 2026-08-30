@@ -23,3 +23,21 @@ npm run build
 ```
 
 The health endpoint is `GET /health`. Authenticated API routes are under `/v1`.
+
+## Economy rollout
+
+The economy tables are included in the committed migration under
+`prisma/migrations/20260830010000_add_economy`. Deploy it before enabling the
+remote economy client:
+
+```bash
+npm run prisma:deploy
+```
+
+On a user's first authenticated `GET /v1/economy/bootstrap`, the client uploads
+the existing local save to `POST /v1/economy/migrate` once. The migration is
+bounded and idempotent. After it succeeds, the server is authoritative; the
+client only sends business operations such as daily claims, run rewards,
+purchases, equipment changes, item consumption, and task claims. Every write
+request requires an `Idempotency-Key` header.
+Daily reward dates use `ECONOMY_TIME_ZONE` and default to `Asia/Shanghai`.

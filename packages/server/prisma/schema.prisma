@@ -17,6 +17,16 @@ model Player {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   submissions ScoreSubmission[]
+  economy PlayerEconomy?
+  ownedItems PlayerOwnedItem[]
+  collectionUnlocks PlayerCollectionUnlock[]
+  equipped PlayerEquipped?
+  runRewards RunReward[]
+  collectionRewardClaims CollectionRewardClaim[]
+  economyOperations EconomyOperation[]
+  economyMigrations EconomyMigration[]
+  economyLedger EconomyLedger[]
+  dailyTaskClaims DailyTaskClaim[]
 
   @@index([highScore, highScoreAt, id])
 }
@@ -32,4 +42,132 @@ model ScoreSubmission {
 
   @@unique([playerId, runId])
   @@index([playerId, createdAt])
+}
+
+model PlayerEconomy {
+  playerId            String   @id @db.Char(36)
+  coins               Int      @default(100)
+  lastDailyClaimDate  String?  @db.VarChar(10)
+  dailyStreak         Int      @default(0)
+  dailyCounterDate    String?  @db.VarChar(10)
+  dailyLoginClaimed   Boolean  @default(false)
+  dailyShareUndo      Int      @default(0)
+  dailyAdUndo         Int      @default(0)
+  dailyAdSpawn        Int      @default(0)
+  dailyAdShuffle      Int      @default(0)
+  dailyAdErase        Int      @default(0)
+  undoItems           Int      @default(0)
+  spawnItems          Int      @default(0)
+  shuffleItems        Int      @default(0)
+  eraseItems          Int      @default(0)
+  version             Int      @default(0)
+  migrationVersion    Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  player              Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model PlayerOwnedItem {
+  playerId    String   @db.Char(36)
+  itemId      String   @db.VarChar(128)
+  purchasedAt DateTime @default(now())
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, itemId])
+  @@index([playerId, purchasedAt])
+}
+
+model PlayerCollectionUnlock {
+  playerId   String   @db.Char(36)
+  level      Int      @db.TinyInt
+  unlockedAt DateTime @default(now())
+  source     String   @db.VarChar(32)
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, level])
+  @@index([playerId, unlockedAt])
+}
+
+model PlayerEquipped {
+  playerId  String @id @db.Char(36)
+  catSkinId String @default("cat-skin.default") @db.VarChar(128)
+  boardId   String @default("board.wood") @db.VarChar(128)
+  effectId  String @default("effect.classic") @db.VarChar(128)
+  updatedAt DateTime @updatedAt
+  player    Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model RunReward {
+  playerId     String   @db.Char(36)
+  runId        String   @db.VarChar(64)
+  score        Int
+  highestLevel Int      @db.TinyInt
+  awardedCoins Int
+  createdAt    DateTime @default(now())
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, runId])
+  @@index([playerId, createdAt])
+}
+
+model CollectionRewardClaim {
+  playerId     String   @db.Char(36)
+  threshold    Int      @db.TinyInt
+  awardedCoins Int
+  createdAt    DateTime @default(now())
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, threshold])
+}
+
+model EconomyOperation {
+  idempotencyKey String   @db.VarChar(128)
+  playerId       String   @db.Char(36)
+  operationType  String   @db.VarChar(32)
+  requestPayload Json?
+  resultSnapshot Json
+  createdAt      DateTime @default(now())
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, idempotencyKey])
+  @@index([playerId, createdAt])
+}
+
+model EconomyMigration {
+  playerId             String   @db.Char(36)
+  migrationVersion     Int
+  migrationId          String   @db.VarChar(128)
+  importedCoins        Int      @default(0)
+  importedItemCount    Int      @default(0)
+  importedCollectionCount Int    @default(0)
+  createdAt            DateTime @default(now())
+  player               Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, migrationVersion])
+  @@unique([playerId, migrationId])
+}
+
+model EconomyLedger {
+  id            String   @id @default(uuid()) @db.Char(36)
+  playerId      String   @db.Char(36)
+  operationType String   @db.VarChar(32)
+  deltaCoins    Int      @default(0)
+  referenceId   String?  @db.VarChar(128)
+  createdAt     DateTime @default(now())
+  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, createdAt])
+  @@index([playerId, operationType])
+}
+
+model DailyTaskClaim {
+  playerId     String   @db.Char(36)
+  date         String   @db.VarChar(10)
+  taskId       String   @db.VarChar(32)
+  awardedCoins Int
+  createdAt    DateTime @default(now())
+  player       Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, date, taskId])
+  @@index([playerId, date])
 }
