@@ -20,8 +20,6 @@ describe('normalizeSave', () => {
       unlockedCatLevels: [1, 3],
       tutorial: {
         swipeGuideCompleted: true,
-        itemRefillGuideCompleted: false,
-        collectionGuideCompleted: true,
       },
       economy: {
         ...DEFAULT_ECONOMY,
@@ -34,6 +32,25 @@ describe('normalizeSave', () => {
     expect(normalized?.schemaVersion).toBe(3);
     expect(normalized?.highScore).toBe(2048);
     expect(normalized?.economy.equipped).toEqual(DEFAULT_EQUIPPED);
+  });
+
+  it('normalizes legacy saves that still carry retired tutorial flags', () => {
+    const legacy = {
+      schemaVersion: 3,
+      highScore: 64,
+      soundEnabled: true,
+      musicEnabled: true,
+      hapticsEnabled: true,
+      unlockedCatLevels: [1, 2],
+      tutorial: {
+        swipeGuideCompleted: true,
+        itemRefillGuideCompleted: true,
+        collectionGuideCompleted: true,
+      },
+      economy: { ...DEFAULT_ECONOMY },
+    };
+    const normalized = normalizeSave(legacy);
+    expect(normalized?.tutorial).toEqual({ swipeGuideCompleted: true });
   });
 
   it('rejects non-object values', () => {
@@ -55,7 +72,7 @@ describe('normalizeSave', () => {
       musicEnabled: true,
       hapticsEnabled: true,
       unlockedCatLevels: [5, 1, 3, 3],
-      tutorial: { swipeGuideCompleted: true, itemRefillGuideCompleted: true, collectionGuideCompleted: true },
+      tutorial: { swipeGuideCompleted: true },
       economy: { ...DEFAULT_ECONOMY },
     };
     const normalized = normalizeSave(save);
@@ -69,7 +86,7 @@ describe('normalizeSave', () => {
       soundEnabled: true,
       hapticsEnabled: true,
       unlockedCatLevels: [1],
-      tutorial: { swipeGuideCompleted: true, itemRefillGuideCompleted: false, collectionGuideCompleted: false },
+      tutorial: { swipeGuideCompleted: true },
       economy: { ...DEFAULT_ECONOMY },
     };
     const normalized = normalizeSave(save);

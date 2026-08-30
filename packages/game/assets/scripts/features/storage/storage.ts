@@ -27,8 +27,6 @@ export const DEFAULT_SAVE: SaveDataV3 = {
   unlockedCatLevels: [1],
   tutorial: {
     swipeGuideCompleted: false,
-    itemRefillGuideCompleted: false,
-    collectionGuideCompleted: false,
   },
   economy: DEFAULT_ECONOMY,
 } as SaveDataV3;

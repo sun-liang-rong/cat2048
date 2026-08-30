@@ -5,8 +5,6 @@ import type { EconomySaveData } from '../economy/catalog';
 
 export interface TutorialProgress {
   readonly swipeGuideCompleted: boolean;
-  readonly itemRefillGuideCompleted: boolean;
-  readonly collectionGuideCompleted: boolean;
 }
 
 export interface SaveDataV1 {

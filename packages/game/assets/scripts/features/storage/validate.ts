@@ -44,8 +44,6 @@ export function migrateV1Save(value: unknown): SaveDataV3 | null {
     unlockedCatLevels: [1],
     tutorial: {
       swipeGuideCompleted: true,
-      itemRefillGuideCompleted: false,
-      collectionGuideCompleted: false,
     },
     economy: defaultEconomy(),
   };
@@ -70,9 +68,7 @@ function validateBase(candidate: Record<string, unknown>, version: 2 | 3): Omit<
     || levels.length === 0
     || !levels.every((level) => Number.isInteger(level) && level >= 1 && level <= GAME_CONFIG.cats.length)
     || !tutorial
-    || typeof tutorial.swipeGuideCompleted !== 'boolean'
-    || typeof tutorial.itemRefillGuideCompleted !== 'boolean'
-    || (version === 2 && typeof tutorial.collectionGuideCompleted !== 'boolean')) return null;
+    || typeof tutorial.swipeGuideCompleted !== 'boolean') return null;
   return {
     highScore: candidate.highScore,
     soundEnabled: candidate.soundEnabled,
@@ -81,9 +77,6 @@ function validateBase(candidate: Record<string, unknown>, version: 2 | 3): Omit<
     unlockedCatLevels: Array.from(new Set([1, ...(levels as number[])])).sort((a, b) => a - b),
     tutorial: {
       swipeGuideCompleted: tutorial.swipeGuideCompleted,
-      itemRefillGuideCompleted: tutorial.itemRefillGuideCompleted,
-      collectionGuideCompleted: typeof tutorial.collectionGuideCompleted === 'boolean'
-        ? tutorial.collectionGuideCompleted : false,
     },
   };
 }

@@ -1,4 +1,4 @@
-import { Color, Node, tween, Tween, UIOpacity, UITransform, Vec3 } from 'cc';
+import { Color, Node, tween, Tween, Vec3 } from 'cc';
 import { COLORS, createButton, createLabel, createUiNode, drawRounded, withAlpha } from '../utils/uiFactory';
 import { MODAL_FILL } from '../panels/ModalView';
 
@@ -60,34 +60,6 @@ export class TutorialView {
     this.swipeOverlay.destroy();
     this.swipeOverlay = null;
     this.swipeArrow = null;
-  }
-
-  public showItemRefillHint(parent: Node, target: Node, uiWidth: number, uiHeight: number): void {
-    const noticeWidth = Math.min(440, uiWidth - 36);
-    const notice = createUiNode('ItemRefillGuide', noticeWidth, 76);
-    drawRounded(notice, noticeWidth, 76, COLORS.ink, 24);
-    notice.addChild(createLabel('次数用完后，可分享补充 1 次', 21, COLORS.white, noticeWidth - 28, 60).node);
-    const parentTransform = parent.getComponent(UITransform);
-    const targetPosition = parentTransform?.convertToNodeSpaceAR(target.getWorldPosition()) ?? target.position;
-    const maxX = Math.max(0, uiWidth / 2 - noticeWidth / 2 - 18);
-    const x = Math.max(-maxX, Math.min(maxX, targetPosition.x));
-    const y = Math.max(-uiHeight / 2 + 96, Math.min(uiHeight / 2 - 96, targetPosition.y + 90));
-    notice.setPosition(x, y);
-    const opacity = notice.addComponent(UIOpacity);
-    opacity.opacity = 0;
-    parent.addChild(notice);
-
-    Tween.stopAllByTarget(target);
-    tween(target)
-      .to(0.16, { scale: new Vec3(1.05, 1.05, 1) })
-      .to(0.16, { scale: Vec3.ONE })
-      .union().repeat(4).start();
-    tween(opacity)
-      .to(0.12, { opacity: 255 })
-      .delay(2.4)
-      .to(0.2, { opacity: 0 })
-      .call(() => notice.destroy())
-      .start();
   }
 
   private addShade(parent: Node, name: string, width: number, height: number, x: number, y: number,

@@ -59,8 +59,6 @@ describe('LocalGameStorage', () => {
       unlockedCatLevels: [1],
       tutorial: {
         swipeGuideCompleted: true,
-        itemRefillGuideCompleted: false,
-        collectionGuideCompleted: false,
       },
       economy: DEFAULT_SAVE.economy,
     });
@@ -90,8 +88,6 @@ describe('LocalGameStorage', () => {
       unlockedCatLevels: [1, 3, 5],
       tutorial: {
         swipeGuideCompleted: true,
-        itemRefillGuideCompleted: true,
-        collectionGuideCompleted: true,
       },
       economy: DEFAULT_SAVE.economy,
     });
