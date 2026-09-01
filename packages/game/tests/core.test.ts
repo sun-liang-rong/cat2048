@@ -168,7 +168,7 @@ describe('Game2048', () => {
     expect(undone.changed).toBe(true);
     expect(undone.board).toEqual(before);
     expect(undone.score).toBe(12);
-    expect(game.items.canUse('undo')).toBe(false);
+    expect(game.items.canUse('undo')).toBe(true);
     expect(game.items.canUseMore).toBe(true);
     expect(game.undo().changed).toBe(false);
   });
@@ -208,7 +208,7 @@ describe('Game2048', () => {
     expect(result.removedTileId).toBe(target.id);
     expect(result.board.tiles).toHaveLength(4);
     expect(result.score).toBe(24);
-    expect(game.items.canUse('erase')).toBe(false);
+    expect(game.items.canUse('erase')).toBe(true);
     expect(game.items.canUseMore).toBe(true);
   });
 
@@ -246,7 +246,7 @@ describe('Game2048', () => {
     expect(game.items.canUse('shuffle')).toBe(false);
   });
 
-  it('limits total items per game to max 2', () => {
+  it('keeps undo and erase available after the legacy total item limit', () => {
     const game = new Game2048(new FixedRandom([0.5, 0.9, 0.5, 0.9]));
     game.loadFixture([
       [1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0],
@@ -255,9 +255,9 @@ describe('Game2048', () => {
     expect(game.undo().changed).toBe(true);
     expect(game.items.canUseMore).toBe(true);
     expect(game.spawn().changed).toBe(true);
-    expect(game.items.canUseMore).toBe(false);
+    expect(game.items.canUseMore).toBe(true);
     expect(game.items.canUse('shuffle')).toBe(false);
-    expect(game.items.canUse('erase')).toBe(false);
+    expect(game.items.canUse('erase')).toBe(true);
   });
 
   it('resets items on a new game', () => {
@@ -267,7 +267,7 @@ describe('Game2048', () => {
     ]);
     game.move('left');
     game.undo();
-    expect(game.items.canUse('undo')).toBe(false);
+    expect(game.items.canUse('undo')).toBe(true);
 
     game.start();
     expect(game.items.canUse('undo')).toBe(true);
@@ -295,7 +295,7 @@ describe('Game2048', () => {
     restored.restore(state);
     expect(restored.board).toEqual(game.board);
     expect(restored.score).toBe(12);
-    expect(restored.items.canUse('undo')).toBe(false);
+    expect(restored.items.canUse('undo')).toBe(true);
     expect(restored.reviveState.remaining).toBe(1);
 
     const moved = restored.move('right');

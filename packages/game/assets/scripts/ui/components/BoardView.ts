@@ -37,6 +37,7 @@ export class BoardView {
   private tileLayer: Node | null = null;
   private tileNodes = new Map<string, Node>();
   private touchHighlight: Node | null = null;
+  private itemSuccessBaseScale: Vec3 | null = null;
   /** 棋子节点对象池：棋盘最多 16 格，池容量留出合并动画过渡的余量。 */
   private readonly tilePool = new TileNodePool(20);
 
@@ -82,6 +83,8 @@ export class BoardView {
 
   public unmount(): void {
     this.clearTouchHighlight();
+    if (this.boardRoot) Tween.stopAllByTarget(this.boardRoot);
+    this.itemSuccessBaseScale = null;
     // 停止所有瓦片节点的动画
     if (this.tileLayer) {
       this.tileLayer.children.forEach(child => {
@@ -167,6 +170,23 @@ export class BoardView {
     if (!isAlive() || !this.tileLayer) return;
     this.rebuild(snapshot, false);
     await tweenOpacity(layer, 255, 0.14);
+  }
+
+  /** 道具成功后的短促棋盘反馈，避免用户只看到按钮库存变化。 */
+  public playItemSuccess(): void {
+    const board = this.boardRoot;
+    if (!board || !board.isValid) return;
+    if (this.itemSuccessBaseScale) board.setScale(this.itemSuccessBaseScale);
+    const base = board.scale.clone();
+    this.itemSuccessBaseScale = base;
+    Tween.stopAllByTarget(board);
+    tween(board)
+      .to(0.08, { scale: new Vec3(base.x * 1.045, base.y * 1.045, base.z) }, { easing: 'quadOut' })
+      .to(0.12, { scale: base }, { easing: 'quadIn' })
+      .call(() => {
+        if (this.boardRoot === board) this.itemSuccessBaseScale = null;
+      })
+      .start();
   }
 
   public positionFor(position: Position): Vec3 {

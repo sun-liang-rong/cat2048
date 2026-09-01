@@ -121,6 +121,50 @@ describe('RemoteEconomyRepository', () => {
     expect(repository.canGrantViaAd('undo', '2026-08-29')).toBe(false);
   });
 
+  it('does not apply daily ad caps to depleted undo and erase items', async () => {
+    const storage = new MemoryStorage();
+    const exhausted = remoteSnapshot(1).data;
+    const api: EconomyApiClient = {
+      request: vi.fn(async () => ({
+        data: {
+          ...exhausted,
+          items: { ...exhausted.items, undo: 0, erase: 0 },
+          daily: {
+            ...exhausted.daily,
+            adCounts: { ...exhausted.daily.adCounts, undo: 999, erase: 999 },
+          },
+        },
+      }) as never),
+    };
+    const repository = new RemoteEconomyRepository(api, storage);
+
+    await repository.sync();
+
+    expect(repository.canGrantViaAd('undo', '2026-08-30')).toBe(true);
+    expect(repository.canGrantViaAd('erase', '2026-08-30')).toBe(true);
+  });
+
+  it('sends the double reward flag for an ad-backed daily claim', async () => {
+    const storage = new MemoryStorage();
+    const api: EconomyApiClient = {
+      request: vi.fn(async (_method, path) => {
+        if (path.endsWith('daily-claim')) {
+          return {
+            data: { ok: true, awardedCoins: 60, snapshot: remoteSnapshot(1).data },
+          } as never;
+        }
+        return remoteSnapshot(1) as never;
+      }),
+    };
+    const repository = new RemoteEconomyRepository(api, storage);
+
+    await repository.claimDailyReward(true);
+
+    expect(api.request).toHaveBeenCalledWith(
+      'POST', '/v1/economy/daily-claim', { doubleReward: true }, expect.any(String),
+    );
+  });
+
   it('retries a timed-out mutation with the same idempotency key', async () => {
     const storage = new MemoryStorage();
     const keys: string[] = [];

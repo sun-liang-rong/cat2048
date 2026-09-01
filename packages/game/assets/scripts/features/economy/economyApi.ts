@@ -23,6 +23,10 @@ export interface RunRewardPayload {
   readonly discoveredLevels?: readonly number[];
 }
 
+export interface DailyClaimPayload {
+  readonly doubleReward?: boolean;
+}
+
 export interface PurchasePayload {
   readonly itemId: string;
   readonly catalogVersion?: string;

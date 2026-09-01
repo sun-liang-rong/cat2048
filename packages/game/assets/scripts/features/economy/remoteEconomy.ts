@@ -86,8 +86,12 @@ export class RemoteEconomyRepository implements EconomyRepository {
     if (this.latest) listener(this.latest);
   }
 
-  public async claimDailyReward(): Promise<EconomyMutationResult> {
-    return this.mutate(ECONOMY_API_ROUTES.dailyClaim, undefined, 'daily');
+  public async claimDailyReward(doubleReward = false): Promise<EconomyMutationResult> {
+    return this.mutate(
+      ECONOMY_API_ROUTES.dailyClaim,
+      { doubleReward },
+      doubleReward ? 'daily-double' : 'daily',
+    );
   }
 
   public async settleRun(request: RunRewardRequest): Promise<EconomyMutationResult> {
@@ -137,6 +141,8 @@ export class RemoteEconomyRepository implements EconomyRepository {
       const itemKey = this.itemKey(kind);
       const adKey = this.dailyAdKey(kind);
       const adCount = this.latestAdCounterDate === today ? this.latest[adKey] : 0;
+      // 撤回/消除只受库存上限限制，不能被历史广告计数拦截。
+      if (kind === 'undo' || kind === 'erase') return this.latest[itemKey] < ITEM_HOLDING_MAX[kind];
       return this.latest[itemKey] < ITEM_HOLDING_MAX[kind] && adCount < ITEM_DAILY_AD_MAX[kind];
     }
     return this.local.canGrantViaAd(kind, today);

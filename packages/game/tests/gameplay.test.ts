@@ -73,8 +73,9 @@ describe('canUseItemInRun', () => {
     expect(canUseItemInRun('spawn', ['undo'], 2, maxPerKind)).toBe(true);
   });
 
-  it('rejects already used items', () => {
-    expect(canUseItemInRun('undo', ['undo'], 2, maxPerKind)).toBe(false);
+  it('allows undo and erase repeatedly', () => {
+    expect(canUseItemInRun('undo', ['undo'], 2, maxPerKind)).toBe(true);
+    expect(canUseItemInRun('erase', ['undo', 'erase'], 2, maxPerKind)).toBe(true);
   });
 
   it('rejects when total limit reached', () => {
@@ -82,7 +83,8 @@ describe('canUseItemInRun', () => {
   });
 
   it('rejects when per-kind limit reached', () => {
-    expect(canUseItemInRun('undo', ['undo', 'spawn'], 2, maxPerKind)).toBe(false);
+    expect(canUseItemInRun('spawn', ['spawn'], 2, maxPerKind)).toBe(false);
+    expect(canUseItemInRun('undo', ['undo', 'spawn'], 2, maxPerKind)).toBe(true);
   });
 });
 

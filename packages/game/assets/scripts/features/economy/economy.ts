@@ -51,14 +51,14 @@ export interface EconomyRepository {
   load(): Promise<EconomySnapshot>;
   /** 可选的后台同步入口；远程仓库会顺带重试未结算的对局奖励。 */
   sync?(): Promise<EconomySnapshot>;
-  claimDailyReward(): Promise<EconomyMutationResult>;
+  claimDailyReward(doubleReward?: boolean): Promise<EconomyMutationResult>;
   settleRun(request: RunRewardRequest): Promise<EconomyMutationResult>;
   claimTaskReward(taskId: string, amount: number): Promise<EconomyMutationResult>;
   grantCoins(amount: number): Promise<EconomyMutationResult>;
   consumeItems(kind: ItemKind, amount: number): Promise<EconomyMutationResult>;
   purchase(itemId: string): Promise<EconomyMutationResult>;
   equip(itemId: string): Promise<EconomyMutationResult>;
-  /** 通过广告获取道具（含每日限额检查） */
+  /** 通过广告获取道具（撤回/消除不限次数，其余道具检查每日限额） */
   grantViaAd(kind: ItemKind): Promise<EconomyMutationResult>;
   /** 检查是否可通过广告获取 */
   canGrantViaAd(kind: ItemKind, today: string): boolean;
@@ -113,7 +113,7 @@ export class LocalEconomyRepository implements EconomyRepository {
     return this.snapshot(save.economy, save.unlockedCatLevels);
   }
 
-  public async claimDailyReward(): Promise<EconomyMutationResult> {
+  public async claimDailyReward(doubleReward = false): Promise<EconomyMutationResult> {
     const save = this.loadSave();
     const today = this.clock.today();
     if (save.economy.lastDailyClaimDate === today) {
@@ -121,7 +121,7 @@ export class LocalEconomyRepository implements EconomyRepository {
     }
     const streak = this.isYesterday(save.economy.lastDailyClaimDate, today)
       ? save.economy.dailyStreak + 1 : 1;
-    const awardedCoins = calculateDailyReward(streak - 1);
+    const awardedCoins = calculateDailyReward(streak - 1) * (doubleReward ? 2 : 1);
     const economy = {
       ...save.economy,
       coins: save.economy.coins + awardedCoins,
@@ -228,10 +228,12 @@ export class LocalEconomyRepository implements EconomyRepository {
       unlockedCatLevels,
       catalog: allCosmetics(),
       canClaimDaily: economy.lastDailyClaimDate !== today,
-      dailyReward: calculateDailyReward(
-        economy.lastDailyClaimDate && this.isYesterday(economy.lastDailyClaimDate, today)
-          ? economy.dailyStreak : 0,
-      ),
+      dailyReward: economy.lastDailyClaimDate === today
+        ? calculateDailyReward(Math.max(0, economy.dailyStreak - 1))
+        : calculateDailyReward(
+          economy.lastDailyClaimDate && this.isYesterday(economy.lastDailyClaimDate, today)
+            ? economy.dailyStreak : 0,
+        ),
     };
   }
 
@@ -269,8 +271,9 @@ export class LocalEconomyRepository implements EconomyRepository {
     const dailyAdCount = save.economy.dailyCounterDate === today
       ? save.economy[adKey] as number : 0;
     const holdingMax = ITEM_HOLDING_MAX[kind] ?? 0;
+    // 撤回/消除只受库存上限限制，广告次数永久不限。
+    if (kind === 'undo' || kind === 'erase') return current < holdingMax;
     const dailyAdMax = ITEM_DAILY_AD_MAX[kind] ?? 0;
-    if (current >= holdingMax) return false;
     return current < holdingMax && dailyAdCount < dailyAdMax;
   }
 
@@ -290,7 +293,7 @@ export class LocalEconomyRepository implements EconomyRepository {
     if (current >= holdingMax) {
       return this.result(save.economy, false, 0, 'holding-limit', save.unlockedCatLevels);
     }
-    if (dailyAdCount >= dailyAdMax) {
+    if (kind !== 'undo' && kind !== 'erase' && dailyAdCount >= dailyAdMax) {
       return this.result(save.economy, false, 0, 'daily-limit', save.unlockedCatLevels);
     }
 

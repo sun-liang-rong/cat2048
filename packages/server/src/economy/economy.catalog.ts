@@ -47,11 +47,12 @@ export const ITEM_HOLDING_MAX: Record<'undo' | 'spawn' | 'shuffle' | 'erase', nu
   erase: 2,
 };
 
+/** Infinity 表示该道具可随用随看广告补充，不设每日次数上限。 */
 export const ITEM_DAILY_AD_MAX: Record<'undo' | 'spawn' | 'shuffle' | 'erase', number> = {
-  undo: 3,
+  undo: Number.POSITIVE_INFINITY,
   spawn: 3,
   shuffle: 2,
-  erase: 1,
+  erase: Number.POSITIVE_INFINITY,
 };
 
 export const COLLECTION_REWARDS = [

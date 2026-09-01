@@ -11,7 +11,9 @@ export class EconomyService {
   public migrate(playerId: string, migrationId: string, input: MigrateEconomyDto) {
     return this.repository.migrate(playerId, migrationId, input);
   }
-  public claimDaily(playerId: string, key: string) { return this.repository.claimDaily(playerId, key); }
+  public claimDaily(playerId: string, key: string, doubleReward = false) {
+    return this.repository.claimDaily(playerId, key, doubleReward);
+  }
   public settleRun(playerId: string, key: string, input: { runId: string; score: number; highestLevel: number; discoveredLevels?: number[] }) {
     return this.repository.settleRun(playerId, key, input);
   }

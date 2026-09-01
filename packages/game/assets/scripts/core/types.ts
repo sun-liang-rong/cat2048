@@ -56,7 +56,7 @@ export interface MoveResult extends BoardMoveResult {
 export interface ItemState {
   /** 本局已使用的道具种类 */
   readonly usedKinds: readonly ItemKind[];
-  /** 本局是否还能使用更多道具（总数未达上限） */
+  /** 本局是否还有任一道具允许使用 */
   readonly canUseMore: boolean;
   /** 检查指定道具本局是否可用 */
   canUse(kind: ItemKind): boolean;

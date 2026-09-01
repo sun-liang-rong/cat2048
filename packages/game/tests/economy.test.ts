@@ -52,6 +52,69 @@ describe('LocalEconomyRepository', () => {
     expect(afterGap.awardedCoins).toBe(30);
   });
 
+  it('keeps the claimed streak reward visible and doubles an ad claim', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, JSON.stringify({
+      ...DEFAULT_SAVE,
+      economy: {
+        ...DEFAULT_ECONOMY,
+        coins: 100,
+        lastDailyClaimDate: '2026-08-31',
+        dailyStreak: 2,
+      },
+    }));
+    const repository = new LocalEconomyRepository(storage, { today: () => '2026-09-01' });
+
+    expect((await repository.load()).dailyReward).toBe(50);
+    const claimed = await repository.claimDailyReward(true);
+
+    expect(claimed.awardedCoins).toBe(100);
+    expect(claimed.coins).toBe(200);
+    expect(claimed.dailyStreak).toBe(3);
+    expect(claimed.dailyReward).toBe(50);
+    await expect(repository.load()).resolves.toMatchObject({
+      canClaimDaily: false,
+      dailyReward: 50,
+    });
+  });
+
+  it('allows repeated ad grants for undo and erase after each item is consumed', async () => {
+    const repository = new LocalEconomyRepository(new MemoryStorage(), {
+      today: () => '2026-09-01',
+    });
+
+    for (let index = 0; index < 5; index += 1) {
+      if (index > 0) expect((await repository.grantViaAd('undo')).ok).toBe(true);
+      expect((await repository.consumeItems('undo', 1)).ok).toBe(true);
+      expect((await repository.grantViaAd('erase')).ok).toBe(true);
+      expect((await repository.consumeItems('erase', 1)).ok).toBe(true);
+    }
+
+    expect(repository.canGrantViaAd('undo', '2026-09-01')).toBe(true);
+    expect(repository.canGrantViaAd('erase', '2026-09-01')).toBe(true);
+  });
+
+  it('ignores legacy daily ad counters for unlimited item kinds', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, JSON.stringify({
+      ...DEFAULT_SAVE,
+      economy: {
+        ...DEFAULT_ECONOMY,
+        undoItems: 0,
+        eraseItems: 0,
+        dailyCounterDate: '2026-09-01',
+        dailyAdUndo: 999,
+        dailyAdErase: 999,
+      },
+    }));
+    const repository = new LocalEconomyRepository(storage, { today: () => '2026-09-01' });
+
+    expect(repository.canGrantViaAd('undo', '2026-09-01')).toBe(true);
+    expect(repository.canGrantViaAd('erase', '2026-09-01')).toBe(true);
+    expect((await repository.grantViaAd('undo')).ok).toBe(true);
+    expect((await repository.grantViaAd('erase')).ok).toBe(true);
+  });
+
   it('settles one run only once', async () => {
     const repository = new LocalEconomyRepository(new MemoryStorage());
     const request = { runId: 'run-1', score: 1000, highestLevel: 5 } as const;

@@ -16,6 +16,7 @@ export function canUseItemInRun(
   maxTotal: number,
   maxPerKind: Record<string, number>,
 ): boolean {
+  if (kind === 'undo' || kind === 'erase') return true;
   if (usedKinds.includes(kind)) return false;
   if (usedKinds.length >= maxTotal) return false;
   const kindCount = usedKinds.filter((k) => k === kind).length;

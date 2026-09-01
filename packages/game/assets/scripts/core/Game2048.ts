@@ -1,6 +1,5 @@
 import { Board } from './Board';
 import {
-  ITEM_PER_GAME_LIMIT,
   ITEM_PER_GAME_MAX,
   REVIVE_REMOVE_COUNT,
   rollSpawnLevel,
@@ -65,7 +64,9 @@ export class Game2048 implements TileFactory {
     const usedKinds = [...this.usedItemKindsValue];
     return {
       usedKinds,
-      canUseMore: this.usedItemKindsValue.size < ITEM_PER_GAME_MAX,
+      // 撤回/消除可在同一局中重复使用；其它历史道具仍保留原有局内上限。
+      canUseMore: this.usedItemKindsValue.size < ITEM_PER_GAME_MAX
+        || this.canUseItem('undo') || this.canUseItem('erase'),
       canUse: (kind: ItemKind) => this.canUseItem(kind),
     };
   }
@@ -108,6 +109,7 @@ export class Game2048 implements TileFactory {
 
   /** 检查指定道具本局是否可用（不检查库存，仅检查局内限制） */
   public canUseItem(kind: ItemKind): boolean {
+    if (kind === 'undo' || kind === 'erase') return true;
     // 已经使用过这种道具
     if (this.usedItemKindsValue.has(kind)) return false;
     // 总使用次数已达上限

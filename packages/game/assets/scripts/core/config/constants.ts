@@ -25,10 +25,11 @@ export const ITEM_HOLDING_MAX: Record<string, number> = {
   shuffle: 2,
   erase: 2,
 } as const;
-/** 每种道具每日广告获取上限 */
+/** 每种道具每日广告获取上限；Infinity 表示可随用随看、次数不限。 */
 export const ITEM_DAILY_AD_MAX: Record<string, number> = {
-  undo: 3,
+  // 撤回和消除不限制广告补充次数；库存仍受 ITEM_HOLDING_MAX 约束。
+  undo: Number.POSITIVE_INFINITY,
   spawn: 3,
   shuffle: 2,
-  erase: 1,
+  erase: Number.POSITIVE_INFINITY,
 } as const;

@@ -357,6 +357,8 @@ export class GameFlowController {
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.updateScore(result.score);
     this.refreshGameViews();
+    this.deps.host.showNotice('道具使用成功');
+    this.boardView.playItemSuccess();
   }
 
   private async useSpawnItem(): Promise<void> {
@@ -385,6 +387,8 @@ export class GameFlowController {
     );
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.refreshGameViews();
+    this.deps.host.showNotice('道具使用成功');
+    this.boardView.playItemSuccess();
   }
 
   private async useShuffleItem(): Promise<void> {
@@ -411,6 +415,8 @@ export class GameFlowController {
     );
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.refreshGameViews();
+    this.deps.host.showNotice('道具使用成功');
+    this.boardView.playItemSuccess();
   }
 
   private async useEraseItem(): Promise<void> {
@@ -446,6 +452,8 @@ export class GameFlowController {
     if (token !== this.sessionToken || !this.boardView.root) return;
     this.boardView.rebuild(result.board, false);
     this.refreshGameViews();
+    this.deps.host.showNotice('道具使用成功');
+    this.boardView.playItemSuccess();
   }
 
   public async shareRevive(): Promise<void> {

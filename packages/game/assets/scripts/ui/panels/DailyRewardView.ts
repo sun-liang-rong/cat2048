@@ -14,11 +14,12 @@ import {
 
 export interface DailyRewardViewActions {
   readonly onClaim: () => void;
+  readonly onDouble: () => void;
   readonly onClose: () => void;
 }
 
 const PANEL_WIDTH = 540;
-const PANEL_HEIGHT = 560;
+const PANEL_HEIGHT = 620;
 
 const TEXT_GOLD = new Color(202, 124, 44, 255);
 
@@ -27,7 +28,9 @@ export class DailyRewardView {
   private readonly art: ArtRepository;
   private claimButton: Node | null = null;
   private claimButtonLabel: Label | null = null;
+  private claimButtonEnabledText = '立即领取';
   private claimEnabled = false;
+  private doubleButton: Node | null = null;
 
   public constructor(art: ArtRepository) {
     this.art = art;
@@ -42,9 +45,10 @@ export class DailyRewardView {
     renderButtonBackground(button, 300, 76, enabled ? COLORS.coral : COLORS.disabledSurface);
     const label = this.claimButtonLabel ?? button.getComponentInChildren(Label);
     if (label) {
-      label.string = enabled ? '立即领取' : '已领取';
+      label.string = enabled ? this.claimButtonEnabledText : '已领取';
       label.color = enabled ? COLORS.white : COLORS.textDisabled;
     }
+    if (this.doubleButton?.isValid) this.doubleButton.active = enabled;
   }
 
   public show(parent: Node, model: EconomySnapshot, width: number, height: number,
@@ -82,7 +86,8 @@ export class DailyRewardView {
     panel.addChild(streak.node);
 
     this.claimEnabled = model.canClaimDaily;
-    const claim = createButton(model.canClaimDaily ? '立即领取' : '明日 00:00 可领取',
+    this.claimButtonEnabledText = `领取 +${model.dailyReward}`;
+    const claim = createButton(model.canClaimDaily ? this.claimButtonEnabledText : '明日 00:00 可领取',
       300, 76, model.canClaimDaily ? COLORS.coral : COLORS.disabledSurface,
       () => {
         if (!this.claimEnabled) return;
@@ -93,6 +98,16 @@ export class DailyRewardView {
     this.claimButtonLabel = claim.getComponentInChildren(Label);
     claim.setPosition(0, -140);
     panel.addChild(claim);
+
+    const double = createButton(`看广告领 +${model.dailyReward * 2}`, 300, 68, COLORS.teal, () => {
+      if (!this.claimEnabled) return;
+      this.setClaimEnabled(false);
+      actions.onDouble();
+    }, 24);
+    double.setPosition(0, -220);
+    panel.addChild(double);
+    this.doubleButton = double;
+    double.active = model.canClaimDaily;
 
     return overlay;
   }

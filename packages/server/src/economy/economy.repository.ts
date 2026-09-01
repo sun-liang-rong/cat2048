@@ -183,8 +183,8 @@ export class EconomyRepository {
     });
   }
 
-  public async claimDaily(playerId: string, idempotencyKey: string): Promise<EconomyMutationResult> {
-    return this.mutate(playerId, idempotencyKey, 'daily-claim', {}, async (tx) => {
+  public async claimDaily(playerId: string, idempotencyKey: string, doubleReward = false): Promise<EconomyMutationResult> {
+    return this.mutate(playerId, idempotencyKey, 'daily-claim', { doubleReward }, async (tx) => {
       await this.ensureDailyFreeUndo(tx, playerId);
       const refreshedAccount = await tx.playerEconomy.findUniqueOrThrow({ where: { playerId } });
       const currentDate = today();
@@ -192,7 +192,7 @@ export class EconomyRepository {
         return { ok: false, awardedCoins: 0, reason: 'already-claimed' };
       }
       const streak = isYesterday(refreshedAccount.lastDailyClaimDate, currentDate) ? refreshedAccount.dailyStreak + 1 : 1;
-      const awardedCoins = calculateDailyReward(streak - 1);
+      const awardedCoins = calculateDailyReward(streak - 1) * (doubleReward ? 2 : 1);
       const claimed = await tx.playerEconomy.updateMany({
         where: {
           playerId,
@@ -314,7 +314,10 @@ export class EconomyRepository {
       const currentDate = today();
       const adCount = account.dailyCounterDate === currentDate ? account[adField] : 0;
       if (account[field] >= ITEM_HOLDING_MAX[kind]) return { ok: false, awardedCoins: 0, reason: 'holding-limit' };
-      if (adCount >= ITEM_DAILY_AD_MAX[kind]) return { ok: false, awardedCoins: 0, reason: 'daily-limit' };
+      // 撤回/消除广告次数不限；其它道具仍按每日上限控制。
+      if (kind !== 'undo' && kind !== 'erase' && adCount >= ITEM_DAILY_AD_MAX[kind]) {
+        return { ok: false, awardedCoins: 0, reason: 'daily-limit' };
+      }
       await tx.playerEconomy.update({
         where: { playerId },
         data: {
@@ -435,7 +438,9 @@ export class EconomyRepository {
       items: { undo: account.undoItems, spawn: account.spawnItems, shuffle: account.shuffleItems, erase: account.eraseItems },
       daily: {
         canClaim: account.lastDailyClaimDate !== currentDate,
-        reward: calculateDailyReward(streak),
+        reward: account.lastDailyClaimDate === currentDate
+          ? calculateDailyReward(Math.max(0, account.dailyStreak - 1))
+          : calculateDailyReward(streak),
         streak: account.dailyStreak,
         lastClaimDate: account.lastDailyClaimDate,
         adCounts: {

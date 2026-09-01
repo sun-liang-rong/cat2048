@@ -28,4 +28,15 @@ describe('EconomyService', () => {
     expect(repository.claimTask).toHaveBeenCalledWith('player-1', 'task-key', 'play-3');
     expect(repository.settleRun).toHaveBeenCalledWith('player-1', 'run-key', { runId: 'run-1', score: 100, highestLevel: 2 });
   });
+
+  it('forwards the daily reward multiplier choice', async () => {
+    const repository = {
+      claimDaily: vi.fn().mockResolvedValue({ ok: true, awardedCoins: 100 }),
+    };
+    const service = new EconomyService(repository as never);
+
+    await service.claimDaily('player-1', 'daily-key', true);
+
+    expect(repository.claimDaily).toHaveBeenCalledWith('player-1', 'daily-key', true);
+  });
 });

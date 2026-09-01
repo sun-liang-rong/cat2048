@@ -28,6 +28,7 @@ import {
 } from '../utils/assetPaths';
 import { economyErrorText } from '../../features/economy/errors';
 import { mergeCollectionLevels } from '../../features/gameplay/collectionProgress';
+import type { RewardedVideoAdService } from '../../infrastructure/WechatRewardedVideoAd';
 
 export type ScreenName = 'loading' | 'home' | 'game' | 'collection' | 'shop' | 'leaderboard';
 
@@ -35,6 +36,7 @@ export interface EconomyPanelsDeps {
   readonly art: ArtRepository;
   readonly cosmetics: CosmeticRuntime;
   readonly economy: EconomyRepository;
+  readonly rewardedVideoAd: RewardedVideoAdService;
   readonly tasks: LocalDailyTaskRepository;
   readonly dialogs: ModalView;
   readonly dailyRewardView: DailyRewardView;
@@ -105,6 +107,7 @@ export class EconomyPanelsController {
     this.dailyRewardOverlay = this.deps.dailyRewardView.show(screenRoot, this.deps.getEconomySnapshot(),
       width, height, {
         onClaim: () => { void this.claimDailyReward(); },
+        onDouble: () => { void this.claimDailyRewardWithAd(); },
         onClose: () => {
           if (this.dailyClaimInProgress) return;
           this.closeDailyReward();
@@ -151,6 +154,37 @@ export class EconomyPanelsController {
       this.deps.showNotice(`领取成功：+${result.awardedCoins} 金币`);
     } catch (error) {
       console.warn('[Cat2048] Failed to claim daily reward.', error);
+      this.deps.dailyRewardView.setClaimEnabled(true);
+      this.deps.unlockInput();
+      this.deps.showNotice('每日奖励领取失败');
+    } finally {
+      this.dailyClaimInProgress = false;
+    }
+  }
+
+  public async claimDailyRewardWithAd(): Promise<void> {
+    if (this.dailyClaimInProgress || !this.dailyRewardOverlay?.isValid) return;
+    this.dailyClaimInProgress = true;
+    try {
+      const adResult = await this.deps.rewardedVideoAd.show();
+      if (adResult !== 'completed') {
+        this.deps.dailyRewardView.setClaimEnabled(true);
+        const text = adResult === 'skipped'
+          ? '完整观看广告后才能翻倍'
+          : adResult === 'unsupported'
+            ? '当前环境暂不支持激励视频'
+            : '广告加载失败，请稍后重试';
+        this.deps.showNotice(text);
+        return;
+      }
+      const result = await this.deps.economy.claimDailyReward(true);
+      this.deps.applyEconomyResult(result);
+      this.deps.dailyRewardView.setClaimEnabled(false);
+      this.closeDailyReward();
+      this.refreshDailyRewardHost();
+      this.deps.showNotice(result.ok ? `领取成功：+${result.awardedCoins} 金币` : '今日奖励已领取');
+    } catch (error) {
+      console.warn('[Cat2048] Failed to claim doubled daily reward.', error);
       this.deps.dailyRewardView.setClaimEnabled(true);
       this.deps.unlockInput();
       this.deps.showNotice('每日奖励领取失败');

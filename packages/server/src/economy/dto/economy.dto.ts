@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   Equals,
   IsArray,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsNotEmpty,
@@ -122,6 +123,12 @@ export class RunRewardDto {
   @Min(1, { each: true })
   @Max(12, { each: true })
   public discoveredLevels?: number[];
+}
+
+export class DailyClaimDto {
+  @IsOptional()
+  @IsBoolean()
+  public doubleReward?: boolean;
 }
 
 export class ItemMutationDto {

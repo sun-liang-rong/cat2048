@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Headers, Inject, Post, Get, Req,
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../auth/authenticated-request';
 import { EconomyService } from './economy.service';
-import { ItemMutationDto, MigrateEconomyDto, PurchaseEconomyDto, EquipEconomyDto, RunRewardDto, TaskRewardDto } from './dto/economy.dto';
+import { DailyClaimDto, ItemMutationDto, MigrateEconomyDto, PurchaseEconomyDto, EquipEconomyDto, RunRewardDto, TaskRewardDto } from './dto/economy.dto';
 
 @Controller('v1/economy')
 @UseGuards(JwtAuthGuard)
@@ -20,8 +20,8 @@ export class EconomyController {
   }
 
   @Post('daily-claim')
-  public async dailyClaim(@Req() request: AuthenticatedRequest, @Headers('idempotency-key') key: string) {
-    return { data: await this.economy.claimDaily(request.user.playerId, this.requireKey(key)) };
+  public async dailyClaim(@Req() request: AuthenticatedRequest, @Headers('idempotency-key') key: string, @Body() body: DailyClaimDto) {
+    return { data: await this.economy.claimDaily(request.user.playerId, this.requireKey(key), body?.doubleReward === true) };
   }
 
   @Post('run-reward')

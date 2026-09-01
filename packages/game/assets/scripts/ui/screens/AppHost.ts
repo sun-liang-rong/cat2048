@@ -143,6 +143,7 @@ export class AppHost implements GameFlowHost {
       art: svc.art,
       cosmetics: svc.cosmetics,
       economy: svc.economy,
+      rewardedVideoAd: svc.rewardedVideoAd,
       tasks: svc.tasks,
       dialogs: svc.dialogs,
       dailyRewardView: svc.dailyRewardView,
