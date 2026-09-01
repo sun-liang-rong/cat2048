@@ -27,6 +27,7 @@ import {
   shopPreviewAssetPaths,
 } from '../utils/assetPaths';
 import { economyErrorText } from '../../features/economy/errors';
+import { mergeCollectionLevels } from '../../features/gameplay/collectionProgress';
 
 export type ScreenName = 'loading' | 'home' | 'game' | 'collection' | 'shop' | 'leaderboard';
 
@@ -348,7 +349,9 @@ export class EconomyPanelsController {
       && token === this.deps.getSceneToken()
       && this.deps.getCurrentScreen() === 'collection';
     const snapshot = this.deps.getEconomySnapshot();
-    const unlockedLevels = this.deps.getSave().unlockedCatLevels;
+    // Normalize historical/stale saves before selecting the cat assets to
+    // warm; otherwise repaired Lv.8/Lv.9 cards would have no sprite loaded.
+    const unlockedLevels = mergeCollectionLevels(this.deps.getSave().unlockedCatLevels);
     const skinId = this.deps.getSave().economy.equipped.catSkin;
     const catAssets = collectionCatAssets(snapshot.catalog, skinId, unlockedLevels);
     const levelsByPath = new Map(catAssets.map((asset) => [asset.path, asset.level]));
@@ -371,7 +374,7 @@ export class EconomyPanelsController {
     this.deps.setCurrentScreen('collection');
     const root = this.deps.makeScreen('Collection');
     this.deps.collectionView.build(root, {
-      unlockedLevels: this.deps.getSave().unlockedCatLevels,
+      unlockedLevels: mergeCollectionLevels(this.deps.getSave().unlockedCatLevels),
       uiWidth: this.deps.getSize().width,
       uiHeight: this.deps.getSize().height,
       topInset: this.deps.topInset(),

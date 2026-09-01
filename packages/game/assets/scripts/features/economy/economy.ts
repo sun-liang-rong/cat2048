@@ -11,6 +11,7 @@ import {
 import {
   LocalGameStorage,
   type KeyValueStorage,
+  type SaveDataV3,
 } from '../storage/storage';
 import type { ItemKind } from '../../core/types';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
@@ -108,12 +109,12 @@ export class LocalEconomyRepository implements EconomyRepository {
   }
 
   public async load(): Promise<EconomySnapshot> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     return this.snapshot(save.economy, save.unlockedCatLevels);
   }
 
   public async claimDailyReward(): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const today = this.clock.today();
     if (save.economy.lastDailyClaimDate === today) {
       return this.result(save.economy, false, 0, 'already-claimed', save.unlockedCatLevels);
@@ -126,15 +127,13 @@ export class LocalEconomyRepository implements EconomyRepository {
       coins: save.economy.coins + awardedCoins,
       lastDailyClaimDate: today,
       dailyStreak: streak,
-      undoItems: Math.min(ITEM_HOLDING_MAX.undo, save.economy.undoItems + 2),
-      eraseItems: Math.min(ITEM_HOLDING_MAX.erase, save.economy.eraseItems + 1),
     };
     this.saveStorage.save({ ...save, economy });
     return this.result(economy, true, awardedCoins, undefined, save.unlockedCatLevels);
   }
 
   public async settleRun(request: RunRewardRequest): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     if (!request.runId || save.economy.settledRunIds.indexOf(request.runId) >= 0) {
       return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     }
@@ -149,7 +148,7 @@ export class LocalEconomyRepository implements EconomyRepository {
   }
 
   public async grantCoins(amount: number): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
     if (safeAmount <= 0) return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     const economy = { ...save.economy, coins: save.economy.coins + safeAmount };
@@ -162,18 +161,22 @@ export class LocalEconomyRepository implements EconomyRepository {
   }
 
   public async grantItem(kind: ItemKind, amount: number): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
     if (safeAmount <= 0) return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     const key = this.itemKey(kind);
     const current = save.economy[key] as number;
-    const economy = { ...save.economy, [key]: current + safeAmount };
+    const holdingMax = ITEM_HOLDING_MAX[kind] ?? 0;
+    if (current >= holdingMax) {
+      return this.result(save.economy, false, 0, 'holding-limit', save.unlockedCatLevels);
+    }
+    const economy = { ...save.economy, [key]: Math.min(holdingMax, current + safeAmount) };
     this.saveStorage.save({ ...save, economy });
     return this.result(economy, true, 0, undefined, save.unlockedCatLevels);
   }
 
   public async consumeItems(kind: ItemKind, amount: number): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const safeAmount = Number.isSafeInteger(amount) ? Math.max(0, amount) : 0;
     if (safeAmount <= 0) return this.result(save.economy, false, 0, undefined, save.unlockedCatLevels);
     const key = this.itemKey(kind);
@@ -187,7 +190,7 @@ export class LocalEconomyRepository implements EconomyRepository {
   }
 
   public async purchase(itemId: string): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId);
     if (!item) return this.result(save.economy, false, 0, 'invalid-item', save.unlockedCatLevels);
     if (save.economy.ownedItemIds.indexOf(item.id) >= 0) {
@@ -206,7 +209,7 @@ export class LocalEconomyRepository implements EconomyRepository {
   }
 
   public async equip(itemId: string): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const item = findCosmetic(itemId);
     if (!item || save.economy.ownedItemIds.indexOf(itemId) < 0) {
       return this.result(save.economy, false, 0, 'invalid-item', save.unlockedCatLevels);
@@ -259,25 +262,21 @@ export class LocalEconomyRepository implements EconomyRepository {
 
   /** 检查是否可以通过广告获取道具（每日限制 + 持有上限） */
   public canGrantViaAd(kind: ItemKind, today: string): boolean {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const itemKey = this.itemKey(kind);
     const adKey = this.dailyAdKey(kind);
     const current = save.economy[itemKey] as number;
-    const dailyAdCount = save.economy[adKey] as number;
+    const dailyAdCount = save.economy.dailyCounterDate === today
+      ? save.economy[adKey] as number : 0;
     const holdingMax = ITEM_HOLDING_MAX[kind] ?? 0;
     const dailyAdMax = ITEM_DAILY_AD_MAX[kind] ?? 0;
     if (current >= holdingMax) return false;
-    if (save.economy.lastDailyClaimDate === today) {
-      // 同一天，检查广告计数
-    }
-    // 简化：检查 dailyAdCount 是否 < dailyAdMax
-    // 跨天时 dailyAdCount 会在 grantItem 中重置
     return current < holdingMax && dailyAdCount < dailyAdMax;
   }
 
   /** 通过广告获取道具（会记录每日广告计数） */
   public async grantViaAd(kind: ItemKind): Promise<EconomyMutationResult> {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const today = this.clock.today();
     const itemKey = this.itemKey(kind);
     const adKey = this.dailyAdKey(kind);
@@ -285,23 +284,21 @@ export class LocalEconomyRepository implements EconomyRepository {
     const holdingMax = ITEM_HOLDING_MAX[kind] ?? 0;
     const dailyAdMax = ITEM_DAILY_AD_MAX[kind] ?? 0;
 
-    // 跨天重置广告计数
-    const isSameDay = save.economy.lastDailyClaimDate === today
-      || this.isYesterday(save.economy.lastDailyClaimDate, today);
-    const dailyAdCount = isSameDay ? (save.economy[adKey] as number) : 0;
+    const dailyAdCount = save.economy.dailyCounterDate === today
+      ? (save.economy[adKey] as number) : 0;
 
     if (current >= holdingMax) {
-      return this.result(save.economy, false, 0, 'already-claimed', save.unlockedCatLevels);
+      return this.result(save.economy, false, 0, 'holding-limit', save.unlockedCatLevels);
     }
     if (dailyAdCount >= dailyAdMax) {
-      return this.result(save.economy, false, 0, 'already-claimed', save.unlockedCatLevels);
+      return this.result(save.economy, false, 0, 'daily-limit', save.unlockedCatLevels);
     }
 
     const economy = {
       ...save.economy,
       [itemKey]: current + 1,
       [adKey]: dailyAdCount + 1,
-      lastDailyClaimDate: save.economy.lastDailyClaimDate ?? today,
+      dailyCounterDate: today,
     };
     this.saveStorage.save({ ...save, economy });
     return this.result(economy, true, 0, undefined, save.unlockedCatLevels);
@@ -309,7 +306,7 @@ export class LocalEconomyRepository implements EconomyRepository {
 
   /** 获取道具库存数量 */
   public getItemCount(kind: ItemKind): number {
-    const save = this.saveStorage.load();
+    const save = this.loadSave();
     const key = this.itemKey(kind);
     return save.economy[key] as number;
   }
@@ -317,6 +314,25 @@ export class LocalEconomyRepository implements EconomyRepository {
   /** 检查道具库存是否充足 */
   public hasItem(kind: ItemKind): boolean {
     return this.getItemCount(kind) > 0;
+  }
+
+  /** 当天首次访问时免费补 1 个撤回；昨日库存不会继续累加。 */
+  private loadSave(): SaveDataV3 {
+    const save = this.saveStorage.load();
+    const today = this.clock.today();
+    if (save.economy.dailyCounterDate === today && save.economy.undoItems <= 1) return save;
+    const economy: EconomySaveData = {
+      ...save.economy,
+      undoItems: 1,
+      dailyCounterDate: today,
+      dailyAdUndo: 0,
+      dailyAdSpawn: 0,
+      dailyAdShuffle: 0,
+      dailyAdErase: 0,
+    };
+    const refreshed: SaveDataV3 = { ...save, economy };
+    this.saveStorage.save(refreshed);
+    return refreshed;
   }
 
   private equippedKey(category: CosmeticCategory): keyof EquippedCosmetics {

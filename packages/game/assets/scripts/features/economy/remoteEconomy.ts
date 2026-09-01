@@ -16,6 +16,7 @@ import { allCosmetics, DEFAULT_EQUIPPED } from './catalog';
 import { LocalGameStorage, type KeyValueStorage } from '../storage/storage';
 import type { LeaderboardClient } from '../leaderboard/leaderboard';
 import { ITEM_DAILY_AD_MAX, ITEM_HOLDING_MAX } from '../../core/config/constants';
+import { mergeCollectionLevels } from '../gameplay/collectionProgress';
 
 interface ApiEnvelope<T> { readonly data: T; }
 
@@ -262,7 +263,14 @@ export class RemoteEconomyRepository implements EconomyRepository {
 
   private accept(remote: RemoteSnapshot): EconomySnapshot {
     const current = this.saveStorage.load();
-    const snapshot = this.toSnapshot(remote, current.economy.settledRunIds);
+    // Collection unlocks are monotonic. Keep levels discovered locally while a
+    // bootstrap/mutation response is in flight instead of regressing to an
+    // older server snapshot.
+    const unlockedCatLevels = mergeCollectionLevels(
+      current.unlockedCatLevels,
+      remote.unlockedCatLevels,
+    );
+    const snapshot = this.toSnapshot(remote, current.economy.settledRunIds, unlockedCatLevels);
     // 后台 bootstrap 可能晚于一次 mutation 返回；旧版本不能覆盖刚提交的状态。
     if (this.latest && this.latestRemoteVersion !== null && remote.version < this.latestRemoteVersion) {
       return this.latest;
@@ -280,13 +288,15 @@ export class RemoteEconomyRepository implements EconomyRepository {
     return { ...snapshot, ok: remote.ok, awardedCoins: remote.awardedCoins, ...(remote.reason ? { reason: remote.reason as EconomyMutationResult['reason'] } : {}) };
   }
 
-  private toSnapshot(remote: RemoteSnapshot, settledRunIds: readonly string[]): EconomySnapshot {
+  private toSnapshot(remote: RemoteSnapshot, settledRunIds: readonly string[],
+    unlockedCatLevels: readonly number[] = remote.unlockedCatLevels): EconomySnapshot {
     return {
       coins: remote.coins,
       ownedItemIds: remote.ownedItemIds,
       equipped: remote.equipped ?? DEFAULT_EQUIPPED,
       lastDailyClaimDate: remote.daily.lastClaimDate,
       dailyStreak: remote.daily.streak,
+      dailyCounterDate: remote.daily.counterDate,
       settledRunIds,
       undoItems: remote.items.undo,
       spawnItems: remote.items.spawn,
@@ -298,7 +308,7 @@ export class RemoteEconomyRepository implements EconomyRepository {
       dailyAdErase: remote.daily.adCounts.erase,
       dailyLoginClaimed: remote.daily.loginClaimed,
       dailyShareUndo: remote.daily.shareUndo,
-      unlockedCatLevels: remote.unlockedCatLevels,
+      unlockedCatLevels,
       catalog: allCosmetics(),
       canClaimDaily: remote.daily.canClaim,
       dailyReward: remote.daily.reward,
@@ -317,6 +327,7 @@ export class RemoteEconomyRepository implements EconomyRepository {
         equipped: snapshot.equipped,
         lastDailyClaimDate: snapshot.lastDailyClaimDate,
         dailyStreak: snapshot.dailyStreak,
+        dailyCounterDate: snapshot.dailyCounterDate,
         settledRunIds: snapshot.settledRunIds,
         undoItems: snapshot.undoItems,
         spawnItems: snapshot.spawnItems,

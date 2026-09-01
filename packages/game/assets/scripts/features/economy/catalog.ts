@@ -24,6 +24,8 @@ export interface EconomySaveData {
   readonly equipped: EquippedCosmetics;
   readonly lastDailyClaimDate: string | null;
   readonly dailyStreak: number;
+  /** 每日免费道具与广告次数所属日期。 */
+  readonly dailyCounterDate: string | null;
   readonly settledRunIds: readonly string[];
   /** 道具全局库存 */
   readonly undoItems: number;
@@ -84,6 +86,7 @@ export const DEFAULT_ECONOMY: EconomySaveData = {
   equipped: DEFAULT_EQUIPPED,
   lastDailyClaimDate: null,
   dailyStreak: 0,
+  dailyCounterDate: null,
   settledRunIds: [],
   undoItems: 0,
   spawnItems: 0,

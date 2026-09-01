@@ -20,7 +20,7 @@ export const ITEM_PER_GAME_LIMIT: Record<string, number> = {
 } as const;
 /** 每种道具全局持有上限 */
 export const ITEM_HOLDING_MAX: Record<string, number> = {
-  undo: 5,
+  undo: 1,
   spawn: 3,
   shuffle: 2,
   erase: 2,

@@ -31,7 +31,7 @@ describe('economy catalog rules', () => {
   });
 
   it('matches the gameplay item limits', () => {
-    expect(ITEM_HOLDING_MAX).toEqual({ undo: 5, spawn: 3, shuffle: 2, erase: 2 });
+    expect(ITEM_HOLDING_MAX).toEqual({ undo: 1, spawn: 3, shuffle: 2, erase: 2 });
     expect(ITEM_DAILY_AD_MAX).toEqual({ undo: 3, spawn: 3, shuffle: 2, erase: 1 });
   });
 });

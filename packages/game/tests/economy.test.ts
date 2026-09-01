@@ -78,28 +78,51 @@ describe('LocalEconomyRepository', () => {
     expect((await repository.load()).coins).toBe(DEFAULT_ECONOMY.coins + 30);
   });
 
-  it('grants and consumes bonus items for the next runs', async () => {
+  it('refreshes exactly one free undo per day and daily claim only grants coins', async () => {
+    const storage = new MemoryStorage();
+    let today = '2026-09-01';
+    const repository = new LocalEconomyRepository(storage, { today: () => today });
+
+    expect((await repository.load()).undoItems).toBe(1);
+    expect((await repository.consumeItems('undo', 1)).ok).toBe(true);
+    expect((await repository.claimDailyReward()).undoItems).toBe(0);
+    expect((await repository.load()).eraseItems).toBe(0);
+
+    today = '2026-09-02';
+    expect((await repository.load()).undoItems).toBe(1);
+    today = '2026-09-03';
+    expect((await repository.load()).undoItems).toBe(1);
+
+    storage.setItem(SAVE_KEY, JSON.stringify({
+      ...DEFAULT_SAVE,
+      economy: { ...DEFAULT_SAVE.economy, dailyCounterDate: today, undoItems: 4 },
+    }));
+    expect((await repository.load()).undoItems).toBe(1);
+  });
+
+  it('does not allow undo items to accumulate above one', async () => {
     const repository = new LocalEconomyRepository(new MemoryStorage());
 
     const grantedUndo = await repository.grantItem('undo', 2);
     const grantedErase = await repository.grantItem('erase', 1);
-    expect(grantedUndo.ok).toBe(true);
+    expect(grantedUndo.ok).toBe(false);
+    expect(grantedUndo.reason).toBe('holding-limit');
     expect(grantedErase.ok).toBe(true);
-    expect((await repository.load()).undoItems).toBe(2);
+    expect((await repository.load()).undoItems).toBe(1);
     expect((await repository.load()).eraseItems).toBe(1);
 
     const consumedUndo = await repository.consumeItems('undo', 1);
     expect(consumedUndo.ok).toBe(true);
-    expect((await repository.load()).undoItems).toBe(1);
+    expect((await repository.load()).undoItems).toBe(0);
 
     const invalid = await repository.consumeItems('undo', -1);
     expect(invalid.ok).toBe(false);
-    expect((await repository.load()).undoItems).toBe(1);
+    expect((await repository.load()).undoItems).toBe(0);
 
-    const insufficient = await repository.consumeItems('undo', 2);
+    const insufficient = await repository.consumeItems('undo', 1);
     expect(insufficient.ok).toBe(false);
     expect(insufficient.reason).toBe('insufficient-items');
-    expect((await repository.load()).undoItems).toBe(1);
+    expect((await repository.load()).undoItems).toBe(0);
   });
 
   it('does not spend coins when balance is insufficient and equips owned items', async () => {

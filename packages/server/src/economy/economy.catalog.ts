@@ -41,7 +41,7 @@ export const COSMETICS: readonly ServerCosmetic[] = [
 ];
 
 export const ITEM_HOLDING_MAX: Record<'undo' | 'spawn' | 'shuffle' | 'erase', number> = {
-  undo: 5,
+  undo: 1,
   spawn: 3,
   shuffle: 2,
   erase: 2,

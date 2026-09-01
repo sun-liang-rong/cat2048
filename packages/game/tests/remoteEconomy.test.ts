@@ -18,7 +18,7 @@ const remoteSnapshot = (migrationVersion: number) => ({
     unlockedCatLevels: [1, 2, 3],
     ownedItemIds: ['cat-skin.default', 'board.wood', 'effect.classic', 'cat-skin.sunny'],
     equipped: { catSkin: 'cat-skin.sunny', board: 'board.wood', effect: 'effect.classic' },
-    items: { undo: 2, spawn: 1, shuffle: 0, erase: 0 },
+    items: { undo: 1, spawn: 1, shuffle: 0, erase: 0 },
     daily: {
       canClaim: true,
       reward: 30,
@@ -66,6 +66,25 @@ describe('RemoteEconomyRepository', () => {
     await expect(repository.sync()).resolves.toMatchObject({ coins: 100, unlockedCatLevels: [1] });
   });
 
+  it('keeps locally discovered levels and repairs gaps when bootstrap is stale', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(SAVE_KEY, JSON.stringify({
+      ...DEFAULT_SAVE,
+      unlockedCatLevels: [1, 2, 3, 4, 5, 6, 7, 10],
+    }));
+    const api: EconomyApiClient = {
+      request: vi.fn(async () => remoteSnapshot(1) as never),
+    };
+    const repository = new RemoteEconomyRepository(api, storage);
+
+    await expect(repository.sync()).resolves.toMatchObject({
+      unlockedCatLevels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    });
+    expect(JSON.parse(storage.getItem(SAVE_KEY) ?? '{}').unlockedCatLevels).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
+  });
+
   it('queues a failed run reward and flushes it with the original run key', async () => {
     const storage = new MemoryStorage();
     let runAttempts = 0;
@@ -99,7 +118,7 @@ describe('RemoteEconomyRepository', () => {
 
     expect(repository.canGrantViaAd('shuffle', '2026-08-30')).toBe(true);
     expect(repository.canGrantViaAd('erase', '2026-08-30')).toBe(true);
-    expect(repository.canGrantViaAd('undo', '2026-08-29')).toBe(true);
+    expect(repository.canGrantViaAd('undo', '2026-08-29')).toBe(false);
   });
 
   it('retries a timed-out mutation with the same idempotency key', async () => {

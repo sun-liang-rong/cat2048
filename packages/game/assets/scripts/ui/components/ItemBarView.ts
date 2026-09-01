@@ -125,8 +125,8 @@ export class ItemBarView {
   private setItemButtonState(view: ItemButtonView | null, canUse: boolean, inventoryCount: number): void {
     if (!view) return;
     view.count.string = `×${Math.max(0, inventoryCount)}`;
-    setLabelText(view.title, view.baseTitle, 'display', 22);
     const depleted = inventoryCount <= 0;
+    setLabelText(view.title, depleted && canUse ? '看广告获取' : view.baseTitle, 'display', 22);
     drawRounded(view.badge, 58, 28,
       canUse ? COLORS.mustard : depleted ? new Color(157, 148, 135, 190) : COLORS.coral,
       14);

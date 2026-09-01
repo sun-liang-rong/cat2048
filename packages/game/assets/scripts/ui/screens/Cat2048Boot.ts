@@ -30,6 +30,7 @@ import type { Direction } from '../../core/types';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import { HapticController } from '../../infrastructure/HapticController';
 import { ResultShareController } from '../../infrastructure/ResultShareController';
+import { WechatRewardedVideoAd } from '../../infrastructure/WechatRewardedVideoAd';
 import { configureWechatHomeShare } from '../../infrastructure/WechatShare';
 import { runtimeStorage } from '../../features/storage/runtime';
 import { createWechatLeaderboardClient } from '../../features/leaderboard/leaderboard';
@@ -89,6 +90,7 @@ export class Cat2048Boot extends Component {
       leaderboard,
       haptics,
       resultShare: new ResultShareController(),
+      rewardedVideoAd: new WechatRewardedVideoAd(GAME_CONFIG.ads.rewardedVideoUnitId),
       audio,
       homeView: new HomeView(art),
       collectionView: new CollectionView(art, cosmetics),

@@ -7,6 +7,7 @@ import {
 import {
   COLLECTION_REWARDS,
   calculateCollectionProgress,
+  mergeCollectionLevels,
 } from '../assets/scripts/features/gameplay/collectionProgress';
 import { canUseItemInRun, usedItemKindsList } from '../assets/scripts/features/gameplay/runItems';
 
@@ -55,6 +56,12 @@ describe('calculateCollectionProgress', () => {
     const result = calculateCollectionProgress([5, 5, 5], [1]);
     expect(result.newLevels).toEqual([5]);
     expect(result.nextCount).toBe(2);
+  });
+
+  it('repairs gaps when a higher level proves intermediate cats were synthesized', () => {
+    expect(mergeCollectionLevels([1, 2, 3, 4, 5, 6, 7], [10])).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
   });
 });
 

@@ -1,7 +1,11 @@
 import { Node } from 'cc';
 import { Game2048 } from '../../core/Game2048';
 import type { BoardSnapshot, Direction, ItemKind, ItemState } from '../../core/types';
-import type { EconomyMutationResult, EconomyRepository } from '../../features/economy/economy';
+import {
+  localDate,
+  type EconomyMutationResult,
+  type EconomyRepository,
+} from '../../features/economy/economy';
 import type { HapticController } from '../../infrastructure/HapticController';
 import type { DailyTaskRepository } from '../../features/tasks/dailyTasks';
 import type { RunSessionStore, SavedRun, SavedRunMode } from '../../features/storage/runSession';
@@ -11,8 +15,9 @@ import {
   type ScorePayload,
 } from '../../features/leaderboard/leaderboard';
 import { shouldCompleteDailyChallenge, evolutionChallengeFor } from '../../features/gameplay/dailyChallenge';
-import { calculateCollectionProgress } from '../../features/gameplay/collectionProgress';
+import { calculateCollectionProgress, mergeCollectionLevels } from '../../features/gameplay/collectionProgress';
 import type { SharePurpose, ShareResult } from '../../infrastructure/ResultShareController';
+import type { RewardedVideoAdService } from '../../infrastructure/WechatRewardedVideoAd';
 import { RuntimeRandomSource } from '../../features/storage/runtime';
 import type { SaveDataV3 } from '../../features/storage/storage';
 import type { ArtRepository } from '../utils/ArtRepository';
@@ -60,6 +65,7 @@ export interface GameFlowDeps {
   readonly haptics: HapticController;
   readonly leaderboard: LeaderboardClient;
   readonly economy: EconomyRepository;
+  readonly rewardedVideoAd: RewardedVideoAdService;
   readonly tasks: DailyTaskRepository;
   readonly runSession: RunSessionStore;
   readonly host: GameFlowHost;
@@ -90,6 +96,8 @@ export class GameFlowController {
   private movesCount = 0;
   private mergesCount = 0;
   private hasTriggeredHighLevelLoad = false;
+  /** 本局已出现过的等级；不依赖可能被后台经济同步覆盖的全局存档。 */
+  private runDiscoveredLevels = new Set<number>();
   /** 移动动画进行中标记：用于区分「动画锁」与「弹窗锁」，只对前者缓冲输入。 */
   private moveAnimating = false;
   /** 动画期间缓冲的最后一次滑动方向（只保留最新一次）。 */
@@ -126,6 +134,7 @@ export class GameFlowController {
     this.movesCount = 0;
     this.mergesCount = 0;
     this.hasTriggeredHighLevelLoad = false;
+    this.runDiscoveredLevels = new Set();
     this.moveAnimating = false;
     this.bufferedDirection = null;
     this.registerBoardCats(this.game.start());
@@ -143,6 +152,7 @@ export class GameFlowController {
     this.newRecordThisRun = this.game.score > this.deps.host.getSave().highScore;
     this.movesCount = savedRun.moves ?? 0;
     this.mergesCount = savedRun.merges ?? 0;
+    this.runDiscoveredLevels = new Set();
     this.moveAnimating = false;
     this.bufferedDirection = null;
     this.registerBoardCats(this.game.board);
@@ -173,7 +183,7 @@ export class GameFlowController {
       onCollection: () => this.deps.actions.onCollection(),
       onSwipe: (direction) => { void this.performMove(direction); },
       onUseItem: (kind) => { void this.useItem(kind); },
-      canUseItem: (kind) => this.canUseItem(kind),
+      canUseItem: (kind) => this.canActivateItem(kind),
       inventoryCount: (kind) => this.inventoryCount(kind),
     });
     this.swipe = frame.swipe;
@@ -183,9 +193,13 @@ export class GameFlowController {
   }
 
   public canUseItem(kind: ItemKind): boolean {
+    return this.canActivateItem(kind) && this.deps.economy.hasItem(kind);
+  }
+
+  private canActivateItem(kind: ItemKind): boolean {
     // 结算完成后棋盘只读；救援弹窗结算进行中仍允许撤回/消除救援。
     if (this.game.status === 'game-over' && !this.gameOverSettlementInProgress) return false;
-    return this.game.items.canUse(kind) && this.deps.economy.hasItem(kind);
+    return this.game.items.canUse(kind);
   }
 
   public inventoryCount(kind: ItemKind): number {
@@ -265,11 +279,12 @@ export class GameFlowController {
 
   /** 统一道具使用入口 */
   public async useItem(kind: ItemKind): Promise<void> {
-    if (this.deps.host.isInputLocked() || !this.canUseItem(kind) || !this.boardView.root) return;
+    if (this.deps.host.isInputLocked() || !this.canActivateItem(kind) || !this.boardView.root) return;
 
-    // 扣库存期间锁住输入，避免网络请求未返回时重复发起道具操作。
+    // 广告播放、发奖和扣库存期间锁住输入，避免重复触发同一道具。
     this.deps.host.lockInput();
     try {
+      if (!await this.ensureItemAvailable(kind)) return;
       switch (kind) {
         case 'undo': await this.useUndoItem(); break;
         case 'spawn': await this.useSpawnItem(); break;
@@ -278,6 +293,44 @@ export class GameFlowController {
       }
     } finally {
       if (this.deps.host.isOnGameScreen() && this.boardView.root) this.deps.host.unlockInput();
+    }
+  }
+
+  private async ensureItemAvailable(kind: ItemKind): Promise<boolean> {
+    if (this.deps.economy.hasItem(kind)) return true;
+    if (!this.deps.economy.canGrantViaAd(kind, localDate())) {
+      this.deps.host.showNotice('今日广告获取次数已用完');
+      return false;
+    }
+
+    const adResult = await this.deps.rewardedVideoAd.show();
+    if (adResult !== 'completed') {
+      const text = adResult === 'skipped'
+        ? '完整观看广告后才能获得道具'
+        : adResult === 'unsupported'
+          ? '当前环境暂不支持激励视频'
+          : '广告加载失败，请稍后重试';
+      this.deps.host.showNotice(text);
+      return false;
+    }
+
+    try {
+      const reward = await this.deps.economy.grantViaAd(kind);
+      this.deps.host.applyEconomyResult(reward);
+      if (reward.ok) {
+        this.refreshItemViews();
+        return true;
+      }
+      this.deps.host.showNotice(reward.reason === 'daily-limit'
+        ? '今日广告获取次数已用完'
+        : reward.reason === 'holding-limit'
+          ? '道具数量已达上限'
+          : '道具发放失败，请稍后重试');
+      return false;
+    } catch (error) {
+      console.warn(`[Cat2048] Failed to grant ${kind} after rewarded video.`, error);
+      this.deps.host.showNotice('广告已完成，道具发放失败，请检查网络后重试');
+      return false;
     }
   }
 
@@ -550,7 +603,11 @@ export class GameFlowController {
         runId: this.currentRunId,
         score: this.game.score,
         highestLevel: highestLevelOfTiles(this.game.board.tiles),
-        discoveredLevels: this.deps.host.getSave().unlockedCatLevels,
+        // 同步可能在本局中途覆盖全局存档，结算时把本局发现和全局缓存合并上传。
+        discoveredLevels: mergeCollectionLevels(
+          this.deps.host.getSave().unlockedCatLevels,
+          Array.from(this.runDiscoveredLevels),
+        ),
       });
       reward = result.awardedCoins;
       this.deps.host.applyEconomyResult(result);
@@ -632,8 +689,12 @@ export class GameFlowController {
 
   private registerBoardCats(board: BoardSnapshot): void {
     const save = this.deps.host.getSave();
-    const progress = calculateCollectionProgress(
+    this.runDiscoveredLevels = new Set(mergeCollectionLevels(
+      Array.from(this.runDiscoveredLevels),
       board.tiles.map((tile) => tile.level),
+    ));
+    const progress = calculateCollectionProgress(
+      Array.from(this.runDiscoveredLevels),
       save.unlockedCatLevels,
     );
     if (progress.newLevels.length === 0) return;

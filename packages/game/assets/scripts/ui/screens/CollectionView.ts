@@ -1,8 +1,10 @@
 import {
   Color,
+  Label,
   Mask,
   Node,
   ScrollView,
+  UITransform,
 } from 'cc';
 import { GAME_CONFIG } from '../../core/config/gameConfig';
 import type { ArtRepository } from '../utils/ArtRepository';
@@ -60,6 +62,9 @@ export class CollectionView {
   private model: CollectionViewModel | null = null;
   private actions: CollectionActions | null = null;
   private layout: ReturnType<typeof collectionLayout> | null = null;
+  private progressLabel: Label | null = null;
+  private progressFill: Node | null = null;
+  private progressInnerWidth = 0;
 
   public constructor(private readonly art: ArtRepository, private readonly cosmetics: CosmeticRuntime) {}
 
@@ -102,6 +107,34 @@ export class CollectionView {
     this.renderGrid(parent, model, layout, actions);
   }
 
+  /** 经济快照更新后同步已打开图鉴，避免页面继续使用构建时的旧解锁数组。 */
+  public refreshUnlockState(levels: readonly number[]): void {
+    if (!this.model || !this.content) return;
+    const content = this.content;
+    this.model = { ...this.model, unlockedLevels: [...levels] };
+    const count = new Set(levels).size;
+    const total = GAME_CONFIG.cats.length;
+    if (this.progressLabel?.node.isValid) this.progressLabel.string = `已解锁 ${count}/${total}`;
+    if (this.progressFill?.isValid) {
+      const height = 42;
+      const ratio = Math.max(0, Math.min(1, count / total));
+      const fillWidth = Math.max(height - 8, this.progressInnerWidth * ratio);
+      this.progressFill.getComponent(UITransform)?.setContentSize(fillWidth, height - 8);
+      drawRounded(this.progressFill, fillWidth, height - 8, COLORS.teal, (height - 8) / 2);
+      this.progressFill.setPosition(-this.progressInnerWidth / 2 + fillWidth / 2, 0);
+    }
+    this.refreshCards(GAME_CONFIG.cats.map((cat) => cat.level));
+    // A remote snapshot can reveal high-level cats after this page was built.
+    // Warm the equipped skin before repainting once more so repaired cards do
+    // not remain as empty unlocked frames.
+    if (levels.some((level) => level >= 5)) {
+      void this.art.loadHighLevelAssets(this.cosmetics.state.catSkin).then(() => {
+        if (this.content !== content || !content.isValid) return;
+        this.refreshCards(GAME_CONFIG.cats.map((cat) => cat.level));
+      });
+    }
+  }
+
   private renderProgress(parent: Node, model: CollectionViewModel, centerY: number): void {
     const count = new Set(model.unlockedLevels).size;
     const total = GAME_CONFIG.cats.length;
@@ -121,6 +154,9 @@ export class CollectionView {
 
     const label = createLabel(`已解锁 ${count}/${total}`, 20, COLORS.white, width - 28, height - 4, 'display');
     progress.addChild(label.node);
+    this.progressLabel = label;
+    this.progressFill = fill;
+    this.progressInnerWidth = innerWidth;
     progress.setPosition(0, centerY);
     parent.addChild(progress);
   }
@@ -175,7 +211,7 @@ export class CollectionView {
     const model = this.model;
     const actions = this.actions;
     const layout = this.layout;
-    if (!content || !model || !actions || !layout) return;
+    if (!content || !content.isValid || !model || !actions || !layout) return;
     const unlocked = new Set(model.unlockedLevels);
     for (const level of new Set(levels)) {
       const cat = GAME_CONFIG.cats[level - 1];

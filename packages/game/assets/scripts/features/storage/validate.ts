@@ -106,6 +106,7 @@ function normalizeEconomy(value: unknown): EconomySaveData | null {
     },
     lastDailyClaimDate: candidate.lastDailyClaimDate as string | null,
     dailyStreak: candidate.dailyStreak,
+    dailyCounterDate: typeof candidate.dailyCounterDate === 'string' ? candidate.dailyCounterDate : null,
     settledRunIds: Array.from(new Set(settled as string[])),
     undoItems: normalizeItemCount(candidate.undoItems),
     spawnItems: normalizeItemCount(candidate.spawnItems),

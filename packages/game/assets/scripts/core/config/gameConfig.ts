@@ -15,6 +15,9 @@ export const GAME_CONFIG = {
     // 排行榜服务地址：接入新环境时只需改这里（或替换为环境配置）。
     leaderboardBaseUrl: 'https://hongshu.sale/wx_server',
   },
+  ads: {
+    rewardedVideoUnitId: 'adunit-048198168f7553ed',
+  },
   art: {
     logo: 'game/ui/common/logo/texture',
     homeBackground: 'game/ui/home/home_background/texture',

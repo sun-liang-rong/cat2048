@@ -16,6 +16,7 @@ import { GAME_CONFIG } from '../../core/config/gameConfig';
 import { HapticController } from '../../infrastructure/HapticController';
 import { ResultShareController } from '../../infrastructure/ResultShareController';
 import type { SharePurpose, ShareResult } from '../../infrastructure/ResultShareController';
+import type { RewardedVideoAdService } from '../../infrastructure/WechatRewardedVideoAd';
 import { StartupMetrics } from '../../infrastructure/StartupMetrics';
 import { runtimeStorage } from '../../features/storage/runtime';
 import {
@@ -50,6 +51,7 @@ import {
   reportCocosLoadingProgress,
 } from '../utils/cocosLoadingBridge';
 import { GamePreparingOverlay } from '../components/GamePreparingOverlay';
+import { mergeCollectionLevels } from '../../features/gameplay/collectionProgress';
 
 // ---- 平台抽象 ----
 
@@ -71,6 +73,7 @@ export interface HostServices {
   readonly leaderboard: LeaderboardClient;
   readonly haptics: HapticController;
   readonly resultShare: ResultShareController;
+  readonly rewardedVideoAd: RewardedVideoAdService;
   readonly audio: AudioController;
   // 视图
   readonly homeView: HomeView;
@@ -197,6 +200,7 @@ export class AppHost implements GameFlowHost {
       haptics: svc.haptics,
       leaderboard: svc.leaderboard,
       economy: svc.economy,
+      rewardedVideoAd: svc.rewardedVideoAd,
       tasks: svc.tasks,
       runSession: svc.runSession,
       host: this,
@@ -507,6 +511,7 @@ export class AppHost implements GameFlowHost {
     this.shareInProgress = false;
     this.economyPanels.resetOverlays();
     this.flow.teardown();
+    this.svc.rewardedVideoAd.destroy();
     if (this.screenRoot && this.screenRoot !== this.homeRoot) {
       stopTweens(this.screenRoot); this.screenRoot.destroy();
     }
@@ -639,13 +644,22 @@ export class AppHost implements GameFlowHost {
   }
 
   private applyEconomySnapshot(snapshot: EconomySnapshot): void {
-    this.economySnapshotValue = snapshot;
+    // Unlocks can be discovered during a run while a remote snapshot is in
+    // flight. They are monotonic, so never replace newer local levels with an
+    // older response; also repair any historical gaps (e.g. [1..7, 10]).
+    const unlockedCatLevels = mergeCollectionLevels(
+      this.saveValue?.unlockedCatLevels ?? [],
+      snapshot.unlockedCatLevels,
+    );
+    const mergedSnapshot = { ...snapshot, unlockedCatLevels };
+    this.economySnapshotValue = mergedSnapshot;
     this.saveValue = {
       ...runtimeStorage.load(),
-      unlockedCatLevels: [...snapshot.unlockedCatLevels],
+      unlockedCatLevels,
       economy: {
         coins: snapshot.coins, ownedItemIds: snapshot.ownedItemIds, equipped: snapshot.equipped,
         lastDailyClaimDate: snapshot.lastDailyClaimDate, dailyStreak: snapshot.dailyStreak,
+        dailyCounterDate: snapshot.dailyCounterDate,
         settledRunIds: snapshot.settledRunIds,
         undoItems: snapshot.undoItems, spawnItems: snapshot.spawnItems,
         shuffleItems: snapshot.shuffleItems, eraseItems: snapshot.eraseItems,
@@ -657,6 +671,9 @@ export class AppHost implements GameFlowHost {
     this.svc.cosmetics.setEquipped(this.saveValue.economy.equipped);
     if (this.currentScreen === 'home' && this.homeRoot?.isValid) {
       this.svc.homeView.refresh(this.homeViewModel());
+    }
+    if (this.currentScreen === 'collection') {
+      this.svc.collectionView.refreshUnlockState(unlockedCatLevels);
     }
   }
 

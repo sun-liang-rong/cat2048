@@ -68,6 +68,10 @@ export class EconomyRepository {
   public async bootstrap(playerId: string): Promise<EconomySnapshot> {
     return this.prisma.$transaction(async (tx) => {
       await this.ensureAccount(tx, playerId);
+      const account = await tx.playerEconomy.findUniqueOrThrow({ where: { playerId } });
+      // 新账号先完成一次性迁移，避免每日刷新导致 migrationVersion=0 的
+      // 本地经济数据被跳过；已迁移账号则在每天首次同步时补 1 个撤回。
+      if (account.migrationVersion !== 0) await this.ensureDailyFreeUndo(tx, playerId);
       return this.snapshot(tx, playerId);
     });
   }
@@ -78,13 +82,19 @@ export class EconomyRepository {
       const existingMigration = await tx.economyMigration.findUnique({
         where: { playerId_migrationVersion: { playerId, migrationVersion: input.migrationVersion } },
       });
-      if (existingMigration) return this.snapshot(tx, playerId);
+      if (existingMigration) {
+        await this.ensureDailyFreeUndo(tx, playerId);
+        return this.snapshot(tx, playerId);
+      }
 
       const economy = await tx.playerEconomy.findUniqueOrThrow({ where: { playerId } });
       // Migration is a one-time import. If any server-side mutation already
       // happened, importing client-owned items or levels would allow a free
       // replay of local state, so finalize the migration without importing it.
-      if (economy.migrationVersion !== 0) return this.snapshot(tx, playerId);
+      if (economy.migrationVersion !== 0) {
+        await this.ensureDailyFreeUndo(tx, playerId);
+        return this.snapshot(tx, playerId);
+      }
       if (economy.version !== 0) {
         await tx.playerEconomy.update({
           where: { playerId },
@@ -100,13 +110,16 @@ export class EconomyRepository {
             importedCollectionCount: 0,
           },
         });
+        await this.ensureDailyFreeUndo(tx, playerId);
         return this.snapshot(tx, playerId);
       }
       const fresh = true;
       const validOwned = Array.from(new Set(input.ownedItemIds.filter((id) => Boolean(findCosmetic(id)))));
-      const validLevels = Array.from(new Set(input.unlockedCatLevels.filter(
+      const importedLevels = Array.from(new Set(input.unlockedCatLevels.filter(
         (level) => level >= 1 && level <= MAX_COLLECTION_LEVEL,
       )));
+      const highestImportedLevel = Math.max(1, ...importedLevels);
+      const validLevels = Array.from({ length: highestImportedLevel }, (_, index) => index + 1);
 
       await tx.playerOwnedItem.createMany({
         data: [...DEFAULT_ITEM_IDS, ...validOwned].map((itemId) => ({ playerId, itemId })),
@@ -165,18 +178,20 @@ export class EconomyRepository {
           importedCollectionCount,
         },
       });
+      await this.ensureDailyFreeUndo(tx, playerId);
       return this.snapshot(tx, playerId);
     });
   }
 
   public async claimDaily(playerId: string, idempotencyKey: string): Promise<EconomyMutationResult> {
     return this.mutate(playerId, idempotencyKey, 'daily-claim', {}, async (tx) => {
-      const account = await tx.playerEconomy.findUniqueOrThrow({ where: { playerId } });
+      await this.ensureDailyFreeUndo(tx, playerId);
+      const refreshedAccount = await tx.playerEconomy.findUniqueOrThrow({ where: { playerId } });
       const currentDate = today();
-      if (account.lastDailyClaimDate === currentDate) {
+      if (refreshedAccount.lastDailyClaimDate === currentDate) {
         return { ok: false, awardedCoins: 0, reason: 'already-claimed' };
       }
-      const streak = isYesterday(account.lastDailyClaimDate, currentDate) ? account.dailyStreak + 1 : 1;
+      const streak = isYesterday(refreshedAccount.lastDailyClaimDate, currentDate) ? refreshedAccount.dailyStreak + 1 : 1;
       const awardedCoins = calculateDailyReward(streak - 1);
       const claimed = await tx.playerEconomy.updateMany({
         where: {
@@ -187,9 +202,6 @@ export class EconomyRepository {
           coins: { increment: awardedCoins },
           lastDailyClaimDate: currentDate,
           dailyStreak: streak,
-          dailyLoginClaimed: true,
-          undoItems: Math.min(ITEM_HOLDING_MAX.undo, account.undoItems + 2),
-          eraseItems: Math.min(ITEM_HOLDING_MAX.erase, account.eraseItems + 1),
           version: { increment: 1 },
         },
       });
@@ -211,13 +223,17 @@ export class EconomyRepository {
       if (duplicate) return { ok: false, awardedCoins: 0, reason: 'already-settled' };
       const awardedCoins = calculateRunReward(input.score, input.highestLevel);
       const safeHighestLevel = Math.max(1, Math.min(MAX_COLLECTION_LEVEL, Math.floor(input.highestLevel)));
-      const discovered = Array.from(new Set((input.discoveredLevels ?? []).filter(
+      const discovered = new Set((input.discoveredLevels ?? []).filter(
         (level) => level >= 1 && level <= safeHighestLevel,
-      )));
+      ));
+      // Reaching a level in 2048 necessarily means every lower level was
+      // synthesized first. Include that contiguous path so a stale client
+      // snapshot cannot leave gaps such as [1..7, 10].
+      for (let level = 1; level <= safeHighestLevel; level += 1) discovered.add(level);
       const existing = await tx.playerCollectionUnlock.findMany({ where: { playerId }, select: { level: true } });
       const previousCount = existing.length;
       await tx.playerCollectionUnlock.createMany({
-        data: discovered.map((level) => ({ playerId, level, source: 'run' })),
+        data: Array.from(discovered).map((level) => ({ playerId, level, source: 'run' })),
         skipDuplicates: true,
       });
       const nextCount = await tx.playerCollectionUnlock.count({ where: { playerId } });
@@ -293,6 +309,7 @@ export class EconomyRepository {
       const field = ITEM_FIELDS[kind];
       const adField = AD_FIELDS[kind];
       if (!field || !adField) return { ok: false, awardedCoins: 0, reason: 'invalid-item' };
+      await this.ensureDailyFreeUndo(tx, playerId);
       const account = await tx.playerEconomy.findUniqueOrThrow({ where: { playerId } });
       const currentDate = today();
       const adCount = account.dailyCounterDate === currentDate ? account[adField] : 0;
@@ -378,6 +395,25 @@ export class EconomyRepository {
     await client.playerCollectionUnlock.createMany({
       data: [{ playerId, level: 1, source: 'default' }],
       skipDuplicates: true,
+    });
+  }
+
+  /** 每天首次访问重置广告计数，并将撤回库存设为 1，绝不与昨日库存累加。 */
+  private async ensureDailyFreeUndo(client: DbClient, playerId: string): Promise<void> {
+    const account = await client.playerEconomy.findUniqueOrThrow({ where: { playerId } });
+    const currentDate = today();
+    if (account.dailyCounterDate === currentDate && account.undoItems <= 1) return;
+    await client.playerEconomy.update({
+      where: { playerId },
+      data: {
+        undoItems: 1,
+        dailyCounterDate: currentDate,
+        dailyAdUndo: 0,
+        dailyAdSpawn: 0,
+        dailyAdShuffle: 0,
+        dailyAdErase: 0,
+        version: { increment: 1 },
+      },
     });
   }
 
